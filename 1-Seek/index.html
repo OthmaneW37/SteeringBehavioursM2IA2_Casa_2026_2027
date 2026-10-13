@@ -7,17 +7,162 @@
     <link rel="stylesheet" href="style.css">
     <script src="libraries/p5.min.js"></script>
     <script src="vehicle.js"></script>
+    <script src="steering.js"></script>
+    <script src="follower.js"></script>
     <script src="population.js"></script>
-    <script src="mouseTarget.js"></script>
+    <script src="target.js"></script>
+    <script src="pointTarget.js"></script>
+    <script src="targetFuyante.js"></script>
+    <script src="targetGroup.js"></script>
+    <script src="targetControls.js"></script>
+    <script src="scenarios.js"></script>
+    <script src="menuToggle.js"></script>
+    <script src="gradientBackground.js"></script>
+    <script src="fmSynth.js"></script>
     <script src="sketch.js"></script>
   </head>
   <body>
     <header id="controls">
-      <label for="vehicle-count">Véhicules :</label>
-      <input id="vehicle-count" type="range" min="1" max="200" step="1" value="20">
-      <output id="vehicle-count-value" for="vehicle-count">20 / 200</output>
-      <span class="hint">Déplacez la souris dans la scène pour guider la cible rouge.</span>
+      <div class="menu-title">Seek <span>véhicules et cibles</span></div>
+
+      <details class="section" open>
+        <summary>Scénario</summary>
+        <div class="section-body">
+          <select id="scenario" aria-label="Scénario"></select>
+          <p id="scenario-description" class="hint"></p>
+          <div class="stats">
+            <span class="stat">Captures <output id="captures" aria-live="off">0</output></span>
+            <span class="stat">Cibles <output id="targets-count" aria-live="off">1</output></span>
+          </div>
+          <label for="debug-mode"><input id="debug-mode" type="checkbox"> Debug (touche d)</label>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary>Vaisseaux</summary>
+        <div class="section-body">
+          <span class="control">
+            <label for="vehicle-count">Nombre</label>
+            <input id="vehicle-count" type="range" min="1" max="200" step="1" value="20">
+            <output id="vehicle-count-value" for="vehicle-count">20 / 200</output>
+          </span>
+          <span class="control">
+            <label for="max-speed">Vitesse max</label>
+            <input id="max-speed" type="range" min="0" max="20" step="0.5" value="4">
+            <output id="max-speed-value" for="max-speed">4.0</output>
+          </span>
+          <span class="control">
+            <label for="max-force">Force max</label>
+            <input id="max-force" type="range" min="0" max="10" step="0.05" value="0.1">
+            <output id="max-force-value" for="max-force">0.10</output>
+          </span>
+          <span class="control">
+            <label for="flee-radius">Rayon de fuite</label>
+            <input id="flee-radius" type="range" min="50" max="600" step="10" value="300">
+            <output id="flee-radius-value" for="flee-radius">300</output>
+          </span>
+          <label for="flee-mode"><input id="flee-mode" type="checkbox"> Fuir la cible</label>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Cible</summary>
+        <div class="section-body">
+          <div class="field">
+            <label for="target-kind">Type</label>
+            <select id="target-kind"></select>
+          </div>
+          <div class="field">
+            <label for="target-motion">Mouvement</label>
+            <select id="target-motion"></select>
+          </div>
+          <span class="control">
+            <label for="target-diameter">Diamètre</label>
+            <input id="target-diameter" type="range" min="20" max="200" step="2" value="100">
+            <output id="target-diameter-value" for="target-diameter">100</output>
+          </span>
+          <label for="random-size"><input id="random-size" type="checkbox" checked> Taille aléatoire</label>
+          <span class="control">
+            <label for="target-speed">Vitesse</label>
+            <input id="target-speed" type="range" min="0" max="12" step="0.5" value="4">
+            <output id="target-speed-value" for="target-speed">4.0</output>
+          </span>
+          <span class="control">
+            <label for="target-force">Agilité</label>
+            <input id="target-force" type="range" min="0" max="5" step="0.05" value="0.3">
+            <output id="target-force-value" for="target-force">0.30</output>
+          </span>
+          <div class="subtitle">Cible fuyante</div>
+          <span class="control">
+            <label for="target-detection">Détection</label>
+            <input id="target-detection" type="range" min="50" max="300" step="10" value="200">
+            <output id="target-detection-value" for="target-detection">200</output>
+          </span>
+          <span class="control">
+            <label for="target-endurance">Endurance (s)</label>
+            <input id="target-endurance" type="range" min="0.5" max="10" step="0.5" value="2.5">
+            <output id="target-endurance-value" for="target-endurance">2.5</output>
+          </span>
+          <label for="reproduction"><input id="reproduction" type="checkbox"> Reproduction</label>
+          <span class="control">
+            <label for="target-split">Division après (s)</label>
+            <input id="target-split" type="range" min="1" max="10" step="0.5" value="3">
+            <output id="target-split-value" for="target-split">3.0</output>
+          </span>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Fond</summary>
+        <div class="section-body">
+          <span class="control">
+            <label for="gradient-speed">Vitesse</label>
+            <input id="gradient-speed" type="range" min="0" max="3" step="0.05" value="1">
+            <output id="gradient-speed-value" for="gradient-speed">1.00</output>
+          </span>
+          <span class="control">
+            <label for="gradient-rings">Anneaux</label>
+            <input id="gradient-rings" type="range" min="1" max="12" step="1" value="1">
+            <output id="gradient-rings-value" for="gradient-rings">1</output>
+          </span>
+          <span class="control">
+            <label for="gradient-reactivity">Réactivité</label>
+            <input id="gradient-reactivity" type="range" min="0" max="1" step="0.05" value="0.7">
+            <output id="gradient-reactivity-value" for="gradient-reactivity">0.70</output>
+          </span>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Son FM</summary>
+        <div class="section-body">
+          <label for="fm-sound"><input id="fm-sound" type="checkbox"> Activer le son</label>
+          <span class="control">
+            <label for="fm-volume">Volume</label>
+            <input id="fm-volume" type="range" min="0" max="1" step="0.01" value="0.5">
+            <output id="fm-volume-value" for="fm-volume">50 %</output>
+          </span>
+          <span class="control">
+            <label for="fm-ratio">Ratio</label>
+            <input id="fm-ratio" type="range" min="0.5" max="4" step="0.5" value="2">
+            <output id="fm-ratio-value" for="fm-ratio">2.0</output>
+          </span>
+          <span class="control">
+            <label for="fm-maxIndex">Indice max</label>
+            <input id="fm-maxIndex" type="range" min="0" max="8" step="0.5" value="4">
+            <output id="fm-maxIndex-value" for="fm-maxIndex">4.0</output>
+          </span>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Aide</summary>
+        <div class="section-body">
+          <p class="hint">Choisissez un scénario, ou réglez à la main les vaisseaux et la cible (le menu passe alors sur « Personnalisé »). La cible « Fuyante » fuit le vaisseau le plus proche quand il entre dans son cercle de détection, en accélérant jusqu’à 300 px, tant que son endurance le permet (barre au-dessus de la cible) ; avec « Reproduction », elle se divise en deux après plusieurs secondes de fuite. Touche « d » : cercle de détection (jaune, rouge si un vaisseau est dedans). « Son FM » : la hauteur suit la position horizontale de la première cible, la modulation sa position verticale ; le dégradé de fond suit le curseur. Un véhicule qui sort d’un bord réapparaît de l’autre côté.</p>
+        </div>
+      </details>
     </header>
+    <button id="menu-toggle" type="button" aria-controls="controls" aria-expanded="true">◀ Masquer</button>
     <main id="scene" aria-label="Simulation de véhicules poursuivant une cible"></main>
   </body>
 </html>

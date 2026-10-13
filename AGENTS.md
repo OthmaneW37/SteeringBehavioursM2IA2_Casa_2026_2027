@@ -36,12 +36,44 @@ S'appuyer sur l'article de Craig W. Reynolds, « Steering Behaviors for Autonomo
 - Pour le flocking, garder séparation, alignement et cohésion distincts avant de les combiner.
 - Limiter la perception au voisinage utile de l'agent et expliquer les paramètres qui influencent le résultat.
 
+## Scénarios et menu déroulant
+
+- Quand un exemple propose plusieurs variantes, ajouter un **menu déroulant de scénarios**. Le scénario 1 est le comportement de référence déjà en place : ne pas le casser. Les scénarios suivants s'ajoutent à côté.
+- Un scénario est un **préréglage (donnée)** dans un fichier dédié (`scenarios.js`), pas une branche de code dans `sketch.js`. Il part des réglages d'origine et ne liste que ce qui change, pour qu'aucun réglage ne reste d'un scénario à l'autre. Chaque scénario a un libellé et une description lisibles.
+- Changer de scénario règle les contrôles du menu comme le ferait l'utilisateur. Si l'utilisateur modifie ensuite un réglage à la main, le menu passe sur « Personnalisé ».
+- Les valeurs d'un scénario doivent rester dans les plages des curseurs ; un test le vérifie et applique chaque scénario à de vrais objets.
+
+## Entités à comportement propre (exemple : TargetFuyante)
+
+- Une entité qui a son propre comportement est une **sous-classe de `Vehicle`** (directement ou via une sous-classe existante) dans **son propre fichier**, nommé comme la classe avec une minuscule initiale (`TargetFuyante` dans `targetFuyante.js`). Elle **réutilise les méthodes héritées** (`flee()`, `seek()`, `applyForce()`) au lieu de les recopier.
+- Son comportement est un **état explicite** (calme, fuite, fatigue…). Quand le déclencheur disparaît, elle **reprend le comportement par défaut de sa classe parente** (par exemple celui de `Target`).
+- Les durées sont en **secondes**, jamais en nombre d'images : `update(dt)` reçoit le temps écoulé (`deltaTime` de p5, borné) et les tests fournissent des `dt` fixes.
+- La perception a un **rayon réglable par curseur**. En **mode debug** (touche `d`, case du menu), la zone de perception est dessinée : **jaune par défaut, rouge quand un autre agent est à l'intérieur**.
+- Une ressource limitée (endurance, énergie…) a un **réglage** et une **barre dessinée au-dessus de l'entité**, dont la couleur dépend de l'état. La géométrie et la couleur de la barre sont calculées par une méthode pure testable, séparée du dessin.
+- Une **reproduction** ou **division** d'entités passe par un gestionnaire (`TargetGroup`), pas par l'entité elle-même. Il impose un **plafond** du nombre d'entités et **recycle** celles qui sont retirées : la `Target` fournie lance un `setInterval` qui n'est jamais arrêté, donc créer des cibles sans fin accumulerait des minuteries.
+- Quand plusieurs cibles existent, chaque véhicule vise la **plus proche** ; une cible capturée disparaît tant qu'il en reste une autre.
+
+## Steering sur un écran torique
+
+- Si `Vehicle.edges()` fait réapparaître un agent de l'autre côté du canvas, l'écran est un **tore**. Calculer la direction vers une cible, ou pour la fuir, avec **l'écart le plus court** (`Steering.wrapDelta`, période = largeur + 2 × rayon), pas avec la différence brute. Sinon un agent qui fuit vers le bord se téléporte d'un côté à l'autre à chaque image.
+- Toute **fuite a une condition d'arrêt** : distance de sécurité, endurance ou rayon de fuite. Jamais de fuite infinie.
+- Pour `flee`, **inverser la vitesse désirée puis recalculer la force** (`steering = désirée − vitesse`, limitée à `maxForce`). Ne pas inverser la force finale de `seek` (certains `vehicle.js` le font) : utiliser `Steering.flee` (`steering.js`). Comme `vehicle.js` est protégé, la sous-classe redéfinit `flee` pour déléguer à ce module.
+
+## Interface et réglages
+
+- Chaque réglage est une entrée de `PARAMETERS` (`min`, `max`, `step`, `initial`, `decimals`) dans son module, avec validation (`RangeError` hors plage) et un curseur HTML qui a **les mêmes attributs**. Un test compare `index.html` aux modules.
+- Garder la logique dans des **modules testables** : `sketch.js` ne fait que câbler et n'est pas exécutable sous Node. Un test vérifie que chaque identifiant utilisé par `sketch.js` existe dans `index.html` et que les scripts sont chargés dans l'ordre des dépendances.
+- Le DOM, les contextes audio et canvas sont **injectés** dans les modules pour pouvoir les remplacer dans les tests.
+- Le menu des paramètres doit pouvoir être **masqué** (bouton), le canvas reprenant la place libérée.
+
 ## Tests automatisés obligatoires
 
 - Chaque nouvelle fonctionnalité ajoutée à un exemple doit avoir des tests unitaires couvrant ses règles essentielles et ses cas limites. Ajouter ou mettre à jour les tests dans le dossier de l'exemple concerné.
 - Vérifier au minimum les valeurs et effets des forces, leurs limites (`maxForce`), les cas proches/éloignés pertinents, et la composition avec les autres comportements concernés. Injecter ou fixer l'aléatoire pour rendre les tests reproductibles.
 - Repérer le lanceur de tests déjà utilisé par le dépôt ou l'exemple et exécuter la suite pertinente après les modifications. Si aucun lanceur adapté n'existe, ajouter une configuration légère et une commande reproductible à l'exemple; ne pas installer de moteur physique ou de dépendance inutile.
 - Corriger tout échec avant de présenter le travail comme terminé. Ne proposer ni demander à l'utilisateur de tester une fonctionnalité avant d'avoir exécuté les tests automatisés pertinents et confirmé leur réussite. Si les tests ne peuvent pas être exécutés, expliquer précisément le blocage et ne pas prétendre qu'ils sont passés.
+- Après avoir écrit les tests d'une règle, vérifier qu'ils **échouent quand on la casse volontairement** (inverser un signe, ignorer un rayon…) puis restaurer le code ; un test qui reste vert ne protège rien.
+- Les tests d'une entité couvrent aussi ses **états et transitions** (déclenchement, arrêt, épuisement, reprise), avec des `dt` fixes, et des **simulations courtes** vérifiant les invariants (valeurs finies, positions dans le canvas, plafond d'entités).
 
 ## Présentation d'une modification
 

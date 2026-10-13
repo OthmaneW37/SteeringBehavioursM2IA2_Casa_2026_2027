@@ -1,21 +1,156 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Sketch</title>
-
+    <title>Chasse aérienne — poursuite et évasion</title>
     <link rel="stylesheet" type="text/css" href="style.css">
-
     <script src="libraries/p5.min.js"></script>
-    <script src="libraries/p5.sound.min.js"></script>
+    <script src="libraries/webaudiox/webaudiox.js"></script>
     <script src="vehicle.js"></script>
+    <script src="steering.js"></script>
     <script src="target.js"></script>
-    <script src="bouncingBall.js"></script>
+    <script src="flare.js"></script>
+    <script src="spark.js"></script>
+    <script src="shockwave.js"></script>
+    <script src="callout.js"></script>
+    <script src="missile.js"></script>
+    <script src="fighterJet.js"></script>
+    <script src="avionRapide.js"></script>
+    <script src="airBattle.js"></script>
+    <script src="battleControls.js"></script>
+    <script src="scenarios.js"></script>
+    <script src="flightSounds.js"></script>
+    <script src="menuToggle.js"></script>
     <script src="sketch.js"></script>
   </head>
   <body>
-    <!-- Pas besoin de déclarer un canvas pour dessiner en P5.js -->
+    <button id="menu-toggle" type="button" aria-controls="controls" aria-expanded="true">✕ Masquer le menu</button>
+    <header id="controls">
+      <div class="controls-row">
+        <span class="group">Scénario</span>
+        <select id="scenario" aria-label="Scénario"></select>
+        <button id="pause" type="button">⏸ Pause (p)</button>
+        <button id="step" type="button" disabled>⏭ Pas</button>
+        <label for="debug-mode"><input id="debug-mode" type="checkbox"> Debug (touche d)</label>
+      </div>
+      <span id="scenario-description" class="hint"></span>
+      <div class="controls-row">
+        <span class="group">Compteurs</span>
+        <span class="control stat">Avions abattus : <output id="stat-kills" aria-live="off">0</output></span>
+        <span class="control stat">Missiles tirés : <output id="stat-shots" aria-live="off">0</output></span>
+        <span class="control stat">Leurres lâchés : <output id="stat-flares" aria-live="off">0</output></span>
+        <span class="control stat">Missiles leurrés : <output id="stat-decoyed" aria-live="off">0</output></span>
+        <span class="control stat">Missiles perdus : <output id="stat-expired" aria-live="off">0</output></span>
+        <span class="control stat">Avion : <output id="plane-state" aria-live="off">croisière</output></span>
+      </div>
+      <div class="controls-row">
+        <span class="group">Chasseurs</span>
+        <span class="control">
+          <label for="battle-fighterCount">Nombre :</label>
+          <input id="battle-fighterCount" type="range" min="1" max="8" step="1" value="3">
+          <output id="battle-fighterCount-value" for="battle-fighterCount">3</output>
+        </span>
+        <span class="control">
+          <label for="battle-fighterSpeed">Vitesse :</label>
+          <input id="battle-fighterSpeed" type="range" min="3" max="12" step="0.5" value="6.5">
+          <output id="battle-fighterSpeed-value" for="battle-fighterSpeed">6.5</output>
+        </span>
+        <label for="battle-afterburner"><input id="battle-afterburner" type="checkbox" checked> Post-combustion</label>
+        <label for="battle-missiles"><input id="battle-missiles" type="checkbox" checked> Tir de missiles</label>
+        <span class="control">
+          <label for="battle-ammo">Missiles :</label>
+          <input id="battle-ammo" type="range" min="0" max="8" step="1" value="4">
+          <output id="battle-ammo-value" for="battle-ammo">4</output>
+        </span>
+        <span class="control">
+          <label for="battle-lockRange">Portée de verrouillage :</label>
+          <input id="battle-lockRange" type="range" min="100" max="600" step="10" value="380">
+          <output id="battle-lockRange-value" for="battle-lockRange">380</output>
+        </span>
+        <span class="control">
+          <label for="battle-lockTime">Verrouillage (s) :</label>
+          <input id="battle-lockTime" type="range" min="0.2" max="3" step="0.1" value="0.8">
+          <output id="battle-lockTime-value" for="battle-lockTime">0.8</output>
+        </span>
+      </div>
+      <div class="controls-row">
+        <span class="group">Avion</span>
+        <label for="battle-planeControl">Pilote :</label>
+        <select id="battle-planeControl"></select>
+        <span class="control">
+          <label for="battle-planeSpeed">Vitesse :</label>
+          <input id="battle-planeSpeed" type="range" min="3" max="14" step="0.5" value="7">
+          <output id="battle-planeSpeed-value" for="battle-planeSpeed">7.0</output>
+        </span>
+        <span class="control">
+          <label for="battle-detection">Détection :</label>
+          <input id="battle-detection" type="range" min="100" max="500" step="10" value="240">
+          <output id="battle-detection-value" for="battle-detection">240</output>
+        </span>
+        <label for="battle-flares"><input id="battle-flares" type="checkbox" checked> Leurres</label>
+        <span class="control">
+          <label for="battle-flareStock">Leurres :</label>
+          <input id="battle-flareStock" type="range" min="0" max="20" step="1" value="6">
+          <output id="battle-flareStock-value" for="battle-flareStock">6</output>
+        </span>
+        <span class="control">
+          <label for="battle-flareTrigger">Déclenchement :</label>
+          <input id="battle-flareTrigger" type="range" min="100" max="400" step="10" value="260">
+          <output id="battle-flareTrigger-value" for="battle-flareTrigger">260</output>
+        </span>
+        <span class="control">
+          <label for="battle-flareLife">Durée des leurres (s) :</label>
+          <input id="battle-flareLife" type="range" min="1" max="8" step="0.5" value="3.5">
+          <output id="battle-flareLife-value" for="battle-flareLife">3.5</output>
+        </span>
+        <span class="control">
+          <label for="battle-flareHeat">Chaleur des leurres :</label>
+          <input id="battle-flareHeat" type="range" min="0.5" max="6" step="0.5" value="3">
+          <output id="battle-flareHeat-value" for="battle-flareHeat">3.0</output>
+        </span>
+      </div>
+      <div class="controls-row">
+        <span class="group">Missiles</span>
+        <span class="control">
+          <label for="battle-missileSpeed">Vitesse :</label>
+          <input id="battle-missileSpeed" type="range" min="6" max="20" step="0.5" value="13">
+          <output id="battle-missileSpeed-value" for="battle-missileSpeed">13.0</output>
+        </span>
+        <span class="control">
+          <label for="battle-missileAgility">Agilité :</label>
+          <input id="battle-missileAgility" type="range" min="0.1" max="3" step="0.05" value="0.9">
+          <output id="battle-missileAgility-value" for="battle-missileAgility">0.90</output>
+        </span>
+        <span class="control">
+          <label for="battle-missileFuel">Autonomie (s) :</label>
+          <input id="battle-missileFuel" type="range" min="1" max="10" step="0.5" value="5">
+          <output id="battle-missileFuel-value" for="battle-missileFuel">5.0</output>
+        </span>
+        <span class="control">
+          <label for="battle-seekerAngle">Cône du chercheur (°) :</label>
+          <input id="battle-seekerAngle" type="range" min="20" max="120" step="5" value="70">
+          <output id="battle-seekerAngle-value" for="battle-seekerAngle">70</output>
+        </span>
+        <span class="group">Simulation</span>
+        <span class="control">
+          <label for="battle-timeScale">Vitesse du temps :</label>
+          <input id="battle-timeScale" type="range" min="0.1" max="2" step="0.05" value="1">
+          <output id="battle-timeScale-value" for="battle-timeScale">1.00</output>
+        </span>
+      </div>
+      <div class="controls-row">
+        <span class="group">Sons</span>
+        <label for="sound"><input id="sound" type="checkbox"> Sons</label>
+        <span class="control">
+          <label for="sound-volume">Volume :</label>
+          <input id="sound-volume" type="range" min="0" max="1" step="0.01" value="0.6">
+          <output id="sound-volume-value" for="sound-volume">60 %</output>
+        </span>
+        <span class="control">Niveau : <output id="sound-level" aria-live="off">0 %</output></span>
+      </div>
+      <span class="hint">Les chasseurs poursuivent l'avion en visant son point d'interception. Ils verrouillent puis tirent des missiles à tête chercheuse ; l'avion se dégage et lâche des leurres plus chauds que lui, qui trompent les missiles. Touche « d » : cercles de détection (jaune, rouge si un chasseur est dedans), cônes de verrouillage et du chercheur. « p » : pause, bouton « Pas » : image par image. « Vitesse du temps » ralentit l'action pour tout bien voir. Les sons démarrent au clic sur « Sons ». Le canvas est un tore : ce qui sort d'un bord réapparaît de l'autre côté.</span>
+    </header>
+    <main id="scene" aria-label="Combat aérien"></main>
   </body>
 </html>
