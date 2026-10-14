@@ -6,7 +6,7 @@
 
 ## 1. Objectif
 
-Étendre la démonstration actuelle pour afficher de **1 à 200 véhicules**, tous pilotés par le comportement `seek()` existant et poursuivant la même cible contrôlée par la souris.
+Étendre la démonstration actuelle pour afficher de **1 à 200 véhicules**, tous pilotés par le comportement `seek()` existant et poursuivant la même cible autonome `Target`.
 
 Trois fonctionnalités sont demandées :
 
@@ -26,8 +26,8 @@ La règle de réapparition est une règle de gestion de la scène. Le steering r
 | Indication du nombre | `Véhicules : N / 200`, synchronisée avec la population réelle |
 | Vitesse et force | Valeurs existantes et identiques pour tous : `maxSpeed = 4`, `maxForce = 0.1` |
 | Apparence des véhicules | Triangle bleu, contour blanc, flèche de vitesse rouge, comme actuellement |
-| Cible | Disque rouge de **32 px de diamètre**, commun à tous les véhicules |
-| Critère d’arrivée | Distance entre le centre du véhicule et le centre de la cible **≤ 16 px** |
+| Cible | Instance autonome de `Target`, avec rayon et position variables |
+| Critère d’arrivée | Distance entre les centres **≤ `vehicle.r + target.r`** |
 | Réapparition sur la cible | Nouvelle position dans le canvas, vitesse et accélération nulles |
 | Réapparition au bord | Comportement exact de `edges()`, sans modifier vitesse ni accélération |
 
@@ -56,24 +56,30 @@ Utiliser un slider HTML natif ou celui créé par p5, avec une gestion de l’é
 - Un véhicule supprimé puis réajouté sera une nouvelle instance. Il n’est pas nécessaire de mettre en cache les instances supprimées.
 - Aucune collision ni séparation entre véhicules n’est demandée : ils peuvent se croiser ou se superposer.
 
+### Réglages de mouvement et d’ambiance
+
+Deux curseurs supplémentaires modifient immédiatement les paramètres communs des véhicules : `maxSpeed` de 0 à 20 et `maxForce` de 0 à 10. Une valeur choisie s’applique à toutes les instances présentes ; les instances ajoutées ensuite héritent des mêmes réglages. La vitesse déjà acquise est limitée à la nouvelle vitesse maximale.
+
+Le canvas affiche un dégradé radial arc-en-ciel lumineux et animé. Deux curseurs contrôlent sa vitesse et son intensité. Son centre suit progressivement la souris en conservant une oscillation autonome. La coordonnée X du centre règle un filtre passe-bas (120–8000 Hz), Y la hauteur (360–90 Hz). La souris X règle la fréquence du modulateur (1–10 Hz) et sa profondeur. Les couleurs, le rayon et la luminosité lisent ce même signal FM avec un analyseur Web Audio. Le bouton musique active l'ensemble de la synthèse ; à l'arrêt il coupe le mix, détruit toutes les sources et ferme le contexte. L'animation autonome du gradient continue sans FM lorsque la musique est coupée. Voir `audio.js` et les mesures de signal dans `tests/audio-browser.html`.
+
 Le même réglage doit fonctionner à la souris, au tactile et au clavier. Le slider aura un libellé associé ; le texte restera visible pendant le geste. Éviter une annonce vocale forcée pour chaque incrément pendant un glissement rapide.
 
 ## 4. Cible et interface
 
 Prévoir une petite barre de contrôle au-dessus du canvas, avec le libellé, le slider et le compteur. Le canvas occupe l’espace disponible en dessous : la barre ne doit pas cacher les véhicules ni intercepter la souris au milieu de la scène.
 
-La cible suit la souris **uniquement lorsqu’elle est à l’intérieur du canvas**. Pendant une manipulation du slider ou lorsque le pointeur quitte le canvas, elle conserve sa dernière position valide. Au démarrage, avant toute position valide de souris, elle est placée au centre du canvas.
+La cible est une instance autonome de `Target`. Elle conserve son déplacement, son changement de rayon et son changement de couleur fournis par `target.js` ; elle est mise à jour puis rebouclée avec `edges()` à chaque image.
 
-Pour respecter la règle locale selon laquelle toute entité visible dérive de `Vehicle`, représenter cette cible par une classe dédiée **`MouseTarget extends Vehicle`**, dans `mouseTarget.js` :
+Pour respecter la règle locale selon laquelle toute entité visible dérive de `Vehicle`, utiliser la classe existante **`Target extends Vehicle`**, dans `target.js` :
 
 - rendu du disque rouge ;
-- rayon visuel et seuil d’arrivée de 16 px ;
-- position fournie par le contrôleur à partir de l’entrée souris ;
-- aucun mouvement autonome, timer ou aléatoire.
+- rayon visuel variable fourni par `Target` ;
+- position et animation fournies par `Target.update()` ;
+- aucun contrôle souris requis.
 
-Le déplacement imposé de la cible représente une entrée utilisateur, pas un comportement de steering. Les véhicules reçoivent sa position vectorielle, par exemple via `target.pos`.
+La cible normale se déplace par steering vers une direction aléatoire, avec intégration héritée de Vehicle. Les véhicules reçoivent sa position vectorielle, par exemple via `target.pos`.
 
-**Ne pas instancier la classe `Target` actuelle :** son constructeur démarre un timer et son déplacement aléatoire ne correspond pas à la cible souris de cet exercice. Son fichier peut rester présent ; son chargement dans la page sera remplacé par celui de `mouseTarget.js`.
+La cible est autonome : sa position, son rayon et sa couleur évoluent selon le comportement déjà fourni par `Target`.
 
 ## 5. Réapparition au bord
 
@@ -103,12 +109,12 @@ Les comparaisons sont strictes : être exactement à `width + r` ou `-r` ne déc
 Un véhicule atteint la cible lorsque :
 
 ```text
-(pos.x - target.pos.x)² + (pos.y - target.pos.y)² ≤ 16²
+(pos.x - target.pos.x)² + (pos.y - target.pos.y)² ≤ (vehicle.r + target.r)²
 ```
 
-Le test porte sur le **centre du véhicule entrant dans le disque rouge**. Il ne s’agit ni d’une collision précise triangle/cercle, ni d’une distance égale à la somme des rayons. Cela rend le critère facile à comprendre et à tester, sans moteur physique.
+Le test utilise la somme des rayons du véhicule et de la cible. Il s’agit d’une collision simplifiée disque/disque, recalculée selon la taille actuelle de la cible.
 
-Contrôler l’arrivée avant le déplacement pour prendre en compte une souris venant de se placer sur un véhicule. Si le véhicule n’était pas déjà arrivé, contrôler de nouveau après `update()` et `edges()`. Cela couvre une entrée dans le disque pendant l’image. Avec une vitesse maximale de 4 px par image et ce rayon de 16 px, un test discret convient à l’exercice ; une collision balayée exacte reste hors périmètre.
+Contrôler l’arrivée avant le déplacement, puis de nouveau après `update()` et `edges()`. Le seuil est recalculé à chaque image à partir de `vehicle.r + target.r`, ce qui tient compte des changements de taille de `Target`. Une collision balayée exacte reste hors périmètre.
 
 ### Réinitialisation d’un véhicule
 
@@ -129,7 +135,7 @@ Cette téléportation doit rester dans une fonction de gestion de scène, distin
 Réutiliser la même règle de tirage pour l’initialisation, l’ajout par slider et la réapparition :
 
 - coordonnées dans le canvas ; préférer une marge `r` sur chaque bord quand la taille le permet ;
-- nouvelle position située à une distance **strictement supérieure à 20 px** de la cible : seuil d’arrivée de 16 px et marge de 4 px ;
+- nouvelle position située à une distance strictement supérieure à `target.r + vehicle.r + 4` de la cible ;
 - pas de contrainte d’écartement entre véhicules ;
 - au maximum **32 tentatives aléatoires**, puis choix déterministe du coin admissible le plus éloigné de la cible ;
 - si la marge `r` empêche une position valide dans un petit canvas, élargir la recherche à tout le canvas et à ses coins ;
@@ -137,7 +143,7 @@ Réutiliser la même règle de tirage pour l’initialisation, l’ajout par sli
 
 Cette dernière règle concerne les canvas exceptionnellement petits. Elle garantit que l’application continue à répondre, même si la géométrie demandée devient impossible.
 
-Un véhicule ne peut être réinitialisé **qu’une fois par image**. Le déplacement de la souris peut toutefois le recouvrir à nouveau à l’image suivante : il peut alors réapparaître une nouvelle fois, conformément au critère d’arrivée.
+Un véhicule ne peut être réinitialisé **qu’une fois par image**. Comme `Target` se déplace continuellement, il peut atteindre à nouveau la zone d’arrivée à une image ultérieure et réapparaître une nouvelle fois.
 
 ## 7. Workflow proposé
 
@@ -153,6 +159,18 @@ flowchart LR
     KEEP --> LABEL
     LABEL --> FRAME["Population visible au prochain rendu p5"]
 ```
+
+## 13. [DONE] Plusieurs cibles
+
+Le curseur `Cibles` règle en temps réel le nombre de cibles entre 1 et 30, avec 4 par défaut. Les collections normale et fuyante restent parallèles afin de préserver les instances lors d'un changement de scénario. Pour chaque véhicule, `SeekPopulation.nearestTarget()` sélectionne la cible la plus proche avant l'application de `seek()` et de la règle de réapparition. Chaque cible fuyante conserve toutefois son propre état de perception, de fuite et d'endurance.
+
+## 14. [DONE] Effets synthétiques WebAudioX
+
+`libraries/webaudiox.js` est la distribution officielle WebAudioX. `effectsAudio.js` utilise son générateur `getBufferFromJsfx()` pour créer les buffers en mémoire, puis les joue dans le même contexte audio que la musique. Chaque cible fuyante possède une source bouclée indépendante, arrêtée dès que son état quitte `fleeing`, accompagnée d'un sweep oscillant du grave vers l'aigu pendant la fuite. Une détection déclenche une alarme de 0,4 seconde, avec un cooldown d'une seconde par cible. Une collision qui provoque une réapparition déclenche une explosion de 0,7 seconde. L'API `playDecoyRelease()` est prévue pour le largage de leurres ; aucun événement de leurre n'est encore présent dans le projet G1.
+
+Deux curseurs indépendants règlent les gains des bus musique et effets, sans modifier les paramètres de synthèse ni interrompre les sources audio.
+
+La synchronisation des effets utilise les états actuels de toutes les cibles actives : démarrer une source par cible en fuite, y compris lors d'une activation audio tardive ; arrêter les sources à la sortie de fuite, à la suppression d'une cible ou au changement de scénario. L'alarme et le sweep sont propres au scénario 2. La validation comprend des tests des sources simultanées et des mesures RMS des buffers réellement générés par WebAudioX/jsfx.
 
 ```mermaid
 flowchart TD
@@ -180,7 +198,7 @@ En cas d’impossibilité de réapparition dans un canvas trop petit, la branche
 |---|---|
 | `sketch.js` | Remplacer le véhicule global implicite par un tableau explicitement déclaré ; initialiser la population ; gérer le slider et orchestrer les étapes de chaque image |
 | `population.js` | Fonctions de redimensionnement de la population, détection d’arrivée et tirage/réinitialisation ; aléatoire injectable pour les tests |
-| `mouseTarget.js` | Entité `MouseTarget extends Vehicle`, dédiée à la cible contrôlée par la souris |
+| `target.js` | Entité `Target extends Vehicle`, cible autonome de la scène |
 | `index.html` | Charger les nouveaux scripts dans l’ordre adapté et fournir les éléments de contrôle si l’interface n’est pas créée par p5 |
 | `style.css` | Disposer la barre de contrôle et le canvas, conserver des commandes lisibles et utilisables au tactile |
 | `tests/*.test.mjs` | Tests automatisés du comportement et des cas limites dans le dossier `1-Seek` |
@@ -214,8 +232,8 @@ Le redimensionnement de la fenêtre n’est pas une quatrième fonctionnalité d
 
 ### Cible
 
-- À une distance supérieure à 16 px, le véhicule continue son seek normal.
-- À exactement 16 px ou moins, il réapparaît selon les règles de tirage.
+- À une distance supérieure à `target.r + vehicle.r`, le véhicule continue son seek normal.
+- À cette distance ou moins, il réapparaît selon les règles de tirage.
 - Une arrivée avant le déplacement est détectée, de même qu’une arrivée après déplacement/rebouclage.
 - Une réapparition conserve l’instance et le nombre de véhicules ; la vitesse et l’accélération sont nulles.
 - La position tirée n’est pas immédiatement dans la zone d’arrivée, lorsque la géométrie le permet.
@@ -230,7 +248,7 @@ Le dépôt demande des tests pour chaque nouvelle fonctionnalité. Aucun lanceur
 node --test tests/*.test.mjs
 ```
 
-Cette commande est maintenant disponible. Les 9 tests automatisés passent ; le rendu p5, le slider jusqu’à 200 véhicules et le retour à 1 au clavier ont également été vérifiés dans le navigateur, sans erreur console.
+Cette commande est maintenant disponible. Les 8 tests automatisés passent ; le rendu p5, les curseurs, le fond animé et l'activation audio ont également été vérifiés dans le navigateur. Le seul ancien message console observé provenait d'une exécution précédente avant correction du passage de la cible à `seek()`.
 
 | Famille de tests | Cas essentiels |
 |---|---|
@@ -249,8 +267,51 @@ Les tests des règles de gestion doivent rester reproductibles. Les tests de loc
 
 ## 11. Hors périmètre et livrable actuel
 
-Ne sont pas inclus : flee, pursue, arrival, collisions entre véhicules, séparation/flocking, obstacles, cibles multiples ou autonomes, réglages individuels, trajectoires toroidales optimales et refonte du pas de temps.
+Restent hors périmètre : pursue, arrive, collisions entre véhicules, séparation/flocking, obstacles, cibles multiples simultanées, réglages individuels, trajectoires toroidales optimales et refonte du pas de temps. La fuite et les scénarios sont désormais inclus dans la section suivante.
 
 Cette proposition respecte les frontières de [l’architecture](../ARCHITECTURE.md) et les [consignes du dépôt](../AGENTS.md). Le modèle de steering reste celui discuté dans l’[analyse de `1-Seek`](ANALYSE.md) et dans l’article de Reynolds fourni au dépôt.
 
-**Historique :** cette spécification a d’abord été livrée seule, sans modification du code. Après approbation, les fonctionnalités ont été implémentées dans `sketch.js`, `population.js` et `mouseTarget.js`, avec adaptation de `index.html` et `style.css`, tests dans `tests/population.test.mjs` et documentation dans `README.md`. `vehicle.js` et `target.js` restent inchangés.
+**Historique :** cette spécification a d’abord été livrée seule, sans modification du code. Après approbation, les fonctionnalités ont été implémentées dans `sketch.js` et `population.js`, avec adaptation de `index.html` et `style.css`, tests dans `tests/population.test.mjs` et documentation dans `README.md`. `vehicle.js` reste inchangé ; l’évolution de Target vers un pilotage par steering est décrite ci-dessous.
+
+## 12. [DONE] Sélection de scénarios, cible fuyante et endurance
+
+Cette section précise le comportement actuel et complète les choix initiaux. La population démarre à 20 véhicules, réglable de 1 à 200 ; les réglages existants de vitesse, force, dégradé et musique sont conservés.
+
+### Scénario 1 — suivi et réapparition
+
+Conserver la cible autonome `Target` et le seek des véhicules. Le contact selon la somme des rayons provoque une réapparition aléatoire de la même instance, avec vitesse/accélération nulles, comme auparavant. La cible conserve ses changements de direction, rayon et couleur ; sa direction est désormais pilotée par `seek()` et son horloge locale remplace le timer qui imposait directement les vitesses.
+
+### Scénario 2 — fuite
+
+Créer `TargetFutante extends Target` dans `targetFutante.js` (nom demandé), avec héritage indirect de Vehicle. Ne modifier aucun `vehicle.js` et réutiliser la méthode héritée `super.flee(threat.pos)`.
+
+| Paramètre | Défaut | Curseur |
+| --- | --- | --- |
+| Rayon de déclenchement | 200 px | 50–500 px |
+| Distance de sécurité | 300 px | 100–800 px, toujours supérieure à la détection |
+| Durée maximale | 2,5 s | 0,5–10 s |
+| Multiplicateur de vitesse max | 2 | Fixe |
+| Multiplicateur de force max | 4 | Fixe |
+
+La détection mesure la distance entre centres, seuil inclus. Choisir le véhicule le plus proche. Pendant la fuite, rechercher le plus proche parmi tous les prédateurs ; ne pas interrompre dès qu'il dépasse le cercle de 200 px. La sortie intervient lorsque la distance minimale atteint 300 px (ou le réglage courant), lorsque les prédateurs disparaissent, ou à l'expiration de la durée maximale.
+
+Restaurer exactement les limites normales à la sortie. En cas d'épuisement, conserver un état explicite empêchant un nouveau déclenchement avant que tous les prédateurs soient hors de la distance de sécurité. Ensuite restaurer l'endurance et autoriser une nouvelle détection.
+
+Dans tous les états normaux ou épuisés, utiliser le comportement de Target par défaut. Dans l'état de fuite, remplacer son steering normal par le flee hérité, en intégrant une seule fois la locomotion. Le changement de scénario réinitialise la fuite, l'endurance et la menace, sans recréer les véhicules. Seule la cible du scénario actif est actualisée.
+
+### Rendu et debug
+
+Afficher la barre d'endurance au-dessus de la cible dans le scénario 2 : pleine en état normal, décroissante pendant la fuite, vide après épuisement. La touche D et la case Debug sont synchronisées ; les frappes dans les contrôles ne basculent pas le debug. Le cercle de détection est visible uniquement en debug : jaune sans prédateur à portée, rouge si au moins un se trouve dans le rayon. Les vecteurs de vitesse suivent le même mode debug via une sous-classe dédiée.
+
+### Tests et validation
+
+`tests/scenarios.test.mjs` couvre héritage, valeurs par défaut, seuil inclusif, choix de menace, boosting, appel de la méthode héritée, intégration unique, distances entre détection et sortie, durée exacte, endurance, épuisement/réarmement, paramètres en direct, rendu debug, transitions, réapparition dans les deux scénarios et sélection multi-cibles. Les tests existants de population et d'audio sont conservés. **25 tests réussis**, complétés par validation avec le vrai p5.js dans Chrome, y compris les seuils après intégration flottante et le redimensionnement sur petit écran.
+
+```mermaid
+stateDiagram-v2
+  [*] --> Normal
+  Normal --> Fuite : prédateur le plus proche dans le rayon
+  Fuite --> Normal : tous les prédateurs hors distance de sécurité
+  Fuite --> Epuisee : durée maximale atteinte
+  Epuisee --> Normal : tous les prédateurs hors distance de sécurité
+```

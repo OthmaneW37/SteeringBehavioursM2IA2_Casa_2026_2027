@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="fr"><meta charset="utf-8"><title>Validation audio Seek</title>
+<script src="../audio.js"></script>
+<body><h1>Validation du vrai signal Web Audio</h1>
+<button id="run">Exécuter les tests audio</button><pre id="results">En attente.</pre>
+<script>
+const results = document.getElementById('results');
+const check = (condition, message) => {
+  if (!condition) throw new Error(message);
+  results.textContent += '\nOK — ' + message;
+};
+const rms = data => Math.sqrt(data.reduce((sum, value) => sum + value * value, 0) / data.length);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function render(cutoff, pitch = 180, fmRate = 3, mute = false) {
+  const context = new OfflineAudioContext(1, 44100, 44100);
+  const audio = new PsychedelicAudio();
+  audio.build(context);
+  audio.filter.frequency.value = cutoff;
+  audio.carrier.frequency.value = pitch;
+  audio.harmony.frequency.value = pitch * 1.5;
+  audio.modulator.frequency.value = fmRate;
+  if (mute) audio.silence(0.5);
+  const buffer = await context.startRendering();
+  return buffer.getChannelData(0);
+}
+document.getElementById('run').addEventListener('click', async () => {
+  const button = document.getElementById('run');
+  button.disabled = true;
+  results.textContent = 'Tests en cours…';
+  const audio = new PsychedelicAudio();
+  try {
+    // Activation depuis ce clic pour respecter les règles d'autoplay.
+    await audio.start();
+    await wait(150);
+    const samples = new Float32Array(audio.outputAnalyser.fftSize);
+    audio.outputAnalyser.getFloatTimeDomainData(samples);
+    check(rms(samples) > 0.001, 'Activation : un signal audio est réellement présent');
+    const modulation = [];
+    for (let i = 0; i < 4; i++) {
+      modulation.push(audio.modulation());
+      await wait(60);
+    }
+    check(Math.max(...modulation) - Math.min(...modulation) > 0.1,
+      'Couleurs : le signal FM mesuré varie réellement dans le temps');
+    const oldContext = audio.context;
+    const oldAnalyser = audio.outputAnalyser;
+    await audio.stop();
+    check(oldContext.state === 'closed', 'Arrêt : le contexte est fermé');
+    await wait(100);
+    oldAnalyser.getFloatTimeDomainData(samples);
+    check(!audio.running && audio.nodes.length === 0 && audio.context === null,
+      'Arrêt : aucun graphe ni source conservés');
+    await audio.start();
+    check(audio.context !== oldContext && audio.context.state === 'running', 'Redémarrage : nouveau contexte sans ancienne nappe');
+    await audio.stop();
+    const muted = await render(8000, 180, 3, true);
+    const before = rms(muted.slice(4410, 17640));
+    const after = rms(muted.slice(26460));
+    check(before > 0.001 && after < 0.000001, `Mix complet : RMS actif ${before.toFixed(6)}, coupé ${after.toFixed(6)}`);
+    const dark = rms((await render(120)).slice(22050));
+    const bright = rms((await render(8000)).slice(22050));
+    check(bright > dark * 1.5, `Filtre audible : RMS cutoff 120 Hz ${dark.toFixed(5)}, 8000 Hz ${bright.toFixed(5)}`);
+    const low = await render(8000, 90);
+    const high = await render(8000, 360);
+    const crossings = data => {
+      let count = 0;
+      for (let i = 22051; i < data.length; i++) if (data[i - 1] <= 0 && data[i] > 0) count++;
+      return count;
+    };
+    check(crossings(high) > crossings(low) * 2, 'Pitch : fréquence du signal nettement différente entre haut et bas');
+    const slow = await render(8000, 180, 1);
+    const fast = await render(8000, 180, 10);
+    check(rms(slow.map((v, i) => v - fast[i])) > 0.001, 'FM : signaux différents à 1 Hz et 10 Hz');
+    results.textContent += '\nTERMINÉ — Tous les tests Web Audio passent.';
+  } catch (error) {
+    results.textContent += '\nÉCHEC — ' + error.message;
+  } finally {
+    await audio.stop();
+    button.disabled = false;
+  }
+});
+</script></body></html>

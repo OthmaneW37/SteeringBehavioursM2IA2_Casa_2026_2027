@@ -96,8 +96,6 @@ class Vehicle {
     let force = p5.Vector.sub(pointSurLeCercle, this.pos);
     // On met la force à maxForce
     force.setMag(this.maxForce);
-    // on applique la force
-
 
     pop();
 

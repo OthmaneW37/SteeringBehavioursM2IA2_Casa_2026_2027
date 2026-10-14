@@ -78,3 +78,14 @@ S'appuyer sur l'article de Craig W. Reynolds, « Steering Behaviors for Autonomo
 ## Présentation d'une modification
 
 Indiquer les fichiers créés et modifiés, le comportement ajouté et la commande de tests exécutée avec son résultat. Confirmer que les fichiers `vehicle.js` sont restés inchangés, sauf accord préalable explicite de l'utilisateur.
+
+## Scénarios, perception et endurance
+
+- Toute entité graphique du monde simulé est un `Vehicle` ou une sous-classe, même initialement immobile. Son mouvement autonome utilise des steering behaviors, `applyForce()` et la locomotion héritée. Le fond, les contrôles DOM et les diagnostics sont du rendu ou de l'interface, pas des entités du monde.
+- Une nouvelle cible spécialisée possède son propre fichier et peut étendre `Target` si cette classe hérite déjà de `Vehicle`. Réutiliser les méthodes héritées, notamment `super.flee(threat.pos)`, lorsque leur contrat convient ; ne pas recopier leurs formules dans le sketch. La protection de `vehicle.js` reste applicable.
+- Le contrôleur sélectionne le scénario et fournit véhicules et temps écoulé. L'entité porte sa perception, son état normal/fuite/épuisement, ses limites temporaires et son endurance.
+- Distinguer rayon de déclenchement et distance de sécurité. Pendant une fuite, mesurer les distances réelles au-delà du rayon initial : être hors du cercle de détection ne suffit pas à atteindre la distance de sortie.
+- À la sortie ou à l'épuisement, restaurer exactement les limites normales. Après épuisement, ne pas réarmer à l'image suivante : prévoir une condition explicite de retour en sécurité. Une transition de scénario réinitialise la fuite sans recréer la population.
+- Ne pas créer de timer permanent par entité pour modifier directement sa vitesse. Utiliser le temps écoulé et des forces de steering ; les scénarios inactifs doivent pouvoir être suspendus proprement.
+- Le debug affiche les données de perception sans recalculer les forces. Synchroniser touche D et case à cocher, sans intercepter les frappes dans les contrôles.
+- Tester les seuils inclusifs, le prédateur le plus proche, la poursuite de la fuite entre détection et sortie, la durée exacte, l'endurance, la restauration des limites et le réarmement. Compléter les tests par une validation du vrai p5.js dans le navigateur.

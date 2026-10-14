@@ -20,6 +20,9 @@ function setup() {
   let snake = new Snake(width / 2, height / 2, 30, 30, 'lime');
   snakes.push(snake);
 
+  let snake2 = new Snake(width / 2, height / 2, 20, 20, 'lightblue');
+  snakes.push(snake2);
+
   // La cible, ce sera la position de la souris
   target = createVector(random(width), random(height));
 
@@ -29,7 +32,7 @@ function setup() {
   // parameters are : text, x, y, fontSize, options. 
   // sampleFactor : 0.01 = gros points, 0.1 = petits points
   // ca représente la densité des points
-  points = font.textToPoints('Hello!', 350, 250, 305, { sampleFactor: 0.03 });
+  points = font.textToPoints('Casablanca', 10, 250, 305, { sampleFactor: 0.03 });
 
   // on cree des vehicules, autant que de points
   creerVehicules(points.length);

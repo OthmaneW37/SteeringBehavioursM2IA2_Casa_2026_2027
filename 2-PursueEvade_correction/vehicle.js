@@ -7,7 +7,7 @@ class Vehicle {
     // accélération du véhicule
     this.acc = createVector(0, 0);
     // vitesse maximale du véhicule
-    this.maxSpeed = 10;
+    this.maxSpeed = 5;
     // force maximale appliquée au véhicule
     this.maxForce = 0.25;
     // rayon du véhicule
