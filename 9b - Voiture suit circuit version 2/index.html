@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuroévolution - Reconstruction</title>
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Bibliothèques -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+
+    <!-- Scripts du Projet -->
+    <script src="js/globals.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/NeuralNetwork.js"></script>
+    <script src="js/Ray.js"></script>
+    <script src="js/Track.js"></script>
+    <script src="js/Car.js"></script>
+    <script src="js/Genetic.js"></script>
+    <script src="js/main.js"></script>
+</head>
+
+<body>
+    <div id="ui">
+        <h1>Neuroévolution Racing</h1>
+        <div class="control-group">
+            <label for="speedSlider">Vitesse Max : <span id="speedVal">6</span></label>
+            <input type="range" id="speedSlider" min="2" max="20" value="6" step="1">
+        </div>
+        <div class="control-group">
+            <label for="diffSlider">Complexité Circuit : <span id="diffVal">10</span></label>
+            <input type="range" id="diffSlider" min="1" max="50" value="10" step="1">
+        </div>
+        <div class="control-group">
+            <label for="widthSlider">Largeur Piste : <span id="widthVal">100</span></label>
+            <input type="range" id="widthSlider" min="35" max="150" value="100" step="5">
+        </div>
+        <p class="legend">Vert = Leader | Lignes Vertes = Checkpoints | Jaune = Capteurs</p>
+    </div>
+    <div id="canvas-container"></div>
+</body>
+
+
+</html>

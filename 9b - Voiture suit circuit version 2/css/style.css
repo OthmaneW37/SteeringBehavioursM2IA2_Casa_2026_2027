@@ -1,0 +1,109 @@
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* Empêche le scroll sur mobile/desktop */
+    background-color: #0b0e14;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+#canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: radial-gradient(circle at center, #1a1f2c 0%, #0b0e14 100%);
+    box-shadow: none;
+    border: none;
+}
+
+#ui {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 190px;
+    background-color: rgba(15, 23, 42, 0.1);
+    /* Ultra-transparent par défaut */
+    backdrop-filter: blur(1px);
+    border: 1px solid rgba(255, 255, 255, 0.02);
+    border-radius: 10px;
+    padding: 10px;
+    color: rgba(203, 213, 225, 0.1);
+    /* Presque invisible */
+    box-shadow: none;
+    z-index: 1000;
+    transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#ui:hover {
+    background-color: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(20px);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: rgba(203, 213, 225, 1);
+    transform: translateY(-2px);
+    width: 240px;
+    padding: 15px;
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.7);
+}
+
+#ui h1 {
+    display: none;
+    /* Cache le titre pour gagner de la place */
+}
+
+.control-group {
+    margin-bottom: 12px;
+}
+
+.control-group:last-child {
+    margin-bottom: 0;
+}
+
+.legend {
+    display: none;
+    /* Cache la légende encombrante */
+}
+
+label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: #64748b;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+input[type="range"] {
+    width: 100%;
+    height: 6px;
+    background: #334155;
+    border-radius: 3px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    background: #38bdf8;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+
+.val {
+    float: right;
+    color: #38bdf8;
+    font-weight: 700;
+}
+
+canvas {
+    display: block;
+}
