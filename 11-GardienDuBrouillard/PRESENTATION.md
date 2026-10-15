@@ -1,0 +1,66 @@
+# Présenter le projet en 10 minutes
+
+## Avant de commencer
+
+1. Lancer le serveur dans ce dossier : `python -m http.server`, puis ouvrir `http://localhost:8000`.
+2. Faire **Ctrl + F5** une fois, pour être sûr d'avoir la dernière version des fichiers.
+3. Garder la fenêtre d'aide (« Comment ça marche ? ») pour la fin ou pour les questions.
+
+## Déroulé conseillé
+
+### 1. L'idée, en une phrase (1 min)
+
+« Le boss n'est pas programmé à la main. Il a un petit réseau de neurones : 8 informations entrent
+(distance, angle, fatigue du joueur…), 3 décisions sortent (avancer ou reculer, attaquer, esquiver).
+Il a appris à se battre par sélection naturelle. »
+
+### 2. Jouer 1 minute (mode ⚔️ Combattre)
+
+- Montrer le télégraphe : le cône rouge se remplit pendant 0,6 s, puis la roulade (Espace) au bon moment.
+- Frapper pendant la récupération du boss.
+- Si possible, montrer la phase enragée à 30 % de vie (aura rouge, boss plus rapide).
+- Appuyer sur **G** : on voit le « cerveau » en direct. Les barres d'entrées et de sorties bougent, et le
+  trait blanc marque le seuil de 0,6 au-delà duquel le boss attaque ou esquive. On voit aussi le cercle de
+  détection (rouge quand on est dedans) et les rayons vers les murs.
+
+### 3. Avant / après (mode 🎬 Démonstration, 2 min)
+
+« À gauche, un boss avec un cerveau au hasard. À droite, le champion. Même adversaire, même graine : seul le
+cerveau change. » Laisser tourner 2 ou 3 manches et montrer le score.
+
+### 4. Comment il apprend (mode 🧬 Entraîner, 3 min)
+
+- Lancer l'entraînement. Expliquer : 50 boss, 2 combats chacun contre un joueur robot, une note, les meilleurs
+  ont des enfants mutés.
+- Courbe du haut : le champion. Il ne change que s'il est battu à un examen de 30 combats ; la courbe ne
+  fait que monter.
+- Courbe du bas : la note moyenne, lissée. Elle monte en dents de scie, car le hasard des combats compte.
+- Montrer que tout est sauvegardé (message « ✔ Sauvegardé automatiquement ») et le bouton « Exporter ».
+
+### 5. La preuve chiffrée (mode 📊 Comparer, 1 min)
+
+Lancer les 50 combats (quelques secondes). Lire la phrase de conclusion. Résultat de référence avec les
+réglages par défaut :
+- **boss écrit à la main** : environ 30 % de victoires ;
+- **boss entraîné** : 64 % pour le boss fourni, autour de 60 à 70 % pour un champion entraîné dans la page.
+
+### 6. Ce que le projet montre (1 min)
+
+- Les **steering behaviors** de Reynolds : `arrive` pour approcher sans foncer, `flee` pour reculer, `evade`
+  pour esquiver, `wander` pour errer quand le joueur est loin, plus le confinement contre les murs.
+- La **neuroévolution** : pas de rétropropagation, seulement sélection et mutation.
+- Les pièges rencontrés et corrigés :
+  - un joueur robot trop faible : le boss gagnait 100 % en attaquant sans arrêt ;
+  - une stratégie passive : les boss n'attaquaient plus du tout, et tous les combats finissaient en match nul ;
+  - un « meilleur » boss souvent chanceux, d'où l'examen sur 30 combats et la comparaison sur 50 combats neufs.
+- 44 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+  échoue.
+
+## Questions probables
+
+- **Pourquoi un joueur robot et pas un humain pour l'entraînement ?** Pour comparer 50 boss, il faut que tous
+  affrontent exactement le même adversaire : le robot est reproductible.
+- **Pourquoi pas 100 % de victoires ?** C'est voulu : un boss qui gagne toujours aurait appris à battre un
+  adversaire trop faible. On vise un équilibre, autour de 50 %.
+- **Combien de générations faut-il ?** Le gros du progrès se fait dans les 10 à 100 premières. Au-delà, la
+  comparaison sur 50 combats montre que le gain est faible.
