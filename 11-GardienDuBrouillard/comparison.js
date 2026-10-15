@@ -33,6 +33,7 @@ class Comparison {
             bossController: contender.makeController(),
             maxTime: s.maxFightTime,
             detectRadius: s.detectRadius,
+            estus: s.estusCharges,
             seed: seed
         });
     }
@@ -79,7 +80,12 @@ class Comparison {
             avgWinDuration: avg(wins, x => x.duration),
             avgDamageDealt: avg(r, x => x.damageToPlayer),
             avgDamageTaken: avg(r, x => x.damageToBoss),
-            avgWhiffs: avg(r, x => x.bossWhiffs)
+            avgWhiffs: avg(r, x => x.bossWhiffs),
+            avgAttacks: avg(r, x => x.bossAttacks || 0),
+            avgCharges: avg(r, x => x.bossCharges || 0),
+            avgBreaths: avg(r, x => x.bossBreaths || 0),
+            avgDrinks: avg(r, x => x.drinks || 0),
+            avgMistDamage: avg(r, x => x.mistDamage || 0)
         };
     }
 

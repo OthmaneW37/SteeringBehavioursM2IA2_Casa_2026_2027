@@ -7,9 +7,10 @@ const Settings = {
         mutationRate: { min: 0, max: 0.5, step: 0.01, initial: 0.1, decimals: 2, label: "Taux de mutation" },
         fightsPerBoss: { min: 1, max: 4, step: 1, initial: 2, decimals: 0, label: "Combats par boss" },
         elites: { min: 0, max: 5, step: 1, initial: 1, decimals: 0, label: "Élites conservées" },
-        dodgeProbability: { min: 0, max: 1, step: 0.05, initial: 0.55, decimals: 2, label: "Esquive du joueur scripté" },
+        dodgeProbability: { min: 0, max: 1, step: 0.05, initial: 0.4, decimals: 2, label: "Esquive du joueur scripté" },
         attackInterval: { min: 0.4, max: 2, step: 0.1, initial: 0.9, decimals: 1, label: "Intervalle d'attaque du scripté (s)" },
         detectRadius: { min: 150, max: 600, step: 10, initial: 350, decimals: 0, label: "Rayon de détection du boss" },
+        estusCharges: { min: 0, max: 5, step: 1, initial: 2, decimals: 0, label: "Fioles d'Estus du chevalier" },
         maxFightTime: { min: 20, max: 120, step: 5, initial: 90, decimals: 0, label: "Durée max d'un combat (s)" },
         trainingBudget: { min: 500, max: 30000, step: 500, initial: 6000, decimals: 0, label: "Pas de simulation par image" }
     },

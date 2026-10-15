@@ -5,40 +5,42 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Le Gardien du Brouillard</title>
-    <link rel="stylesheet" type="text/css" href="style.css?v=5">
+    <link rel="stylesheet" type="text/css" href="style.css?v=8">
 
     <!-- p5.js en local (comme les autres exemples) -->
     <script src="libraries/p5.min.js"></script>
 
     <!-- Une dépendance avant ce qui l'utilise ; sketch.js en dernier -->
-    <script src="vehicle.js?v=5"></script>
-    <script src="steering.js?v=5"></script>
-    <script src="combat.js?v=5"></script>
-    <script src="arena.js?v=5"></script>
-    <script src="NeuralNetwork.js?v=5"></script>
-    <script src="campfire.js?v=5"></script>
-    <script src="player.js?v=5"></script>
-    <script src="boss.js?v=5"></script>
-    <script src="bossBrain.js?v=5"></script>
-    <script src="handBoss.js?v=5"></script>
-    <script src="scriptedPlayer.js?v=5"></script>
-    <script src="humanController.js?v=5"></script>
-    <script src="fight.js?v=5"></script>
-    <script src="fitness.js?v=5"></script>
-    <script src="genetic.js?v=5"></script>
-    <script src="training.js?v=5"></script>
-    <script src="trainingStore.js?v=5"></script>
-    <script src="comparison.js?v=5"></script>
-    <script src="demo.js?v=5"></script>
-    <script src="settings.js?v=5"></script>
-    <script src="scenarios.js?v=5"></script>
-    <script src="pretrainedBoss.js?v=5"></script>
-    <script src="fitnessChart.js?v=5"></script>
-    <script src="debugPanel.js?v=5"></script>
-    <script src="hud.js?v=5"></script>
-    <script src="camera.js?v=5"></script>
-    <script src="menuToggle.js?v=5"></script>
-    <script src="sketch.js?v=5"></script>
+    <script src="vehicle.js?v=8"></script>
+    <script src="steering.js?v=8"></script>
+    <script src="combat.js?v=8"></script>
+    <script src="arena.js?v=8"></script>
+    <script src="NeuralNetwork.js?v=8"></script>
+    <script src="campfire.js?v=8"></script>
+    <script src="mistPatch.js?v=8"></script>
+    <script src="bloodstain.js?v=8"></script>
+    <script src="player.js?v=8"></script>
+    <script src="boss.js?v=8"></script>
+    <script src="bossBrain.js?v=8"></script>
+    <script src="handBoss.js?v=8"></script>
+    <script src="scriptedPlayer.js?v=8"></script>
+    <script src="humanController.js?v=8"></script>
+    <script src="fight.js?v=8"></script>
+    <script src="fitness.js?v=8"></script>
+    <script src="genetic.js?v=8"></script>
+    <script src="training.js?v=8"></script>
+    <script src="trainingStore.js?v=8"></script>
+    <script src="comparison.js?v=8"></script>
+    <script src="demo.js?v=8"></script>
+    <script src="settings.js?v=8"></script>
+    <script src="scenarios.js?v=8"></script>
+    <script src="pretrainedBoss.js?v=8"></script>
+    <script src="fitnessChart.js?v=8"></script>
+    <script src="debugPanel.js?v=8"></script>
+    <script src="hud.js?v=8"></script>
+    <script src="camera.js?v=8"></script>
+    <script src="menuToggle.js?v=8"></script>
+    <script src="sketch.js?v=8"></script>
 </head>
 
 <body>
@@ -61,7 +63,8 @@
 
         <section id="combatSection">
             <h2>Combattre le boss</h2>
-            <p class="hint">Vous êtes le chevalier. Esquivez quand le cône rouge se remplit, puis frappez pendant que le boss récupère.</p>
+            <p class="hint">Vous êtes le chevalier. Roulez quand le cône ou la ligne rouge se remplit, sortez des nappes de
+                brume vertes, frappez pendant que le boss récupère, et buvez vos fioles quand vous êtes à l'abri.</p>
             <label for="opponentSelect">Adversaire</label>
             <select id="opponentSelect">
                 <option value="champion" selected>Champion de votre entraînement</option>
@@ -74,7 +77,8 @@
             </div>
             <p class="hint keys">
                 <b>ZQSD / WASD / flèches</b> se déplacer · <b>J</b> attaque légère · <b>K</b> attaque lourde ·
-                <b>Espace</b> roulade (invulnérable 0,3 s) · <b>L / Tab</b> verrouiller la cible · <b>G</b> debug
+                <b>Espace</b> roulade (invulnérable 0,3 s) · <b>E</b> boire une fiole d'Estus · <b>L / Tab</b> verrouiller
+                la cible · <b>G</b> debug
             </p>
             <p id="bossInfo" class="hint"></p>
         </section>
@@ -139,8 +143,8 @@
                 <input type="range" id="elites" min="0" max="5" step="1" value="1">
             </div>
             <div class="control">
-                <label for="dodgeProbability">Esquive du joueur robot : <span id="dodgeProbabilityVal">0.55</span></label>
-                <input type="range" id="dodgeProbability" min="0" max="1" step="0.05" value="0.55">
+                <label for="dodgeProbability">Bonne réaction du joueur robot : <span id="dodgeProbabilityVal">0.40</span></label>
+                <input type="range" id="dodgeProbability" min="0" max="1" step="0.05" value="0.4">
             </div>
             <div class="control">
                 <label for="attackInterval">Intervalle d'attaque du joueur robot (s) : <span id="attackIntervalVal">0.9</span></label>
@@ -149,6 +153,10 @@
             <div class="control">
                 <label for="detectRadius">Rayon de détection du boss : <span id="detectRadiusVal">350</span></label>
                 <input type="range" id="detectRadius" min="150" max="600" step="10" value="350">
+            </div>
+            <div class="control">
+                <label for="estusCharges">Fioles d'Estus du chevalier : <span id="estusChargesVal">2</span></label>
+                <input type="range" id="estusCharges" min="0" max="5" step="1" value="2">
             </div>
             <div class="control">
                 <label for="maxFightTime">Durée max d'un combat (s) : <span id="maxFightTimeVal">90</span></label>
@@ -171,18 +179,35 @@
             pendant 0,6 s. Si vous roulez à ce moment-là, vous êtes invulnérable 0,3 s et le coup passe à travers vous.
             Après sa frappe, le boss reste vulnérable une seconde : c'est le moment d'attaquer. Attaquer et rouler
             fatiguent (barre verte) ; sans endurance, on ne peut plus rien faire. À 30 % de vie, le boss s'enrage :
-            il devient plus rapide et attaque plus souvent. Si vous mourez, vous repartez du feu de camp.</p>
+            il devient plus rapide et attaque plus souvent. Si vous mourez, vous repartez du feu de camp, et une
+            <b>tache de sang</b> marque l'endroit et la cause de votre mort.</p>
+        <h3>Les techniques du boss</h3>
+        <ul>
+            <li><b>Hallebarde</b> : un cône rouge se remplit pendant 0,6 s, puis il frappe devant lui.</li>
+            <li><b>Ruée</b> : une ligne rouge montre où il va charger. Il vise l'endroit où vous <i>serez</i>
+                (il prédit votre mouvement), puis fige sa visée juste avant de foncer : changez de direction au dernier moment.</li>
+            <li><b>Souffle du brouillard</b> : un cercle vert se remplit là où vous allez passer ; une nappe de brume y
+                reste 6 s. Dedans, on brûle et on avance plus lentement.</li>
+        </ul>
+        <h3>Les fioles d'Estus (touche E)</h3>
+        <p>Chaque fiole rend 25 points de vie, mais boire prend une seconde pendant laquelle on avance à peine. Si le boss
+            vous touche avant que le soin n'agisse, la gorgée est perdue. Buvez loin de lui, ou pendant qu'il récupère.
+            Le joueur robot boit aussi : le boss peut donc <i>apprendre</i> à punir ce moment.</p>
         <h3>Le « cerveau » du boss</h3>
-        <p>Le boss n'a pas de règles écrites à la main. Il a un petit <b>réseau de neurones</b> : 8 informations
-            entrent (distance au joueur, angle, vitesse et fatigue du joueur, sa propre vie, son temps de recharge,
-            la distance aux murs) et 3 décisions sortent : <b>avancer ou reculer</b>, <b>attaquer</b>, <b>esquiver</b>.
-            Ce sont les comportements de Reynolds qui exécutent ces décisions : <i>arrive</i> pour s'approcher sans foncer,
-            <i>flee</i> pour reculer, <i>evade</i> pour esquiver, <i>wander</i> pour errer quand le joueur est loin.</p>
+        <p>Le boss n'a pas de règles écrites à la main. Il a un petit <b>réseau de neurones</b> : 12 informations
+            entrent (distance au joueur, angle, vitesse, fatigue et vie du joueur, s'il est vulnérable, la vie du boss,
+            le temps de recharge de chaque technique, la distance aux murs) et 5 décisions sortent : <b>avancer ou
+            reculer</b>, <b>hallebarde</b>, <b>esquiver</b>, <b>ruée</b>, <b>souffle</b>. Ce sont les comportements de
+            Reynolds qui exécutent ces décisions : <i>arrive</i> pour s'approcher sans foncer, <i>flee</i> pour reculer,
+            <i>evade</i> pour esquiver, <i>seek</i> vers un point prédit pour la ruée (comme <i>pursue</i>), <i>wander</i>
+            pour errer quand le joueur est loin. Le joueur robot, lui, contourne les nappes de brume avec un comportement
+            d'<i>évitement d'obstacles</i>.</p>
         <h3>Comment il apprend : la sélection naturelle</h3>
         <ol>
             <li>On crée 50 boss avec des cerveaux au hasard : ils font n'importe quoi.</li>
-            <li>Chacun affronte 2 fois un <b>joueur robot</b> qui joue toujours de la même façon (il esquive 55 % des
-                attaques, punit le boss quand il récupère, se repose quand il est fatigué).</li>
+            <li>Chacun affronte 2 fois un <b>joueur robot</b> qui joue toujours de la même façon : il réagit bien à 40 % des
+                techniques du boss, punit le boss quand il récupère, se repose quand il est fatigué, contourne la brume et
+                boit ses 2 fioles quand il est à l'abri.</li>
             <li>Chaque boss reçoit une <b>note</b> : dégâts infligés, moins dégâts reçus, plus un bonus s'il gagne,
                 moins une pénalité pour chaque coup dans le vide.</li>
             <li>Les mieux notés ont des « enfants » : des copies avec de petites modifications au hasard
@@ -209,7 +234,8 @@
             <dt>Fitness (note)</dt><dd>Le score d'un boss après ses combats.</dd>
             <dt>Mutation</dt><dd>Une petite modification au hasard des poids d'un enfant.</dd>
             <dt>Champion</dt><dd>Le boss qui a le mieux réussi l'examen de 30 combats.</dd>
-            <dt>Steering behaviors</dt><dd>Les règles de déplacement de Craig Reynolds (1999) : chercher, arriver, fuir, esquiver, errer.</dd>
+            <dt>Steering behaviors</dt><dd>Les règles de déplacement de Craig Reynolds (1999) : chercher, arriver, fuir, esquiver, errer, éviter les obstacles.</dd>
+            <dt>Prédiction</dt><dd>Viser l'endroit où sera la cible (position + vitesse × temps), comme le comportement <i>pursue</i>.</dd>
         </dl>
         <form method="dialog"><button id="helpClose" class="primary">Compris, on y va !</button></form>
     </dialog>

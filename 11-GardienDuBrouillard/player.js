@@ -3,11 +3,16 @@
 // Séparation de Reynolds :
 //   - sélection de l'action : une « intention » vient d'un contrôleur (clavier ou joueur scripté) ;
 //   - steering : `seek` vers la direction choisie, `arrive` quand le point visé touche un mur
-//     (on ralentit près des bords), `evade` pendant la roulade ;
+//     (on ralentit près des bords), `evade` pendant la roulade, évitement des nappes de brume
+//     (`avoidZones`, seulement si l'intention le demande : le joueur robot l'utilise, pas l'humain) ;
 //   - locomotion : applyForce puis update(), hérités de Vehicle.
 //
-// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll }.
+// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, avoid }.
 // Verrouillé sur le boss, move.y = −1 avance vers lui, +1 recule, move.x tourne autour de lui.
+//
+// Fioles d'Estus : boire prend 1 s pendant laquelle on marche très lentement ; le soin arrive à 0,6 s.
+// Un coup reçu avant le soin interrompt la gorgée et la fiole est perdue : le boss peut apprendre à punir.
+// Dans une nappe de brume, on avance moins vite (sauf pendant la roulade) et on brûle.
 class Player extends Vehicle {
     constructor(x, y) {
         super(x, y, null);
@@ -30,7 +35,11 @@ class Player extends Vehicle {
         this.facing = -Math.PI / 4;
         this.locked = false;
         this.hurtTimer = 0;   // effet visuel après un coup reçu
-        this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0 };
+        this.estus = P.estus.charges;  // fioles restantes
+        this.drink = null;    // gorgée en cours : { t, healed }
+        this.inMist = false;  // dans une nappe de brume (réglé par le combat à chaque pas)
+        this.zones = null;    // nappes de brume du combat (pour l'évitement)
+        this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0 };
     }
 
     // Fuite et évitement de Reynolds (steering.js) à la place des versions de vehicle.js
@@ -58,7 +67,13 @@ class Player extends Vehicle {
     }
 
     canAct() {
-        return this.alive && this.action === null && this.roll === null;
+        return this.alive && this.action === null && this.roll === null && this.drink === null;
+    }
+
+    /** Vulnérable : en train de boire, ou en récupération après une attaque (le boss peut punir). */
+    get vulnerable() {
+        if (this.drink) return true;
+        return this.action !== null && Combat.phase(this.action.spec, this.action.t) === 'recovery';
     }
 
     /** Dépense d'endurance : refusée si elle ne suffit pas ; la régénération repart après un délai. */
@@ -92,6 +107,11 @@ class Player extends Vehicle {
             return;
         }
         this.locked = !!intent.lock && boss && boss.alive;
+        // Vitesse de marche : lente en buvant, réduite dans la brume (la roulade garde sa vitesse)
+        if (!this.roll) {
+            this.maxSpeed = (this.drink ? Combat.PLAYER.estus.maxSpeed : this.baseSpeed) *
+                (this.inMist ? Combat.BOSS.breath.slow : 1);
+        }
 
         if (this.roll) {
             // Roulade : `evade` loin du boss, avec les limites de vitesse de la roulade
@@ -110,6 +130,8 @@ class Player extends Vehicle {
                 if (safe.clamped) this.applyForce(this.arrive(createVector(safe.x, safe.y)));
                 else this.applyForce(this.seek(target));
             }
+            // Évitement des nappes de brume (joueur robot)
+            if (intent.avoid && this.zones) this.applyForce(Steering.avoidZones(this, this.zones).mult(1.5));
         }
 
         // Orientation : vers le boss si verrouillé, sinon dans le sens de la marche
@@ -122,6 +144,10 @@ class Player extends Vehicle {
             this.maxSpeed = Combat.PLAYER.roll.maxSpeed;
             this.maxForce = Combat.PLAYER.roll.maxForce;
             this.stats.rolls++;
+        } else if (intent.drink && this.estus > 0) {
+            this.estus--;
+            this.drink = { t: 0, healed: false };
+            this.stats.drinks++;
         } else if (intent.heavy && this.spend(Combat.ATTACKS.heavy.stamina)) {
             this.startAttack('heavy', boss);
         } else if (intent.light && this.spend(Combat.ATTACKS.light.stamina)) {
@@ -140,7 +166,20 @@ class Player extends Vehicle {
         if (this.invulnerable || !this.alive) return false;
         this.hp = Math.max(0, this.hp - damage);
         this.hurtTimer = 0.25;
+        // Touché avant que le soin n'agisse : la gorgée est perdue
+        if (this.drink && !this.drink.healed) {
+            this.drink = null;
+            this.stats.drinksInterrupted++;
+        }
         return true;
+    }
+
+    /** Brûlure de la brume (dégâts continus, ignorent l'invulnérabilité). Retourne les dégâts appliqués. */
+    burn(damage) {
+        if (!this.alive) return 0;
+        const applied = Math.min(this.hp, damage);
+        this.hp -= applied;
+        return applied;
     }
 
     /** Avance les minuteries de `dt` secondes. */
@@ -149,6 +188,15 @@ class Player extends Vehicle {
         if (this.action) {
             this.action.t += dt;
             if (Combat.phase(this.action.spec, this.action.t) === 'done') this.action = null;
+        }
+        if (this.drink) {
+            const E = Combat.PLAYER.estus;
+            this.drink.t += dt;
+            if (!this.drink.healed && this.drink.t >= E.healAt) {
+                this.hp = Math.min(this.maxHp, this.hp + E.heal);
+                this.drink.healed = true;
+            }
+            if (this.drink.t >= E.duration) this.drink = null;
         }
         if (this.roll) {
             this.roll.t += dt;
@@ -177,6 +225,8 @@ class Player extends Vehicle {
         this.stamina = this.maxStamina;
         this.action = null;
         this.roll = null;
+        this.drink = null;
+        this.estus = Combat.PLAYER.estus.charges;
         this.maxSpeed = this.baseSpeed;
         this.maxForce = this.baseForce;
         this.path = [];
@@ -191,6 +241,13 @@ class Player extends Vehicle {
                 fill(170, 190, 255, 20 + i * 12);
                 circle(p.x, p.y, this.r * 1.6);
             });
+        }
+        // Gorgée d'Estus : lueur dorée qui grandit jusqu'au soin
+        if (this.drink) {
+            noStroke();
+            const k = Math.min(1, this.drink.t / Combat.PLAYER.estus.healAt);
+            fill(255, 190, 70, 40 + 80 * k);
+            circle(this.pos.x, this.pos.y, this.r * 2 + 18 * k);
         }
         translate(this.pos.x, this.pos.y);
         rotate(this.facing);
@@ -211,6 +268,14 @@ class Player extends Vehicle {
         circle(3, 0, this.r * 1.1);
         stroke(20);
         line(7, -3, 7, 3);
+        // Fiole portée à la bouche pendant la gorgée
+        if (this.drink) {
+            noStroke();
+            fill(255, 170, 50);
+            ellipse(this.r * 0.6, 4, 7, 10);
+            fill(255, 230, 160);
+            ellipse(this.r * 0.6, 3, 3, 4);
+        }
         // Épée : position selon la phase de l'attaque
         let swing = 0.5;
         let len = 26;

@@ -1,8 +1,14 @@
 // Boss écrit à la main : une machine à états simple, pour la comparaison avec le boss appris.
+// Il dispose des mêmes techniques que le boss appris, utilisées par des règles fixes.
 //
-//   attente : garde ses distances (arrive à ATTENTE_DISTANCE) tant que l'attaque n'est pas prête ;
+// Techniques à distance (vérifiées dans tous les états, dès que le boss est libre) :
+//   le joueur boit une fiole et le souffle est prêt     → souffle sur lui ;
+//   le joueur est loin (> RUEE_DISTANCE), ruée prête    → ruée ;
+//   le joueur est à moyenne distance, souffle prêt      → souffle.
+// États :
+//   attente : garde ses distances (arrive à ATTENTE_DISTANCE) tant que la hallebarde n'est pas prête ;
 //   attaque : s'approche (arrive à distance d'attaque) et frappe dès que le joueur est à portée ;
-//   recul   : s'éloigne (flee) pendant RECUL_DUREE secondes après chaque attaque, puis attente.
+//   recul   : s'éloigne (flee) pendant RECUL_DUREE secondes après chaque technique, puis attente.
 //
 // Même interface que NeuralBossController : decide(boss, player, arena) → décision.
 class HandBossController {
@@ -14,32 +20,50 @@ class HandBossController {
         this.lastOutputs = null;
     }
 
+    static decision(mode, speed, o = {}) {
+        return Object.assign({ mode: mode, speed: speed, attack: false, dodge: false, charge: false, breath: false, order: ['charge', 'breath', 'attack'] }, o);
+    }
+
+    /** Technique à distance à lancer maintenant, ou null. */
+    static rangedTechnique(boss, player, dist) {
+        const H = HandBossController;
+        if (player.drink && boss.breathCooldown <= 0) return 'breath';
+        if (dist > H.RUEE_DISTANCE && boss.chargeCooldown <= 0) return 'charge';
+        if (dist > H.SOUFFLE_MIN && dist < H.SOUFFLE_MAX && boss.breathCooldown <= 0) return 'breath';
+        return null;
+    }
+
     decide(boss, player, arena) {
+        const H = HandBossController;
         const dist = Math.hypot(player.pos.x - boss.pos.x, player.pos.y - boss.pos.y);
         const reach = Combat.ATTACKS.boss.reach + player.r;
-        let decision = { mode: 'hold', speed: 0.5, attack: false, dodge: false };
+
+        // Une technique vient de commencer : on recule ensuite
+        if (boss.isAttacking() && this.state !== 'recul') {
+            this.state = 'recul';
+            this.timer = H.RECUL_DUREE;
+        }
+        if (this.state !== 'recul' && !boss.isAttacking()) {
+            const ranged = H.rangedTechnique(boss, player, dist);
+            if (ranged) return H.decision('hold', 0.4, { [ranged]: true, order: [ranged] });
+        }
 
         if (this.state === 'attente') {
             if (boss.cooldown <= 0) this.state = 'attaque';
-            else decision = { mode: dist > HandBossController.ATTENTE_DISTANCE ? 'approach' : 'retreat', speed: 0.4, attack: false, dodge: false };
+            else return H.decision(dist > H.ATTENTE_DISTANCE ? 'approach' : 'retreat', 0.4);
         }
         if (this.state === 'attaque') {
-            if (boss.isAttacking()) {
-                this.state = 'recul';
-                this.timer = HandBossController.RECUL_DUREE;
-            } else {
-                decision = { mode: 'approach', speed: 1, attack: dist <= reach * 0.9, dodge: false };
-            }
+            return H.decision('approach', 1, { attack: dist <= reach * 0.9, order: ['attack'] });
         }
-        if (this.state === 'recul') {
-            // Le recul commence quand l'attaque est finie (le boss est planté pendant l'attaque)
-            if (!boss.isAttacking()) this.timer -= Combat.DT;
-            decision = { mode: 'retreat', speed: 0.8, attack: false, dodge: false };
-            if (this.timer <= 0) this.state = 'attente';
-        }
-        return decision;
+        // Recul : il commence quand la technique est finie (le boss est planté pendant ses techniques)
+        if (!boss.isAttacking()) this.timer -= Combat.DT;
+        if (this.timer <= 0) this.state = 'attente';
+        return H.decision('retreat', 0.8);
     }
 }
 
 HandBossController.ATTENTE_DISTANCE = 160;
 HandBossController.RECUL_DUREE = 0.8;
+HandBossController.RUEE_DISTANCE = 230;
+HandBossController.SOUFFLE_MIN = 200;
+HandBossController.SOUFFLE_MAX = 330;

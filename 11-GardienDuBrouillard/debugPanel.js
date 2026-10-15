@@ -22,7 +22,10 @@ const DebugPanel = {
     state(boss, controller) {
         let s = boss.wandering ? "errance (wander)" : "décision du contrôleur";
         if (boss.dodge) s = "esquive (evade)";
-        if (boss.action) s = "attaque : " + ({ windup: "préparation", active: "frappe", recovery: "récupération" })[Combat.phase(boss.action.spec, boss.action.t)];
+        if (boss.action) {
+            const what = { boss: "hallebarde", charge: "ruée", breath: "souffle" }[boss.action.kind] || boss.action.kind;
+            s = what + " : " + ({ windup: "préparation", active: "frappe", recovery: "récupération" })[Combat.phase(boss.action.spec, boss.action.t)];
+        }
         if (controller && controller.state) s += " · état « " + controller.state + " »";
         return s + (boss.enraged ? " · ENRAGÉ" : "");
     },
@@ -42,7 +45,8 @@ const DebugPanel = {
         fill(200);
         textSize(10);
         text(DebugPanel.state(boss, controller), 10, 24);
-        text("attente " + boss.cooldown.toFixed(2) + " s · vitesse " + boss.vel.mag().toFixed(2), 10, 36);
+        text("attentes : hallebarde " + boss.cooldown.toFixed(1) + " s · ruée " + boss.chargeCooldown.toFixed(1) +
+            " s · souffle " + boss.breathCooldown.toFixed(1) + " s", 10, 36);
         let yy = 54;
         let group = null;
         for (const r of rows) {

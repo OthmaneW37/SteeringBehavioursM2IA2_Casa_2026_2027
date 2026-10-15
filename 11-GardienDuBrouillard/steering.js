@@ -8,6 +8,7 @@
 //   désirée pointe vers l'intérieur ; force = désirée − vitesse, limitée à maxForce. Nulle ailleurs.
 // - keepDistancePoint : point situé à `distance` de la cible, du côté de l'agent ; le boss y fait
 //   `arrive` pour garder sa distance d'attaque.
+// - avoidZones : évitement des nappes de brume (obstacle avoidance) ; distanceToSegment : outil géométrique.
 //
 // Toutes ces fonctions retournent une force ; aucune ne déplace l'entité.
 const Steering = (() => {
@@ -54,5 +55,40 @@ const Steering = (() => {
     return p5.Vector.add(target, away);
   }
 
-  return { flee, predict, evade, stayInside, keepDistancePoint };
+  /**
+   * Évitement des nappes de brume (Reynolds, « obstacle avoidance », comme dans 6-ObstacleAvoidance) :
+   * on regarde un point `lookAhead` px devant l'agent. Si ce point ou l'agent est dans une nappe
+   * (agrandie d'une marge), la vitesse désirée part du centre de la nappe la plus proche vers ce point ;
+   * force = désirée − vitesse, limitée à maxForce. Nulle si rien n'est sur le chemin.
+   */
+  function avoidZones(agent, zones, lookAhead = 70, margin = 12) {
+    if (!zones || zones.length === 0) return createVector(0, 0);
+    const dir = agent.vel.mag() > 0.05 ? agent.vel.copy().normalize() : createVector(0, 0);
+    const ahead = p5.Vector.add(agent.pos, dir.mult(lookAhead));
+    let closest = null, best = Infinity;
+    for (const z of zones) {
+      const r = z.radius + agent.r + margin;
+      const dAhead = Math.hypot(ahead.x - z.pos.x, ahead.y - z.pos.y);
+      const dHere = Math.hypot(agent.pos.x - z.pos.x, agent.pos.y - z.pos.y);
+      const d = Math.min(dAhead, dHere);
+      if (d < r && d < best) { best = d; closest = z; }
+    }
+    if (!closest) return createVector(0, 0);
+    const desired = p5.Vector.sub(ahead, closest.pos);
+    if (desired.mag() === 0) desired.x = 1;
+    desired.setMag(agent.maxSpeed);
+    const force = p5.Vector.sub(desired, agent.vel);
+    force.limit(agent.maxForce);
+    return force;
+  }
+
+  /** Distance du point p au segment [a, b] (ligne de charge du boss). */
+  function distanceToSegment(p, a, b) {
+    const abx = b.x - a.x, aby = b.y - a.y;
+    const len2 = abx * abx + aby * aby;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2)) : 0;
+    return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
+  }
+
+  return { flee, predict, evade, stayInside, keepDistancePoint, avoidZones, distanceToSegment };
 })();

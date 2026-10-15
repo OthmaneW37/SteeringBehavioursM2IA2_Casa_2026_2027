@@ -35,6 +35,7 @@ class Demo {
             bossController: controller,
             maxTime: s.maxFightTime,
             detectRadius: s.detectRadius,
+            estus: s.estusCharges,
             seed: seed
         });
     }

@@ -1,7 +1,8 @@
 // Le Gardien du Brouillard : sous-classe de Vehicle (vehicle.js, fourni et protégé).
 //
 // Le boss ne décide pas lui-même : un contrôleur (réseau de neurones ou machine à états) lui donne
-// une décision { mode: 'approach' | 'retreat' | 'hold', speed: 0..1, attack: bool, dodge: bool }.
+// une décision { mode: 'approach' | 'retreat' | 'hold', speed: 0..1, attack, dodge, charge, breath: bool,
+// order: techniques voulues, de la plus voulue à la moins voulue }.
 // Le boss la traduit en forces :
 //   approche → `arrive` vers un point à distance d'attaque (il ralentit au lieu de foncer dessus) ;
 //   recul    → `flee` (Reynolds, steering.js) ;
@@ -9,8 +10,13 @@
 //   joueur hors du rayon de détection → `wander`, sans décision du contrôleur ;
 //   toujours → confinement `stayInside` près des murs.
 //
-// Attaque télégraphiée : 0,6 s de préparation visible, puis 0,15 s de frappe, puis récupération.
-// Phase enragée (vie ≤ 30 %) : vitesse × 1,35 et attente entre deux attaques × 0,55 (un seul réseau).
+// Trois techniques, chacune avec sa propre attente (cooldown) :
+//   hallebarde : 0,6 s de préparation visible (cône rouge), 0,15 s de frappe, 1 s de récupération ;
+//   ruée       : vise la position PRÉDITE du joueur (comme pursue), ligne rouge pendant 0,5 s, visée figée
+//                0,15 s avant la fin, puis charge en ligne droite (seek d'un point au bout de la ligne) ;
+//   souffle    : vise où le joueur sera dans 0,5 s ; une nappe de brume y apparaît (fight.js la crée).
+// Si plusieurs techniques sont voulues, le boss prend la plus voulue qui est prête.
+// Phase enragée (vie ≤ 30 %) : vitesse × 1,35 et attentes × 0,55 (un seul réseau).
 class Boss extends Vehicle {
     constructor(x, y) {
         super(x, y, null);
@@ -30,8 +36,11 @@ class Boss extends Vehicle {
         this.wanderRadius = 40;
         this.displaceRange = 0.3;
 
-        this.cooldown = 0;        // secondes avant la prochaine attaque possible
+        this.cooldown = 0;        // secondes avant le prochain coup de hallebarde possible
+        this.chargeCooldown = 0;  // secondes avant la prochaine ruée
+        this.breathCooldown = 0;  // secondes avant le prochain souffle
         this.dodgeCooldown = 0;
+        this.pendingZone = null;  // nappe de brume à créer (lue et vidée par le combat)
         this.action = null;       // attaque en cours
         this.dodge = null;        // esquive en cours : { t }
         this.facing = Math.PI;
@@ -39,7 +48,7 @@ class Boss extends Vehicle {
         this.hurtTimer = 0;
         this.rageTime = -1;       // instant (s) du passage en phase enragée, pour l'effet visuel
         this.time = 0;
-        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0 };
+        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0, charges: 0, breaths: 0 };
     }
 
     flee(target) {
@@ -67,6 +76,19 @@ class Boss extends Vehicle {
         return Combat.BOSS.cooldown * (this.enraged ? Combat.BOSS.rage.cooldownMul : 1);
     }
 
+    /** Attente avant de pouvoir réutiliser une technique (enragé : plus courte). */
+    techniqueCooldown(base) {
+        return base * (this.enraged ? Combat.BOSS.rage.cooldownMul : 1);
+    }
+
+    /** La technique est-elle prête ? */
+    ready(kind) {
+        if (kind === 'attack') return this.cooldown <= 0;
+        if (kind === 'charge') return this.chargeCooldown <= 0;
+        if (kind === 'breath') return this.breathCooldown <= 0;
+        return false;
+    }
+
     isAttacking() {
         return this.action !== null;
     }
@@ -90,12 +112,7 @@ class Boss extends Vehicle {
         if (this.dodge) {
             this.applyForce(this.evade(player));
         } else if (this.action) {
-            // Planté pendant l'attaque ; il suit encore un peu le joueur pendant la préparation
-            this.applyForce(this.arrive(this.pos));
-            if (Combat.phase(this.action.spec, this.action.t) === 'windup') {
-                this.action.facing = Combat.turnToward(this.action.facing, toPlayer, B.windupTurnRate * dt);
-                this.facing = this.action.facing;
-            }
+            this.performAction(player, arena, dt, toPlayer);
         } else if (dist > this.detectRadius || !player.alive) {
             // Joueur hors de portée : errance, sans décision
             this.wandering = true;
@@ -122,16 +139,98 @@ class Boss extends Vehicle {
         }
 
         if (!this.canAct() || !player.alive || this.wandering) return;
-        if (decision.attack && this.cooldown <= 0) {
-            this.action = Combat.newAttack('boss', this.facing);
-            this.cooldown = this.attackCooldown();
-            this.stats.attacks++;
+        const order = decision.order || ['attack', 'charge', 'breath'];
+        const wanted = order.find(k => decision[k] && this.ready(k));
+        if (wanted) {
+            this.startTechnique(wanted, player, arena);
         } else if (decision.dodge && player.isAttacking() && this.dodgeCooldown <= 0) {
             this.dodge = { t: 0 };
             this.dodgeCooldown = B.dodge.cooldown;
             this.maxSpeed = B.dodge.maxSpeed * this.speedMultiplier();
             this.maxForce = B.dodge.maxForce;
             this.stats.dodges++;
+        }
+    }
+
+    /** Début d'une technique : son action, son attente, sa visée. */
+    startTechnique(kind, player, arena) {
+        const B = Combat.BOSS;
+        if (kind === 'attack') {
+            this.action = Combat.newAttack('boss', this.facing);
+            this.cooldown = this.attackCooldown();
+            this.stats.attacks++;
+        } else if (kind === 'charge') {
+            this.action = Combat.newAttack('charge', this.facing);
+            this.action.target = this.aimCharge(player, arena);
+            this.chargeCooldown = this.techniqueCooldown(B.charge.cooldown);
+            this.stats.charges++;
+        } else if (kind === 'breath') {
+            this.action = Combat.newAttack('breath', this.facing);
+            this.action.target = this.aimBreath(player, arena);
+            this.breathCooldown = this.techniqueCooldown(B.breath.cooldown);
+            this.stats.breaths++;
+        }
+    }
+
+    /** Point d'arrivée de la ruée : dans la direction de la position prédite du joueur, à `length` px. */
+    aimCharge(player, arena) {
+        const C = Combat.BOSS.charge;
+        const predicted = Steering.predict(player, C.predict);
+        const dir = p5.Vector.sub(predicted, this.pos);
+        if (dir.mag() === 0) dir.x = 1;
+        dir.setMag(C.length);
+        const end = arena.clampPoint({ x: this.pos.x + dir.x, y: this.pos.y + dir.y }, this.r);
+        return createVector(end.x, end.y);
+    }
+
+    /** Centre de la nappe du souffle : là où le joueur sera dans `predict` s, à l'intérieur de l'arène. */
+    aimBreath(player, arena) {
+        const predicted = Steering.predict(player, Combat.BOSS.breath.predict);
+        const c = arena.clampPoint(predicted, Combat.BOSS.breath.radius * 0.5);
+        return createVector(c.x, c.y);
+    }
+
+    /** Forces et visée pendant une technique en cours. */
+    performAction(player, arena, dt, toPlayer) {
+        const B = Combat.BOSS;
+        const a = this.action;
+        const ph = Combat.phase(a.spec, a.t);
+        if (a.kind === 'charge') {
+            if (ph === 'windup') {
+                // Il ajuste sa visée jusqu'à `lockBefore` s de la fin de la préparation, puis la fige
+                if (a.t < a.spec.windup - B.charge.lockBefore) a.target = this.aimCharge(player, arena);
+                this.applyForce(this.arrive(this.pos));
+            } else if (ph === 'active') {
+                this.maxSpeed = B.charge.maxSpeed * this.speedMultiplier();
+                this.maxForce = B.charge.maxForce;
+                this.applyForce(this.seek(a.target));
+            } else {
+                this.maxSpeed = this.baseSpeed;
+                this.maxForce = this.baseForce;
+                this.applyForce(this.arrive(this.pos));
+            }
+            if (ph !== 'recovery') {
+                a.facing = Math.atan2(a.target.y - this.pos.y, a.target.x - this.pos.x);
+                this.facing = a.facing;
+            }
+            return;
+        }
+        if (a.kind === 'breath') {
+            this.applyForce(this.arrive(this.pos));
+            if (ph === 'windup') {
+                a.target = this.aimBreath(player, arena);
+                this.facing = Combat.turnToward(this.facing, Math.atan2(a.target.y - this.pos.y, a.target.x - this.pos.x), B.turnRate * dt);
+            } else if (!a.spawned) {
+                a.spawned = true;
+                this.pendingZone = { x: a.target.x, y: a.target.y };
+            }
+            return;
+        }
+        // Hallebarde : planté ; il suit encore un peu le joueur pendant la préparation
+        this.applyForce(this.arrive(this.pos));
+        if (ph === 'windup') {
+            a.facing = Combat.turnToward(a.facing, toPlayer, B.windupTurnRate * dt);
+            this.facing = a.facing;
         }
     }
 
@@ -148,11 +247,18 @@ class Boss extends Vehicle {
         this.time += dt;
         if (this.hurtTimer > 0) this.hurtTimer = Math.max(0, this.hurtTimer - dt);
         if (this.cooldown > 0) this.cooldown = Math.max(0, this.cooldown - dt);
+        if (this.chargeCooldown > 0) this.chargeCooldown = Math.max(0, this.chargeCooldown - dt);
+        if (this.breathCooldown > 0) this.breathCooldown = Math.max(0, this.breathCooldown - dt);
         if (this.dodgeCooldown > 0) this.dodgeCooldown = Math.max(0, this.dodgeCooldown - dt);
         if (this.action) {
             this.action.t += dt;
             if (Combat.phase(this.action.spec, this.action.t) === 'done') {
-                if (!this.action.hasHit) this.stats.whiffs++;
+                // Le souffle ne frappe pas directement : il ne compte pas comme coup dans le vide
+                if (!this.action.hasHit && this.action.spec.damage > 0) this.stats.whiffs++;
+                if (this.action.kind === 'charge') {
+                    this.maxSpeed = this.baseSpeed;
+                    this.maxForce = this.baseForce;
+                }
                 this.action = null;
             }
         }
@@ -172,7 +278,10 @@ class Boss extends Vehicle {
         this.acc.set(0, 0);
         this.hp = this.maxHp;
         this.cooldown = 0;
+        this.chargeCooldown = 0;
+        this.breathCooldown = 0;
         this.dodgeCooldown = 0;
+        this.pendingZone = null;
         this.action = null;
         this.dodge = null;
         this.maxSpeed = this.baseSpeed;
@@ -186,6 +295,8 @@ class Boss extends Vehicle {
     /** Télégraphe : le cône d'attaque se remplit pendant la préparation (0,6 s). */
     showTelegraph() {
         if (!this.action) return;
+        if (this.action.kind === 'charge') return this.showChargeTelegraph();
+        if (this.action.kind === 'breath') return this.showBreathTelegraph();
         const s = this.action.spec;
         const ph = Combat.phase(s, this.action.t);
         const reach = s.reach + 6;
@@ -202,6 +313,52 @@ class Boss extends Vehicle {
             fill(255, 230, 200, 200);
             arc(0, 0, reach * 2, reach * 2, this.action.facing - s.arc / 2, this.action.facing + s.arc / 2, PIE);
         }
+        pop();
+    }
+
+    /** Ruée : ligne rouge qui s'épaissit pendant la préparation (blanche quand la visée est figée). */
+    showChargeTelegraph() {
+        const a = this.action;
+        const ph = Combat.phase(a.spec, a.t);
+        if (ph === 'recovery') return;
+        push();
+        if (ph === 'windup') {
+            const k = a.t / a.spec.windup;
+            const locked = a.t >= a.spec.windup - Combat.BOSS.charge.lockBefore;
+            stroke(locked ? color(255, 240, 220, 220) : color(255, 50, 30, 80 + 150 * k));
+            strokeWeight(4 + 18 * k);
+            line(this.pos.x, this.pos.y, a.target.x, a.target.y);
+            noStroke();
+            fill(255, 60, 30, 180);
+            circle(a.target.x, a.target.y, 14 + 10 * k);
+        } else {
+            // Traînée de la charge
+            noStroke();
+            this.path.forEach((p, i) => {
+                fill(255, 120, 60, 25 + i * 15);
+                circle(p.x, p.y, this.r * 1.6);
+            });
+        }
+        pop();
+    }
+
+    /** Souffle : cercle vert qui se remplit là où la nappe va apparaître. */
+    showBreathTelegraph() {
+        const a = this.action;
+        if (Combat.phase(a.spec, a.t) !== 'windup') return;
+        const k = a.t / a.spec.windup;
+        const R = Combat.BOSS.breath.radius;
+        push();
+        noFill();
+        stroke(120, 255, 200, 200);
+        strokeWeight(2);
+        circle(a.target.x, a.target.y, R * 2);
+        noStroke();
+        fill(120, 255, 200, 40 + 60 * k);
+        circle(a.target.x, a.target.y, R * 2 * k);
+        // Le boss inspire : volutes vers sa gueule
+        fill(150, 240, 200, 120);
+        circle(this.pos.x + Math.cos(this.facing) * (this.r + 10), this.pos.y + Math.sin(this.facing) * (this.r + 10), 10 + 10 * k);
         pop();
     }
 

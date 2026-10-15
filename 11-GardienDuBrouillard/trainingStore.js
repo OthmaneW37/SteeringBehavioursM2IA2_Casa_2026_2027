@@ -5,7 +5,7 @@
 // Chaque accès au stockage est protégé (try/catch) : un navigateur peut le bloquer. Le stockage est injecté.
 //
 // Format du fichier :
-// { format: "gardien-entrainement", version: 1, savedAt, seed, generation, validationFights, settings,
+// { format: "gardien-entrainement", version: 2, savedAt, seed, generation, validationFights, settings,
 //   population: [cerveau, ...], history: [{ generation, best, mean, winRate, championWinRate }],
 //   best: { fitness, generation, brain } | null,
 //   champion: { winRate, fitness, generation, brain } | null }
@@ -13,7 +13,7 @@
 const TrainingStore = {
     KEY: 'gardienDuBrouillard.training.v1',
     FORMAT: 'gardien-entrainement',
-    VERSION: 1,
+    VERSION: 2,   // version 2 : cerveau 12-16-5 (ruée, souffle, fioles) ; la version 1 avait un cerveau 8-16-3
 
     snapshot(training, now = new Date()) {
         const brain = b => (b ? JSON.parse(JSON.stringify(b.toJSON())) : null);
@@ -50,7 +50,11 @@ const TrainingStore = {
     restore(data) {
         if (!data || typeof data !== 'object') throw new TypeError("Sauvegarde illisible.");
         if (data.format !== TrainingStore.FORMAT) throw new RangeError("Ce fichier n'est pas une sauvegarde d'entraînement du Gardien.");
-        if (data.version !== TrainingStore.VERSION) throw new RangeError("Version de sauvegarde non prise en charge : " + data.version);
+        if (data.version !== TrainingStore.VERSION) {
+            throw new RangeError(data.version === 1
+                ? "Sauvegarde d'une ancienne version du jeu (boss sans ruée ni souffle, cerveau 8-16-3) : elle ne peut pas être reprise."
+                : "Version de sauvegarde non prise en charge : " + data.version);
+        }
         const settings = Settings.validate(data.settings || {});
         if (!Number.isInteger(data.generation) || data.generation < 0) throw new RangeError("Numéro de génération invalide.");
         if (!Number.isInteger(data.seed) || data.seed < 1) throw new RangeError("Graine invalide.");

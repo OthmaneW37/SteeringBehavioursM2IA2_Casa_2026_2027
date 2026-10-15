@@ -165,9 +165,10 @@ test('panneau de debug : entrées et sorties lues sans recalcul, géométrie du 
   assert.equal(DebugPanel.rows(ctrl, b).length, 0, 'rien avant la première décision');
   ctrl.decide(b, pl, new Arena());
   const rows = DebugPanel.rows(ctrl, b);
-  assert.equal(rows.length, 11);
-  assert.equal(rows.filter(r => r.group === 'sortie').length, 3);
-  assert.equal(rows[9].threshold, 0.6);
+  assert.equal(rows.length, 17);
+  assert.equal(rows.filter(r => r.group === 'sortie').length, 5);
+  assert.equal(rows[12].threshold, 0.5, 'déplacement : seuil 0,5');
+  assert.equal(rows[13].threshold, 0.6);
   assert.match(DebugPanel.state(b, ctrl), /décision/);
   // Errance : même point vert que wander() de vehicle.js
   b.wandering = false;
@@ -193,11 +194,11 @@ test('bouton du menu : masque et réaffiche le menu', () => {
   assert.equal(button['aria-expanded'], 'true');
 });
 
-test('boss pré-entraîné : architecture 8-16-3 et équilibre avec le joueur scripté (ni 0 %, ni 100 %)', () => {
+test('boss pré-entraîné : architecture 12-16-5 et équilibre avec le joueur robot (ni 0 %, ni 100 %)', () => {
   const PRETRAINED_BOSS = get('PRETRAINED_BOSS'), NeuralNetwork = get('NeuralNetwork'), Comparison = get('Comparison'),
     NeuralBossController = get('NeuralBossController'), HandBossController = get('HandBossController');
   const brain = NeuralNetwork.fromJSON(PRETRAINED_BOSS.brain);
-  assert.deepEqual(plain(brain.sizes), [8, 16, 3]);
+  assert.deepEqual(plain(brain.sizes), [12, 16, 5]);
   assert.ok(PRETRAINED_BOSS.history.length === PRETRAINED_BOSS.generations);
   const c = new Comparison([
     { name: 'Boss à états', makeController: () => new HandBossController() },

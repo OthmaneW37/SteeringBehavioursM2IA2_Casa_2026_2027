@@ -22,7 +22,7 @@ class HumanController {
         const action = HumanController.actionOf(key);
         if (!action) return false;
         if (action === 'lock') this.locked = !this.locked;
-        else if (action === 'light' || action === 'heavy' || action === 'roll') this.buffer = { action: action, age: 0 };
+        else if (action === 'light' || action === 'heavy' || action === 'roll' || action === 'drink') this.buffer = { action: action, age: 0 };
         else this.held.add(action);
         return true;
     }
@@ -37,7 +37,7 @@ class HumanController {
             x: (this.held.has('right') ? 1 : 0) - (this.held.has('left') ? 1 : 0),
             y: (this.held.has('down') ? 1 : 0) - (this.held.has('up') ? 1 : 0)
         };
-        const intent = { move: move, lock: this.locked, light: false, heavy: false, roll: false };
+        const intent = { move: move, lock: this.locked, light: false, heavy: false, roll: false, drink: false };
         if (this.buffer) {
             if (player.canAct()) {
                 intent[this.buffer.action] = true;
@@ -66,5 +66,6 @@ HumanController.KEYS = {
     light: ['j'],
     heavy: ['k'],
     roll: [' '],
+    drink: ['e'],
     lock: ['l', 'tab']
 };

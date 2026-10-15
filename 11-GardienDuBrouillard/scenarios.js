@@ -6,7 +6,7 @@ const Scenarios = {
     LIST: [
         {
             id: 'reference', label: "1. Référence",
-            description: "Réglages d'origine : 50 boss, 2 combats chacun, joueur scripté qui esquive 55 % des attaques.",
+            description: "Réglages d'origine : 50 boss, 2 combats chacun, joueur robot qui réagit bien à 40 % des techniques du boss et boit 2 fioles d'Estus.",
             changes: {}
         },
         {
@@ -30,7 +30,12 @@ const Scenarios = {
             changes: { mutationRate: 0.3, elites: 2 }
         },
         {
-            id: 'myope', label: "6. Boss myope",
+            id: 'sansFiole', label: "6. Sans fiole d'Estus",
+            description: "Le joueur robot n'a aucune fiole : il ne peut pas se soigner, le boss gagne plus facilement.",
+            changes: { estusCharges: 0 }
+        },
+        {
+            id: 'myope', label: "7. Boss myope",
             description: "Rayon de détection de 180 px : au-delà, le boss erre (wander) sans décider ; il doit apprendre à rester proche.",
             changes: { detectRadius: 180 }
         }

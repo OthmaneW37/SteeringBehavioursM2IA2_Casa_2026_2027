@@ -10,15 +10,21 @@
 
 ### 1. L'idée, en une phrase (1 min)
 
-« Le boss n'est pas programmé à la main. Il a un petit réseau de neurones : 8 informations entrent
-(distance, angle, fatigue du joueur…), 3 décisions sortent (avancer ou reculer, attaquer, esquiver).
-Il a appris à se battre par sélection naturelle. »
+« Le boss n'est pas programmé à la main. Il a un petit réseau de neurones : 12 informations entrent
+(distance, angle, fatigue et vie du joueur, s'il est en train de boire…), 5 décisions sortent (avancer ou
+reculer, hallebarde, esquive, ruée, souffle). Il a appris à se battre par sélection naturelle. »
 
 ### 2. Jouer 1 minute (mode ⚔️ Combattre)
 
 - Montrer le télégraphe : le cône rouge se remplit pendant 0,6 s, puis la roulade (Espace) au bon moment.
 - Frapper pendant la récupération du boss.
 - Si possible, montrer la phase enragée à 30 % de vie (aura rouge, boss plus rapide).
+- Montrer les nouvelles mécaniques :
+  - la **ruée** : la ligne rouge vise l'endroit où vous allez être, comme `pursue`. On l'évite en changeant de
+    direction au dernier moment ;
+  - le **souffle** : une nappe de brume verte qui brûle et ralentit ;
+  - une **fiole d'Estus** (E) : elle soigne, mais pendant 1 s on est une cible facile ;
+  - la **tache de sang** laissée à l'endroit d'une mort, avec sa cause.
 - Appuyer sur **G** : on voit le « cerveau » en direct. Les barres d'entrées et de sorties bougent, et le
   trait blanc marque le seuil de 0,6 au-delà duquel le boss attaque ou esquive. On voit aussi le cercle de
   détection (rouge quand on est dedans) et les rayons vers les murs.
@@ -39,21 +45,28 @@ cerveau change. » Laisser tourner 2 ou 3 manches et montrer le score.
 
 ### 5. La preuve chiffrée (mode 📊 Comparer, 1 min)
 
-Lancer les 50 combats (quelques secondes). Lire la phrase de conclusion. Résultat de référence avec les
-réglages par défaut :
-- **boss écrit à la main** : environ 30 % de victoires ;
-- **boss entraîné** : 64 % pour le boss fourni, autour de 60 à 70 % pour un champion entraîné dans la page.
+Lancer les 50 combats (quelques secondes). Lire la phrase de conclusion et la ligne « Par combat », qui
+montre les techniques choisies par chaque boss. Résultat de référence avec les réglages par défaut
+(robot à 40 %, 2 fioles) :
+- **boss écrit à la main** : 22 % de victoires ;
+- **boss fourni** : 42 %, soit presque 2 fois plus.
 
 ### 6. Ce que le projet montre (1 min)
 
 - Les **steering behaviors** de Reynolds : `arrive` pour approcher sans foncer, `flee` pour reculer, `evade`
   pour esquiver, `wander` pour errer quand le joueur est loin, plus le confinement contre les murs.
 - La **neuroévolution** : pas de rétropropagation, seulement sélection et mutation.
+- Une observation intéressante : **la stratégie apprise dépend de l'adversaire**.
+  - Contre un robot moyen, le boss se contente de la hallebarde.
+  - Contre un robot plus fort, il a combiné hallebarde et souffle.
+  - Quand la ruée était trop sûre, il ne faisait plus que des ruées.
+
+  Personne ne lui a dit quelle technique utiliser.
 - Les pièges rencontrés et corrigés :
   - un joueur robot trop faible : le boss gagnait 100 % en attaquant sans arrêt ;
   - une stratégie passive : les boss n'attaquaient plus du tout, et tous les combats finissaient en match nul ;
   - un « meilleur » boss souvent chanceux, d'où l'examen sur 30 combats et la comparaison sur 50 combats neufs.
-- 44 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- 59 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

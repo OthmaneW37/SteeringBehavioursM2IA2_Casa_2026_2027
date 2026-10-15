@@ -31,7 +31,7 @@ export function lcg(seed = 12345) {
 
 // Ordre de chargement = ordre des scripts de index.html (sketch.js exclu : il n'est pas exécutable sous Node)
 export const FILES = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js',
-  'player.js', 'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js',
+  'mistPatch.js', 'bloodstain.js', 'player.js', 'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js',
   'fitness.js', 'genetic.js', 'training.js', 'trainingStore.js', 'comparison.js', 'demo.js', 'settings.js', 'scenarios.js', 'pretrainedBoss.js',
   'fitnessChart.js', 'debugPanel.js', 'hud.js', 'camera.js', 'menuToggle.js'];
 
@@ -39,13 +39,13 @@ export function read(file) {
   return readFileSync(new URL('../' + file, import.meta.url), 'utf8');
 }
 
-export function load(seed = 12345, files = FILES) {
+export function load(seed = 12345, files = FILES, options = {}) {
   let rng = lcg(seed);
   const noop = () => {};
   const math = Object.create(Math);
   math.random = () => rng();
   const context = vm.createContext({
-    Math: math, console,
+    ...(options.realMath ? {} : { Math: math }), console,
     createVector: (x = 0, y = 0) => new Vector(x, y),
     p5: { Vector },
     random: (a, b) => (a === undefined ? rng() : b === undefined ? rng() * a : a + rng() * (b - a)),
@@ -62,6 +62,14 @@ export function load(seed = 12345, files = FILES) {
     color: (...c) => c, lerpColor: (a) => a,
     drawingContext: { setLineDash: noop, save: noop, restore: noop, beginPath: noop, rect: noop, clip: noop },
   });
+  if (options.thisContext) {
+    // Chargement dans le contexte principal de Node : bien plus rapide qu'un contexte vm isolé
+    // (utilisé par l'outil de pré-entraînement ; les tests gardent des contextes isolés).
+    for (const [k, v] of Object.entries(context)) if (k !== 'Math') globalThis[k] = v;
+    for (const file of files) vm.runInThisContext(read(file), { filename: file });
+    const get = name => vm.runInThisContext(name);
+    return { context: globalThis, get, setRng: s => { rng = lcg(s); } };
+  }
   for (const file of files) vm.runInContext(read(file), context, { filename: file });
   const get = name => vm.runInContext(name, context);
   return { context, get, setRng: s => { rng = lcg(s); } };

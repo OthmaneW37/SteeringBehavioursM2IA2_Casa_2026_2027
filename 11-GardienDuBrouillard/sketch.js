@@ -50,6 +50,17 @@ function safeStorage() {
     }
 }
 
+/** Boss fourni ; s'il n'a pas l'architecture attendue (fichier d'une ancienne version), réseau au hasard. */
+function loadPretrained() {
+    try {
+        const nn = NeuralNetwork.fromJSON(PRETRAINED_BOSS.brain);
+        if (nn.sizes.join(',') === BossBrain.SIZES.join(',')) return nn;
+    } catch (e) { /* message ci-dessous */ }
+    setTimeout(() => setStatus("Le boss fourni date d'une ancienne version : il est remplacé par un boss au hasard. " +
+        "Lancez un entraînement ou régénérez-le avec « node tools/pretrain.mjs ».", true), 0);
+    return BossBrain.create(Math.random);
+}
+
 function viewSize() {
     const holder = byId('canvasHolder');
     return { w: Math.max(320, holder.clientWidth), h: Math.max(240, holder.clientHeight) };
@@ -69,7 +80,8 @@ function setup() {
     game.effects = new Effects();
     game.demoEffects = [new Effects(), new Effects()];
     game.storage = safeStorage();
-    game.pretrained = NeuralNetwork.fromJSON(PRETRAINED_BOSS.brain);
+    game.pretrained = loadPretrained();
+    game.bloodstains = Bloodstain.load(game.storage);
 
     initControls();
     game.settings = readSettings();
@@ -270,7 +282,8 @@ function startFight() {
         playerController: game.human,
         bossController: bossController(kind),
         maxTime: Infinity,
-        detectRadius: game.settings.detectRadius
+        detectRadius: game.settings.detectRadius,
+        estus: game.settings.estusCharges
     });
     game.state = 'fight';
     game.stateTime = 0;
@@ -301,6 +314,9 @@ function updateCombat(dt) {
             game.state = 'dead';
             game.stateTime = 0;
             game.deaths++;
+            // Tache de sang là où le chevalier est tombé, gardée d'une session à l'autre
+            Bloodstain.add(game.bloodstains, f.player.pos.x, f.player.pos.y, f.lastCause, game.deaths * 977);
+            Bloodstain.save(game.storage, game.bloodstains);
         } else if (!f.boss.alive) {
             game.state = 'victory';
             game.stateTime = 0;
@@ -405,7 +421,8 @@ function updateTraining(dt) {
             }),
             bossController: new NeuralBossController(championBrain()),
             maxTime: game.settings.maxFightTime,
-            detectRadius: game.settings.detectRadius
+            detectRadius: game.settings.detectRadius,
+        estus: game.settings.estusCharges
         });
         game.replay.overTime = 0;
         game.accumulator = 0;
@@ -544,7 +561,7 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     game.camera.follow(Camera.target(game.arena, width, height, locked, player, boss), Math.min(deltaTime / 1000, 0.1));
     push();
     game.camera.apply(width, height);
-    drawEntities(fight, effects);
+    drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null);
     if (locked && boss.alive) Hud.lockMark(boss, game.time);
     pop();
     if (dimmed) {
@@ -554,16 +571,19 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     }
 }
 
-function drawEntities(fight, effects) {
+function drawEntities(fight, effects, stains = null) {
     const { player, boss } = fight;
     game.arena.showFloor();
+    if (stains) for (const b of stains) b.show(game.time, Math.hypot(player.pos.x - b.pos.x, player.pos.y - b.pos.y) < 45);
     game.campfire.show(game.time);
+    for (const z of fight.zones) z.show(game.time);
     if (game.debug) DebugPanel.drawWorld(boss, player, game.arena);
     boss.showTelegraph();
     player.show();
     boss.show();
     effects.show();
     game.arena.showFog(game.time);
+    Hud.techniqueLabel(boss);
 }
 
 /** Un combat dans un rectangle de l'écran (démonstration côte à côte). */
@@ -633,7 +653,8 @@ function drawCombatHud(dt) {
     Hud.drawBoss(f.boss, game.trail.boss);
     if (game.debug) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, 12);
     if (game.state === 'dead') {
-        Hud.banner("VOUS ÊTES MORT", "Retour au feu de camp…", color(170, 20, 20), Math.min(1, game.stateTime / 0.8));
+        Hud.banner("VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
+            color(170, 20, 20), Math.min(1, game.stateTime / 0.8));
     } else if (game.state === 'victory') {
         Hud.banner("ENNEMI VAINCU", "Temps " + f.time.toFixed(1) + " s · morts " + game.deaths + " · R pour recommencer",
             color(230, 190, 90), Math.min(1, game.stateTime / 0.8));
@@ -725,6 +746,9 @@ function drawComparisonOverlay() {
         textSize(13);
         text("Durée moyenne " + s.avgDuration.toFixed(1) + " s · dégâts infligés " + s.avgDamageDealt.toFixed(0) +
             " · reçus " + s.avgDamageTaken.toFixed(0) + " · coups dans le vide " + s.avgWhiffs.toFixed(1), x0, y + 52);
+        fill(170);
+        text("Par combat : " + s.avgAttacks.toFixed(1) + " coups de hallebarde · " + s.avgCharges.toFixed(1) + " ruées · " +
+            s.avgBreaths.toFixed(1) + " souffles · le joueur boit " + s.avgDrinks.toFixed(1) + " fiole(s)", x0, y + 70);
     });
     fill(40);
     rect(x0, 350, barW, 8, 3);

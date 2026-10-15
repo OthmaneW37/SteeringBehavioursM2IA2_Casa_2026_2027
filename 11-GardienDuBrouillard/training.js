@@ -47,7 +47,7 @@ class Training {
 
     /** Réglages qui changent le résultat d'un combat (le champion doit alors être remesuré). */
     fightKey(s = this.settings) {
-        return [s.dodgeProbability, s.attackInterval, s.maxFightTime, s.detectRadius].join('|');
+        return [s.dodgeProbability, s.attackInterval, s.maxFightTime, s.detectRadius, s.estusCharges].join('|');
     }
 
     fightSeed(k) {
@@ -64,6 +64,7 @@ class Training {
             bossController: new NeuralBossController(brain),
             maxTime: s.maxFightTime,
             detectRadius: s.detectRadius,
+            estus: s.estusCharges,
             seed: seed
         });
     }

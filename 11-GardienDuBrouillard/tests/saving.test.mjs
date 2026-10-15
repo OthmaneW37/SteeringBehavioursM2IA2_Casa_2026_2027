@@ -98,7 +98,8 @@ test('sauvegarde : fichiers invalides refusés avec un message clair', () => {
   const good = JSON.parse(TrainingStore.serialize(t));
   const bad = [
     d => { d.format = 'autre'; },
-    d => { d.version = 2; },
+    d => { d.version = 3; },
+    d => { d.version = 1; },
     d => { d.settings.populationSize = 5000; },
     d => { d.settings.mutationRate = 'beaucoup'; },
     d => { d.generation = -1; },

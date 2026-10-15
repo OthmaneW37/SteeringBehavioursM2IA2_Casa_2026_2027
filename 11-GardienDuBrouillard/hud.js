@@ -34,6 +34,40 @@ const Hud = {
             fill(255, 220, 120);
             text("Cible verrouillée", 128, 58);
         }
+        // Fioles d'Estus restantes (touche E)
+        for (let i = 0; i < Math.max(player.estus, 0); i++) Hud.flask(360 + i * 16, 18);
+        fill(200);
+        text("E", 360 + Math.max(player.estus, 1) * 16 + 2, 21);
+        if (player.inMist) {
+            fill(120, 255, 200);
+            textSize(13);
+            text("Dans la brume : vous brûlez et ralentissez !", 52, 76);
+        }
+        pop();
+    },
+
+    /** Petite fiole dorée (HUD). */
+    flask(x, y) {
+        noStroke();
+        fill(255, 170, 50);
+        ellipse(x + 5, y + 11, 11, 13);
+        rect(x + 3, y + 1, 4, 6, 1);
+        fill(255, 230, 160);
+        ellipse(x + 4, y + 10, 3, 4);
+    },
+
+    /** Nom de la technique que prépare le boss, au-dessus de lui (aide à lire le combat). */
+    techniqueLabel(boss) {
+        const a = boss.action;
+        if (!a || Combat.phase(a.spec, a.t) !== 'windup') return;
+        const names = { boss: "Hallebarde !", charge: "Ruée !", breath: "Souffle du brouillard !" };
+        push();
+        textAlign(CENTER, BOTTOM);
+        textSize(14);
+        fill(0, 0, 0, 160);
+        text(names[a.kind] || "", boss.pos.x + 1, boss.pos.y - boss.r - 13);
+        fill(a.kind === 'breath' ? color(150, 255, 210) : color(255, 120, 90));
+        text(names[a.kind] || "", boss.pos.x, boss.pos.y - boss.r - 14);
         pop();
     },
 
@@ -104,9 +138,10 @@ const Hud = {
 Hud.CONTROLS = [
     ["ZQSD / flèches", "se déplacer"],
     ["J  /  K", "attaque légère / lourde"],
+    ["E", "boire une fiole d'Estus (soin, 1 s planté)"],
     ["Espace", "roulade : esquive le coup du boss"],
     ["L / Tab", "verrouiller la caméra sur le boss"],
-    ["Astuce", "roulez quand le cône rouge se remplit"]
+    ["Astuce", "roulez quand le cône ou la ligne rouge se remplit"]
 ];
 
 /** Étincelles et textes des coups (effets visuels, durées en secondes). */
@@ -127,6 +162,8 @@ class Effects {
         } else if (event.type === 'dodged' && timeSeconds - this.lastDodge > 0.5) {
             this.lastDodge = timeSeconds;
             this.items.push({ kind: 'text', x: event.x, y: event.y - 24, text: "esquivé !", life: 0.8, age: 0, c: [170, 200, 255] });
+        } else if (event.type === 'mist') {
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 10, text: "brume !", life: 1, age: 0, c: [120, 255, 200] });
         }
     }
 

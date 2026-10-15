@@ -3,16 +3,18 @@
 //
 // Usage, depuis le dossier de l'exemple :
 //   node tools/pretrain.mjs [générations] [graine]
-// Par défaut : 60 générations, graine 1, réglages par défaut de settings.js.
+// Par défaut : 60 générations, graine 1. Le boss fourni a été obtenu avec : node tools/pretrain.mjs 40 7
 import { writeFileSync } from 'node:fs';
 import { load } from '../tests/helpers.mjs';
 
 const generations = Number(process.argv[2] || 60);
 const seed = Number(process.argv[3] || 1);
-const files = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js', 'player.js',
+const files = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js', 'mistPatch.js', 'bloodstain.js', 'player.js',
   'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js', 'fitness.js',
   'genetic.js', 'training.js', 'comparison.js', 'settings.js'];
-const { get } = load(seed, files);
+// Chargement dans le contexte principal de Node (bien plus rapide qu'un contexte vm isolé) ; l'entraînement
+// n'utilise que des générateurs à graine injectés, il est donc reproductible.
+const { get } = load(seed, files, { thisContext: true });
 const Settings = get('Settings'), Training = get('Training'), Comparison = get('Comparison');
 const HandBossController = get('HandBossController'), NeuralBossController = get('NeuralBossController');
 

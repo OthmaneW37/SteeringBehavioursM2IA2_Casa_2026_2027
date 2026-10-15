@@ -12,19 +12,21 @@ function env(seed = 3) {
 }
 const close = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
-test('cerveau : 8 entrées, 16 neurones cachés sigmoïdes, 3 sorties dans [0, 1]', () => {
+test('cerveau : 12 entrées, 16 neurones cachés sigmoïdes, 5 sorties dans [0, 1]', () => {
   const { BossBrain } = env();
   const nn = BossBrain.create(lcg(1));
-  assert.deepEqual(plain(nn.sizes), [8, 16, 3]);
-  assert.equal(nn.paramCount(), 8 * 16 + 16 + 16 * 3 + 3);
-  for (const x of [[0, 0, 0, 0, 0, 0, 0, 0], [1, 1, 1, 1, 1, 1, 1, 1], [0.3, 0.9, 0.1, 0.5, 0, 1, 0.7, 0.2]]) {
+  assert.deepEqual(plain(nn.sizes), [12, 16, 5]);
+  assert.equal(nn.paramCount(), 12 * 16 + 16 + 16 * 5 + 5);
+  assert.equal(BossBrain.INPUT_LABELS.length, 12);
+  assert.equal(BossBrain.OUTPUT_LABELS.length, 5);
+  for (const x of [new Array(12).fill(0), new Array(12).fill(1), [0.3, 0.9, 0.1, 0.5, 0, 1, 0.7, 0.2, 0.4, 1, 0.5, 0.1]]) {
     const out = nn.predict(x);
-    assert.equal(out.length, 3);
+    assert.equal(out.length, 5);
     for (const v of out) assert.ok(v > 0 && v < 1);
   }
 });
 
-test('entrées du boss : 8 valeurs normalisées dans [0, 1], valeurs exactes', () => {
+test('entrées du boss : 12 valeurs normalisées dans [0, 1], valeurs exactes', () => {
   const { BossBrain, Arena, Player, Boss, Combat } = env();
   const arena = new Arena();
   const b = new Boss(500, 350), p = new Player(600, 350);
@@ -33,8 +35,11 @@ test('entrées du boss : 8 valeurs normalisées dans [0, 1], valeurs exactes', (
   p.stamina = 40;
   b.cooldown = Combat.BOSS.cooldown / 4;
   b.hp = b.maxHp * 0.3;
+  p.hp = 60;
+  b.chargeCooldown = Combat.BOSS.charge.cooldown / 2;
+  b.breathCooldown = Combat.BOSS.breath.cooldown;
   const x = BossBrain.inputs(b, p, arena);
-  assert.equal(x.length, 8);
+  assert.equal(x.length, 12);
   for (const v of x) assert.ok(v >= 0 && v <= 1);
   assert.ok(close(x[0], 100 / arena.diagonal()));
   assert.ok(close(x[1], 0.5), 'joueur droit devant : 0,5');
@@ -43,6 +48,20 @@ test('entrées du boss : 8 valeurs normalisées dans [0, 1], valeurs exactes', (
   assert.ok(close(x[4], 0.25));
   assert.ok(close(x[5], 0.3));
   assert.equal(x[6], 0, 'aucun mur à moins de 200 px');
+  assert.ok(close(x[8], 0.6), 'vie du joueur');
+  assert.equal(x[9], 0, 'joueur pas vulnérable');
+  assert.ok(close(x[10], 0.5), 'attente de la ruée');
+  assert.equal(x[11], 1, 'attente du souffle');
+  // Vulnérable : en train de boire, ou en récupération après une attaque
+  p.drink = { t: 0, healed: false };
+  assert.equal(BossBrain.inputs(b, p, arena)[9], 1);
+  p.drink = null;
+  p.action = Combat.newAttack('heavy', 0);
+  p.action.t = 0.7;
+  assert.equal(BossBrain.inputs(b, p, arena)[9], 1);
+  p.action.t = 0.1;
+  assert.equal(BossBrain.inputs(b, p, arena)[9], 0, 'préparation : pas vulnérable');
+  p.action = null;
   // Joueur derrière à gauche / à droite
   b.facing = Math.PI / 2;
   assert.ok(BossBrain.inputs(b, p, arena)[1] < 0.5);
@@ -90,7 +109,8 @@ test('mutation : copie indépendante, taux 0 sans effet, bruit gaussien sur poid
   half.toJSON().weights.flat().concat(half.toJSON().biases.flat()).forEach((v, k) => {
     if (v !== before.weights.flat().concat(before.biases.flat())[k]) changed++;
   });
-  assert.ok(changed > 70 && changed < 125, 'changés : ' + changed);
+  const total = before.weights.flat().length + before.biases.flat().length;
+  assert.ok(changed > total * 0.35 && changed < total * 0.65, 'changés : ' + changed + ' / ' + total);
 });
 
 test('sélection par tournoi et élitisme', () => {
