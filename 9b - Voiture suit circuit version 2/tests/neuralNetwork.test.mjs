@@ -6,17 +6,17 @@ const { get } = load();
 const NeuralNetwork = get('NeuralNetwork');
 const Settings = get('Settings');
 
-test('architecture par défaut identique à l\'originale : [6, 20, 2]', () => {
+test('architecture par défaut identique à l\'originale : [8, 20, 2]', () => {
   const sizes = Settings.networkSizes(Settings.defaults());
-  assert.deepEqual(plain(sizes), [6, 20, 2]);
+  assert.deepEqual(plain(sizes), [8, 20, 2]);
   const nn = new NeuralNetwork(sizes);
-  assert.equal(nn.input_nodes, 6);
+  assert.equal(nn.input_nodes, 8);
   assert.equal(nn.hidden_nodes, 20);
   assert.equal(nn.output_nodes, 2);
-  // 6×20 + 20 + 20×2 + 2 = 182 paramètres, comme les deux couches dense de TensorFlow.js
-  assert.equal(nn.paramCount(), 182);
+  // 8×20 + 20 + 20×2 + 2 = 222 paramètres, comme les deux couches dense de TensorFlow.js
+  assert.equal(nn.paramCount(), 222);
   // L'ancienne forme du constructeur donne la même architecture
-  assert.deepEqual(plain(new NeuralNetwork(6, 20, 2).sizes), [6, 20, 2]);
+  assert.deepEqual(plain(new NeuralNetwork(8, 20, 2).sizes), [8, 20, 2]);
 });
 
 test('tailles de couches et nombre de paramètres pour plusieurs architectures', () => {
@@ -43,13 +43,13 @@ test('tailles invalides refusées', () => {
 });
 
 test('initialisation Glorot uniforme et biais nuls (comme une couche dense TensorFlow.js)', () => {
-  const nn = new NeuralNetwork([6, 20, 2], seededRandom(7));
-  const limit0 = Math.sqrt(6 / 26), limit1 = Math.sqrt(6 / 22);
+  const nn = new NeuralNetwork([8, 20, 2], seededRandom(7));
+  const limit0 = Math.sqrt(6 / 28), limit1 = Math.sqrt(6 / 22);
   assert.ok(nn.weights[0].every(w => Math.abs(w) <= limit0 + 1e-6));
   assert.ok(nn.weights[1].every(w => Math.abs(w) <= limit1 + 1e-6));
   assert.ok(nn.biases.every(b => b.every(v => v === 0)));
   // Même graine ⇒ mêmes poids
-  assert.deepEqual(Array.from(new NeuralNetwork([6, 20, 2], seededRandom(7)).weights[0]), Array.from(nn.weights[0]));
+  assert.deepEqual(Array.from(new NeuralNetwork([8, 20, 2], seededRandom(7)).weights[0]), Array.from(nn.weights[0]));
 });
 
 test('predict : sorties dans [0, 1], même avec des entrées extrêmes, et activations gardées', () => {
@@ -92,7 +92,7 @@ test('copy est indépendante ; mutate ne change que la copie', () => {
 });
 
 test('mutate : taux 0 ne change rien, bruit d\'écart-type 0.1 sur poids et biais', () => {
-  const nn = new NeuralNetwork([6, 20, 2], seededRandom(2));
+  const nn = new NeuralNetwork([8, 20, 2], seededRandom(2));
   const before = nn.toJSON();
   nn.mutate(0, seededRandom(1));
   assert.deepEqual(plain(nn.toJSON()), plain(before));
@@ -104,12 +104,12 @@ test('mutate : taux 0 ne change rien, bruit d\'écart-type 0.1 sur poids et biai
   after.biases.forEach(b => b.forEach(v => assert.ok(Math.abs(v - 0.1) < 1e-6)));
 
   // Taux 0.5 : environ la moitié des paramètres changent (aléatoire fixé)
-  const nn2 = new NeuralNetwork([6, 20, 2], seededRandom(2));
+  const nn2 = new NeuralNetwork([8, 20, 2], seededRandom(2));
   const rng = seededRandom(9);
   nn2.mutate(0.5, rng, seededGaussian(rng));
   let changed = 0;
   nn2.weights.forEach((w, l) => w.forEach((v, k) => { if (v !== before.weights[l][k]) changed++; }));
-  assert.ok(changed > 60 && changed < 100, 'changés : ' + changed);
+  assert.ok(changed > 75 && changed < 125, 'changés : ' + changed);
 });
 
 test('toJSON / fromJSON : aller-retour et rejet des données incohérentes', () => {

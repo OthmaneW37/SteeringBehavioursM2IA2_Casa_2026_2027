@@ -49,7 +49,7 @@ test('sérialisation : aller-retour complet avec cerveau', () => {
   assert.deepEqual(plain(back), plain(config));
   assert.deepEqual(plain(back.settings), s);
   const restored = ConfigStore.brainOf(back);
-  const x = [0.2, 0.4, 0.1, 0.9, 0.5, 0.3];
+  const x = [0.2, 0.4, 0.1, 0.9, 0.5, 0.3, 0.7, 0.6];
   assert.deepEqual(Array.from(restored.predict(x)), Array.from(brain.predict(x)));
 });
 
@@ -81,7 +81,7 @@ test('import : rejet des valeurs hors plage et des fichiers invalides', () => {
     c => { c.name = '   '; },
     c => { c.name = 'x'.repeat(61); },
     c => { c.format = 'autre-chose'; },
-    c => { c.version = 2; },
+    c => { c.version = 3; },
     c => { delete c.settings; },
   ];
   for (const [i, change] of variants.entries()) {
@@ -96,7 +96,7 @@ test('import : rejet des valeurs hors plage et des fichiers invalides', () => {
 test('import : cerveau incompatible avec l\'architecture refusé', () => {
   const s = custom(); // réseau [6, 16, 8, 3]
   const config = JSON.parse(ConfigStore.serialize(ConfigStore.create('a', s, null, NOW)));
-  config.brain = new NeuralNetwork([6, 20, 2], seededRandom(1)).toJSON();
+  config.brain = new NeuralNetwork([8, 20, 2], seededRandom(1)).toJSON();
   assert.throws(() => ConfigStore.parse(JSON.stringify(config)), { name: 'RangeError', message: /ne correspond pas/ });
   config.brain = { sizes: [6, 16, 8, 3], weights: [[1]], biases: [] };
   assert.throws(() => ConfigStore.parse(JSON.stringify(config)), { name: 'RangeError' });

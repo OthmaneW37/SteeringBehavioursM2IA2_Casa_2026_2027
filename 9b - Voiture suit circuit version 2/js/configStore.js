@@ -3,10 +3,10 @@
  *
  * Format d'une configuration (fichier .json exporté) :
  * {
- *   "format": "neuro-racing-config", "version": 1,
+ *   "format": "neuro-racing-config", "version": 2,
  *   "name": "Mon réglage", "savedAt": "2026-10-15T12:00:00.000Z",
  *   "settings": { ... voir Settings.defaults() ... },
- *   "brain": null | { "sizes": [6, 20, 2], "weights": [[...], ...], "biases": [[...], ...] }
+ *   "brain": null | { "sizes": [8, 20, 2], "weights": [[...], ...], "biases": [[...], ...] }
  * }
  *
  * Le stockage est injecté (localStorage dans le navigateur, faux stockage dans les tests).
@@ -16,7 +16,7 @@
 const ConfigStore = {
     KEY: 'neuroRacing.configs.v1',
     FORMAT: 'neuro-racing-config',
-    VERSION: 1,
+    VERSION: 2,
     NAME_MAX: 60,
 
     known() {

@@ -6,7 +6,7 @@
  * une RangeError : rien n'est corrigé en silence.
  *
  * Les valeurs par défaut reproduisent le comportement d'origine de l'exemple :
- * réseau [6, 20, 2], 50 voitures, mutation 0,15, Berline, circuit généré,
+ * réseau [8, 20, 2], 50 voitures, mutation 0,15, Berline, circuit généré,
  * arrêt quand 60 % de la population termine le tour.
  */
 const Settings = {
@@ -15,7 +15,7 @@ const Settings = {
         speedLimit: { min: 2, max: 20, step: 1, initial: 6, decimals: 0, label: "Vitesse max de référence" },
         trackDifficulty: { min: 1, max: 50, step: 1, initial: 5, decimals: 0, label: "Complexité du circuit généré" },
         trackWidth: { min: 35, max: 150, step: 5, initial: 100, decimals: 0, label: "Largeur du circuit généré" },
-        simSpeed: { min: 1, max: 20, step: 1, initial: 1, decimals: 0, label: "Accélération (pas par image)" },
+        simSpeed: { min: 1, max: 20, step: 1, initial: 5, decimals: 0, label: "Cycles de décision par image" },
 
         // Architecture du cerveau
         hiddenLayerCount: { min: 1, max: 5, step: 1, initial: 1, decimals: 0, label: "Couches cachées" },
@@ -38,7 +38,7 @@ const Settings = {
     },
 
     MAX_HIDDEN_LAYERS: 5,
-    INPUTS: 6,          // 5 rayons + la vitesse
+    INPUTS: 8,          // 5 rayons en éventail + 2 rayons perpendiculaires + la vitesse
     OUTPUTS: 2,         // virage, poussée
     OUTPUTS_BRAKE: 3,   // virage, poussée, frein
 

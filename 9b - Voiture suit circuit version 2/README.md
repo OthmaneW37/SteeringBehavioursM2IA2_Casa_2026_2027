@@ -4,7 +4,7 @@ Des voitures pilotées par un petit réseau de neurones apprennent à faire le t
 Le réseau n'est entraîné **que par algorithme génétique** : sélection par tournoi puis mutation
 gaussienne des poids, sans rétropropagation.
 
-Sans rien toucher, l'application se comporte comme la version d'origine : réseau [6, 20, 2],
+Sans rien toucher, l'application a le même réglage que la version d'origine, sauf les capteurs (voir plus bas) : réseau [8, 20, 2],
 50 voitures « Berline », mutation 0,15, circuit généré par les curseurs, et arrêt quand 60 % de
 la population termine le tour.
 
@@ -21,12 +21,12 @@ Les tests n'ont aucune dépendance : il faut seulement Node 18 ou plus récent. 
 node --test tests/*.test.mjs
 ```
 
-Résultat attendu : 63 tests, 0 échec. Les tests exécutent les vrais fichiers `js/` dans un contexte `vm`
+Résultat attendu : 64 tests, 0 échec. Les tests exécutent les vrais fichiers `js/` dans un contexte `vm`
 isolé, avec un adaptateur vectoriel minimal à la place de p5 et un aléatoire à graine fixe.
 
 | Fichier | Ce qui est vérifié |
 |---|---|
-| `neuralNetwork.test.mjs` | tailles de couches, nombre de paramètres, [6, 20, 2] par défaut, initialisation Glorot, sorties dans [0, 1], copy / mutate indépendants, sérialisation |
+| `neuralNetwork.test.mjs` | tailles de couches, nombre de paramètres, [8, 20, 2] par défaut, initialisation Glorot, sorties dans [0, 1], copy / mutate indépendants, sérialisation |
 | `termination.test.mjs` | `shouldStop` : chaque condition seule, les combinaisons, les seuils inclusifs, le suivi de la stagnation |
 | `circuits.test.mjs` | chaque circuit (dans le canvas, boucle fermée, checkpoints ordonnés, murs sans croisement) ; curriculum (passage après un tour, retour au début) |
 | `configStore.test.mjs` | aller-retour JSON, rejet des valeurs hors plage, stockage bloqué ou plein, renommer / supprimer |
@@ -62,7 +62,7 @@ Les fichiers sont chargés dans cet ordre par `index.html` ; `main.js` vient en 
 | Réglage | Identifiant | Défaut | Plage |
 |---|---|---|---|
 | Vitesse max de référence | `speedSlider` | 6 | 2 – 20 |
-| Accélération (pas de simulation par image) | `simSpeed` | 1 | 1 – 20 |
+| Cycles de décision par image | `simSpeed` | 5 | 1 – 20 |
 | Complexité / largeur du circuit généré | `diffSlider` / `widthSlider` | 5 / 100 | 1 – 50 / 35 – 150 |
 | Couches cachées | `hiddenLayerCount` | 1 | 1 – 5 |
 | Neurones par couche | `neurons1` … `neurons5` | 20 | 1 – 64 |
@@ -79,6 +79,20 @@ Les fichiers sont chargés dans cet ordre par `index.html` ; `main.js` vient en 
 
 Note : le curseur « Complexité » affichait 10 alors que le programme utilisait 5. Le curseur indique
 maintenant 5, la valeur réellement utilisée au démarrage.
+
+## Capteurs et fréquence de décision
+
+Ces deux changements viennent des conseils du prof et reprennent l'exemple 9 (algorithme génétique).
+
+- **Capteurs** : 7 rayons orientés selon le cap de la voiture : 5 en éventail devant (champ de vision du type),
+  plus 2 rayons **perpendiculaires**, à gauche (-90°) et à droite (+90°). Ils permettent de longer un mur et de
+  voir un virage serré avant de le toucher. Le réseau a donc 8 entrées (7 rayons + la vitesse) : l'architecture
+  par défaut passe de [6, 20, 2] à [8, 20, 2], soit 222 paramètres.
+- **Plusieurs décisions par image** : comme la variable `cycles` du prof (`draw()` répète le comportement puis
+  `update()`), chaque image exécute plusieurs cycles de simulation, et la voiture décide à chaque cycle.
+  Par défaut 5 cycles par image au lieu de 1 : l'entraînement va 5 fois plus vite, sans changer la physique.
+- Les configurations enregistrées avant ce changement (version 1, réseau à 6 entrées) sont refusées à
+  l'import et ignorées dans le stockage local.
 
 ## Décisions
 
@@ -110,7 +124,7 @@ maintenant 5, la valeur réellement utilisée au démarrage.
   10-8-6-5-4-3-2-1 points aux voitures arrivées. Passer en course **suspend** l'entraînement. Au retour,
   le circuit d'entraînement est reconstruit et la génération en cours repart du départ, avec les mêmes
   cerveaux.
-- **Format des configurations** : `{ format: "neuro-racing-config", version: 1, name, savedAt,
+- **Format des configurations** : `{ format: "neuro-racing-config", version: 2, name, savedAt,
   settings, brain }`. `brain` vaut `null` ou `{ sizes, weights, biases }`. Un fichier importé est
   entièrement validé : plages, circuits et types connus, et cerveau compatible avec l'architecture.
 - **Circuits** : ils sont définis en données (points de contrôle dans un canvas de référence 1000 × 700),

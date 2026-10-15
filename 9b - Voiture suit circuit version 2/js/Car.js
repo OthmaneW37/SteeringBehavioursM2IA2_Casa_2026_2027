@@ -60,7 +60,7 @@ class Car {
         }
 
         this.rays = [];
-        for (let i = 0; i < NB_ASSETS - 1; i++) {
+        for (let i = 0; i < NB_RAYS; i++) {
             this.rays[i] = new Ray();
         }
     }
@@ -193,12 +193,16 @@ class Car {
         const sight = this.type.sightDist;
         const fov = this.type.fov;
 
-        // On a NB_ASSETS - 1 rayons (5 rayons)
-        let numRays = NB_ASSETS - 1;
-
-        for (let i = 0; i < numRays; i++) {
-            let angle = heading - fov / 2 + (i * fov) / (numRays - 1);
-            if (numRays === 1) angle = heading;
+        // Rayons 0 à 4 : éventail devant la voiture (champ de vision du type)
+        // Rayons 5 et 6 : perpendiculaires, à gauche (-90°) puis à droite (+90°) du cap.
+        // Ils servent à longer un mur et à voir les virages serrés avant de les toucher.
+        for (let i = 0; i < NB_RAYS; i++) {
+            let angle;
+            if (i < FAN_RAYS) {
+                angle = heading - fov / 2 + (i * fov) / (FAN_RAYS - 1);
+            } else {
+                angle = heading + (i === FAN_RAYS ? -Math.PI / 2 : Math.PI / 2);
+            }
 
             this.rays[i].setDir(angle);
             this.rays[i].setPos(this.pos.x, this.pos.y);
@@ -222,7 +226,7 @@ class Car {
         }
 
         // Le dernier input est la vitesse normalisée
-        inputs[NB_ASSETS - 1] = map(this.vel.mag(), 0, this.maxSpeed(), 0, 1);
+        inputs[NB_RAYS] = map(this.vel.mag(), 0, this.maxSpeed(), 0, 1);
 
         return inputs;
     }

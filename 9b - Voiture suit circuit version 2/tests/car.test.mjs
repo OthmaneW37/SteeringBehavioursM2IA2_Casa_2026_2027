@@ -34,7 +34,7 @@ test('Berline : valeurs identiques aux constantes d\'origine', () => {
   assert.equal(b.fov, Math.PI / 1.5);
   const car = new Car(null, { start: START });
   assert.equal(car.type.id, 'berline');
-  assert.deepEqual(plain(car.brain.sizes), [6, 20, 2]);
+  assert.deepEqual(plain(car.brain.sizes), [8, 20, 2]);
   assert.equal(car.maxSpeed(), 6, 'GAME_SPEED_LIMIT par défaut');
 });
 
@@ -288,13 +288,13 @@ test('entraînement : arrêt par durée en secondes (temps réel injecté)', () 
 
 test('course : aucune mutation, résultats par circuit et classement', () => {
   const { Race, NeuralNetwork, buildWorld } = setup(3);
-  const brain = new NeuralNetwork([6, 20, 2], seededRandom(1));
+  const brain = new NeuralNetwork([8, 20, 2], seededRandom(1));
   const before = JSON.stringify(brain.toJSON());
   const race = new Race({
     entrants: [
       { label: 'A', brain, typeId: 'berline' },
       { label: 'B', brain, typeId: 'camion' },
-      { label: 'C', brain: new NeuralNetwork([6, 8, 3], seededRandom(2)), typeId: 'drift' },
+      { label: 'C', brain: new NeuralNetwork([8, 8, 3], seededRandom(2)), typeId: 'drift' },
     ],
     circuits: ['ovale', 'epingles'], laps: 1, buildWorld, timeLimitPerLap: 30,
   });
@@ -338,4 +338,36 @@ test('course : classement (arrivées, temps, progression) et points', () => {
   assert.equal(race.state, 'finished');
   assert.deepEqual(plain(race.results[0].rows.map(r => r.points)), [10, 8, 0, 0]);
   assert.throws(() => new Race({ entrants: [], circuits: ['ovale'], laps: 1, buildWorld }), { name: 'RangeError' });
+});
+
+test('capteurs : 8 entrées, deux rayons perpendiculaires (gauche -90°, droite +90°) puis la vitesse', () => {
+  const { Car, CarTypes } = setup();
+  const car = new Car(null, { start: START });
+  car.pos.set(500, 350);
+  car.vel.set(2, 0); // cap vers +x
+  // Mur à 60 px d'un côté seulement : y = 410 (à droite du cap en repère écran) puis y = 290
+  const below = { a: new Vector(300, 410), b: new Vector(700, 410) };
+  const above = { a: new Vector(300, 270), b: new Vector(700, 270) };
+  const sight = CarTypes.get('berline').sightDist;
+
+  let inputs = car.look([below]);
+  assert.equal(inputs.length, 8);
+  assert.equal(car.rays.length, 7);
+  assert.ok(Math.abs(inputs[6] - (1 - 60 / sight)) < 1e-9, 'rayon +90° voit le mur en y = 410');
+  assert.equal(inputs[5], 0, 'rayon -90° ne voit rien');
+
+  inputs = car.look([above]);
+  assert.ok(Math.abs(inputs[5] - (1 - 80 / sight)) < 1e-9, 'rayon -90° voit le mur en y = 270');
+  assert.equal(inputs[6], 0);
+
+  // Les rayons suivent le cap : voiture tournée vers +y, les côtés échangent leurs axes
+  car.vel.set(0, 2);
+  inputs = car.look([{ a: new Vector(560, 200), b: new Vector(560, 500) }]);
+  assert.ok(Math.abs(inputs[5] - (1 - 60 / sight)) < 1e-9, 'à gauche du cap = x croissant');
+
+  // Dernière entrée : vitesse normalisée
+  car.vel.set(3, 0);
+  assert.ok(Math.abs(car.look([])[7] - 3 / car.maxSpeed()) < 1e-9);
+  // Sans mur, tous les capteurs valent 0
+  assert.deepEqual(plain(car.look([]).slice(0, 7)), [0, 0, 0, 0, 0, 0, 0]);
 });

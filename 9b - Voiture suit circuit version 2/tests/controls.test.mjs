@@ -63,7 +63,7 @@ test('réglages par défaut lus depuis le HTML = Settings.defaults() (comporteme
   Controls.init(doc);
   const s = Controls.readSettings(doc);
   assert.deepEqual(plain(s), plain(Settings.defaults()));
-  assert.deepEqual(plain(Settings.networkSizes(s)), [6, 20, 2]);
+  assert.deepEqual(plain(Settings.networkSizes(s)), [8, 20, 2]);
   assert.equal(s.termination.successRate.enabled, true);
   assert.equal(s.termination.successRate.value, 0.6);
 });
@@ -105,7 +105,7 @@ test('contrôle hors plage dans le DOM : readSettings refuse', () => {
 });
 
 test('affichage du réseau : positions dans le panneau, styles selon le poids', () => {
-  for (const sizes of [[6, 20, 2], [6, 64, 64, 64, 64, 64, 3], [6, 1, 3]]) {
+  for (const sizes of [[8, 20, 2], [6, 64, 64, 64, 64, 64, 3], [6, 1, 3]]) {
     const pos = NetworkView.layout(sizes, NetworkView.WIDTH, NetworkView.HEIGHT);
     assert.deepEqual(pos.map(c => c.length), sizes);
     for (const col of pos) for (const p of col) {

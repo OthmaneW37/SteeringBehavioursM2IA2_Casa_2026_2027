@@ -16,7 +16,7 @@ const NetworkView = {
     HEIGHT: 220,
     PADDING: 16,
     REDRAW_MS: 400,
-    INPUT_LABELS: ["R1", "R2", "R3", "R4", "R5", "Vit"],
+    INPUT_LABELS: ["R1", "R2", "R3", "R4", "R5", "Gauche", "Droite", "Vit"],
     OUTPUT_LABELS: ["Virage", "Poussée", "Frein"],
 
     /** Positions des neurones : une colonne par couche, centrée verticalement. */

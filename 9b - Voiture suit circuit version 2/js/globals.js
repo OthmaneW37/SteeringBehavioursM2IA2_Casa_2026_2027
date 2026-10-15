@@ -1,7 +1,11 @@
 // Variables Globales partagées
 // Utilisation de 'var' pour garantir l'accès via 'window' ou portée globale simple
 
-var NB_ASSETS = 6; // 5 rayons + 1 vitesse (entrées du réseau)
+// Capteurs : 5 rayons en éventail devant la voiture, 2 rayons perpendiculaires (gauche et droite)
+var FAN_RAYS = 5;
+var SIDE_RAYS = 2;
+var NB_RAYS = FAN_RAYS + SIDE_RAYS;
+var NB_ASSETS = NB_RAYS + 1; // 7 rayons + 1 vitesse = 8 entrées du réseau
 var CHECKPOINT_RADIUS = 40; // distance de validation d'un checkpoint
 
 // Circuit courant (rempli par buildCircuit dans Track.js)
