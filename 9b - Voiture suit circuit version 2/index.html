@@ -4,42 +4,237 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neuroévolution - Reconstruction</title>
+    <title>Neuroévolution - Laboratoire</title>
 
     <link rel="stylesheet" href="css/style.css">
 
-    <!-- Bibliothèques -->
+    <!-- Bibliothèque -->
     <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 
-    <!-- Scripts du Projet -->
+    <!-- Scripts du Projet (une dépendance avant ce qui l'utilise, main.js en dernier) -->
     <script src="js/globals.js"></script>
     <script src="js/utils.js"></script>
+    <script src="js/settings.js"></script>
     <script src="js/NeuralNetwork.js"></script>
+    <script src="js/carTypes.js"></script>
+    <script src="js/trackGeometry.js"></script>
+    <script src="js/circuits.js"></script>
     <script src="js/Ray.js"></script>
     <script src="js/Track.js"></script>
     <script src="js/Car.js"></script>
     <script src="js/Genetic.js"></script>
+    <script src="js/termination.js"></script>
+    <script src="js/curriculum.js"></script>
+    <script src="js/trainer.js"></script>
+    <script src="js/race.js"></script>
+    <script src="js/configStore.js"></script>
+    <script src="js/networkView.js"></script>
+    <script src="js/controls.js"></script>
     <script src="js/main.js"></script>
 </head>
 
 <body>
-    <div id="ui">
+    <aside id="ui">
         <h1>Neuroévolution Racing</h1>
-        <div class="control-group">
-            <label for="speedSlider">Vitesse Max : <span id="speedVal">6</span></label>
-            <input type="range" id="speedSlider" min="2" max="20" value="6" step="1">
-        </div>
-        <div class="control-group">
-            <label for="diffSlider">Complexité Circuit : <span id="diffVal">10</span></label>
-            <input type="range" id="diffSlider" min="1" max="50" value="10" step="1">
-        </div>
-        <div class="control-group">
-            <label for="widthSlider">Largeur Piste : <span id="widthVal">100</span></label>
-            <input type="range" id="widthSlider" min="35" max="150" value="100" step="5">
-        </div>
-        <p class="legend">Vert = Leader | Lignes Vertes = Checkpoints | Jaune = Capteurs</p>
-    </div>
+
+        <section class="control-group">
+            <label for="modeSelect">Mode</label>
+            <select id="modeSelect">
+                <option value="training" selected>Entraînement</option>
+                <option value="race">Course</option>
+            </select>
+            <div class="buttons">
+                <button id="pauseBtn" type="button">Pause</button>
+                <button id="restartBtn" type="button">Relancer l'entraînement</button>
+            </div>
+            <p id="statusMsg" class="status" role="status"></p>
+        </section>
+
+        <details open>
+            <summary>Simulation</summary>
+            <div class="control-group">
+                <label for="speedSlider">Vitesse max de référence : <span id="speedVal">6</span></label>
+                <input type="range" id="speedSlider" min="2" max="20" value="6" step="1">
+            </div>
+            <div class="control-group">
+                <label for="simSpeed">Accélération (pas par image) : <span id="simSpeedVal">1</span></label>
+                <input type="range" id="simSpeed" min="1" max="20" value="1" step="1">
+            </div>
+            <div class="control-group check">
+                <label><input type="checkbox" id="showNetwork" checked> Afficher le réseau (touche N)</label>
+            </div>
+        </details>
+
+        <details open>
+            <summary>Circuits</summary>
+            <div class="control-group">
+                <label for="circuitSet">Jeu de circuits</label>
+                <select id="circuitSet"></select>
+            </div>
+            <div class="control-group">
+                <label for="circuitList">Circuits enchaînés (Ctrl + clic)</label>
+                <select id="circuitList" multiple size="8"></select>
+            </div>
+            <p id="circuitInfo" class="hint"></p>
+            <div class="control-group">
+                <label for="diffSlider">Complexité du circuit généré : <span id="diffVal">5</span></label>
+                <input type="range" id="diffSlider" min="1" max="50" value="5" step="1">
+            </div>
+            <div class="control-group">
+                <label for="widthSlider">Largeur du circuit généré : <span id="widthVal">100</span></label>
+                <input type="range" id="widthSlider" min="35" max="150" value="100" step="5">
+            </div>
+        </details>
+
+        <details>
+            <summary>Architecture du réseau</summary>
+            <div class="control-group">
+                <label for="hiddenLayerCount">Couches cachées : <span id="hiddenLayerCountVal">1</span></label>
+                <input type="range" id="hiddenLayerCount" min="1" max="5" value="1" step="1">
+            </div>
+            <div class="control-group layer" data-layer="1">
+                <label for="neurons1">Couche 1 : <span id="neurons1Val">20</span> neurones</label>
+                <input type="range" id="neurons1" min="1" max="64" value="20" step="1">
+            </div>
+            <div class="control-group layer" data-layer="2">
+                <label for="neurons2">Couche 2 : <span id="neurons2Val">20</span> neurones</label>
+                <input type="range" id="neurons2" min="1" max="64" value="20" step="1">
+            </div>
+            <div class="control-group layer" data-layer="3">
+                <label for="neurons3">Couche 3 : <span id="neurons3Val">20</span> neurones</label>
+                <input type="range" id="neurons3" min="1" max="64" value="20" step="1">
+            </div>
+            <div class="control-group layer" data-layer="4">
+                <label for="neurons4">Couche 4 : <span id="neurons4Val">20</span> neurones</label>
+                <input type="range" id="neurons4" min="1" max="64" value="20" step="1">
+            </div>
+            <div class="control-group layer" data-layer="5">
+                <label for="neurons5">Couche 5 : <span id="neurons5Val">20</span> neurones</label>
+                <input type="range" id="neurons5" min="1" max="64" value="20" step="1">
+            </div>
+            <div class="control-group check">
+                <label><input type="checkbox" id="brakeOutput"> Frein appris (3e sortie)</label>
+            </div>
+            <p id="archInfo" class="hint"></p>
+            <button id="applyArchBtn" type="button">Appliquer (nouvelle population)</button>
+        </details>
+
+        <details>
+            <summary>Population et voitures</summary>
+            <div class="control-group">
+                <label for="populationSize">Population : <span id="populationSizeVal">50</span></label>
+                <input type="range" id="populationSize" min="10" max="200" value="50" step="10">
+            </div>
+            <div class="control-group">
+                <label for="mutationRate">Taux de mutation : <span id="mutationRateVal">0.15</span></label>
+                <input type="range" id="mutationRate" min="0" max="1" value="0.15" step="0.01">
+            </div>
+            <div class="control-group">
+                <label for="lapsPerRun">Tours par évaluation : <span id="lapsPerRunVal">1</span></label>
+                <input type="range" id="lapsPerRun" min="1" max="5" value="1" step="1">
+            </div>
+            <div class="control-group">
+                <label for="carTypeMode">Types de voitures</label>
+                <select id="carTypeMode">
+                    <option value="unique" selected>Type unique</option>
+                    <option value="melange">Mélange</option>
+                </select>
+            </div>
+            <div class="control-group" id="carTypeUniqueGroup">
+                <label for="carTypeUnique">Type</label>
+                <select id="carTypeUnique"></select>
+            </div>
+            <div class="control-group" id="carTypeMixGroup">
+                <label for="carTypeMix">Types mélangés (Ctrl + clic)</label>
+                <select id="carTypeMix" multiple size="5"></select>
+            </div>
+            <p id="carTypeInfo" class="hint"></p>
+        </details>
+
+        <details>
+            <summary>Fin de l'entraînement</summary>
+            <div class="control-group term">
+                <label><input type="checkbox" id="termMaxGenerationsOn"> Générations max : <span id="termMaxGenerationsVal">200</span></label>
+                <input type="range" id="termMaxGenerations" min="1" max="2000" value="200" step="1">
+            </div>
+            <div class="control-group term">
+                <label><input type="checkbox" id="termTargetLapsOn"> Tours réussis sur chaque circuit : <span id="termTargetLapsVal">1</span></label>
+                <input type="range" id="termTargetLaps" min="1" max="5" value="1" step="1">
+            </div>
+            <div class="control-group term">
+                <label><input type="checkbox" id="termStagnationOn"> Stagnation (générations) : <span id="termStagnationVal">30</span></label>
+                <input type="range" id="termStagnation" min="1" max="500" value="30" step="1">
+            </div>
+            <div class="control-group term">
+                <label><input type="checkbox" id="termMaxTimeOn"> Temps max (s) : <span id="termMaxTimeVal">600</span></label>
+                <input type="range" id="termMaxTime" min="10" max="7200" value="600" step="10">
+            </div>
+            <div class="control-group term">
+                <label><input type="checkbox" id="termSuccessRateOn" checked> Taux de réussite : <span id="termSuccessRateVal">0.60</span></label>
+                <input type="range" id="termSuccessRate" min="0.05" max="1" value="0.6" step="0.05">
+            </div>
+            <button id="saveBestBtn" type="button" disabled>Sauvegarder le meilleur cerveau</button>
+        </details>
+
+        <details>
+            <summary>Configurations</summary>
+            <div class="control-group">
+                <label for="configName">Nom</label>
+                <input type="text" id="configName" maxlength="60" value="Ma configuration">
+            </div>
+            <div class="control-group check">
+                <label><input type="checkbox" id="includeBrain" checked> Inclure le meilleur cerveau</label>
+            </div>
+            <button id="saveConfigBtn" type="button">Sauvegarder</button>
+            <div class="control-group">
+                <label for="configList">Configurations sauvegardées</label>
+                <select id="configList" size="5"></select>
+            </div>
+            <div class="buttons">
+                <button id="loadConfigBtn" type="button">Charger</button>
+                <button id="renameConfigBtn" type="button">Renommer</button>
+                <button id="deleteConfigBtn" type="button">Supprimer</button>
+            </div>
+            <div class="buttons">
+                <button id="exportConfigBtn" type="button">Exporter (JSON)</button>
+                <label class="file-button">Importer (JSON)<input type="file" id="importConfigInput" accept=".json,application/json"></label>
+            </div>
+            <p id="configMsg" class="status" role="status"></p>
+        </details>
+
+        <details id="raceSection">
+            <summary>Course</summary>
+            <div class="control-group">
+                <label for="raceBrainSelect">Cerveau</label>
+                <select id="raceBrainSelect"></select>
+            </div>
+            <div class="control-group">
+                <label for="raceTypeSelect">Type de voiture</label>
+                <select id="raceTypeSelect"></select>
+            </div>
+            <div class="buttons">
+                <button id="addEntrantBtn" type="button">Ajouter la voiture</button>
+                <button id="addAllTypesBtn" type="button">Un de chaque type</button>
+                <button id="clearEntrantsBtn" type="button">Vider</button>
+            </div>
+            <ol id="entrantList" class="entrants"></ol>
+            <div class="control-group">
+                <label for="raceCircuitSet">Circuits de la course</label>
+                <select id="raceCircuitSet"></select>
+            </div>
+            <div class="control-group">
+                <label for="raceCircuitList">Circuits enchaînés (Ctrl + clic)</label>
+                <select id="raceCircuitList" multiple size="8"></select>
+            </div>
+            <div class="control-group">
+                <label for="raceLaps">Tours par circuit : <span id="raceLapsVal">2</span></label>
+                <input type="range" id="raceLaps" min="1" max="5" value="2" step="1">
+            </div>
+            <button id="startRaceBtn" type="button">Lancer la course</button>
+            <div id="raceResults" class="results"></div>
+        </details>
+    </aside>
+    <button id="panelToggle" type="button" title="Masquer / afficher le menu">◀</button>
     <div id="canvas-container"></div>
 </body>
 
