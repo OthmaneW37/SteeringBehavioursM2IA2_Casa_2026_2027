@@ -1,1 +1,1 @@
-{"version":"0.0.1","configurations":[{"name":"pursue","runtimeExecutable":"python","runtimeArgs":["-m","http.server","8766","--directory","2-PursueEvade"],"port":8766}]}
+{"version":"0.0.1","configurations":[{"name":"pursue","runtimeExecutable":"python","runtimeArgs":["-m","http.server","8766","--directory","2-PursueEvade"],"port":8766},{"name":"pathfollowing","runtimeExecutable":"python","runtimeArgs":["-m","http.server","8768","--directory","5-3-PathFollowingComplex"],"port":8768}]}

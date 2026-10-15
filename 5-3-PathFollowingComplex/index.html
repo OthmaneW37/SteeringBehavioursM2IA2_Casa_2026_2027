@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Sketch</title>
+    <title>Serpents sur circuit — follow, séparation et wander</title>
 
     <link rel="stylesheet" type="text/css" href="style.css">
 
@@ -12,9 +12,246 @@
     <script src="libraries/p5.sound.min.js"></script>
     <script src="path.js"></script>
     <script src="vehicle.js"></script>
+    <script src="steering.js"></script>
+    <script src="circuit.js"></script>
+    <script src="trackScenery.js"></script>
+    <script src="snakeSkins.js"></script>
+    <script src="snakeRing.js"></script>
+    <script src="snake.js"></script>
+    <script src="insect.js"></script>
+    <script src="obstacle.js"></script>
+    <script src="crowd.js"></script>
+    <script src="snakeGroup.js"></script>
+    <script src="insectColony.js"></script>
+    <script src="swarms.js"></script>
+    <script src="obstacleField.js"></script>
+    <script src="snakeSettings.js"></script>
+    <script src="menuToggle.js"></script>
     <script src="sketch.js"></script>
   </head>
   <body>
-    <!-- Pas besoin de déclarer un canvas pour dessiner en P5.js -->
+    <header id="controls">
+      <div class="menu-title">Serpents <span>circuit, insectes, follow · separate · wander</span></div>
+
+      <details class="section" open>
+        <summary>Mode</summary>
+        <div class="section-body">
+        <div class="field">
+          <label for="snake-mode">Terrain</label>
+          <select id="snake-mode"></select>
+        </div>
+        <p class="hint">Circuit : les créatures suivent la route. Arène : pas de route, tout l’écran est un terrain bordé où elles errent en contournant les obstacles. Changer de mode règle l’errance et les obstacles ; vous pouvez ensuite les modifier.</p>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary>Comportements des serpents</summary>
+        <div class="section-body">
+        <span class="control">
+          <label for="snake-followWeight">Poids du suivi de chemin</label>
+          <input id="snake-followWeight" type="range" min="0" max="5" step="0.1" value="2">
+          <output id="snake-followWeight-value" for="snake-followWeight">2.0</output>
+        </span>
+        <span class="control">
+          <label for="snake-separateWeight">Poids de la séparation</label>
+          <input id="snake-separateWeight" type="range" min="0" max="5" step="0.1" value="1.2">
+          <output id="snake-separateWeight-value" for="snake-separateWeight">1.2</output>
+        </span>
+        <span class="control">
+          <label for="snake-wanderWeight">Poids du wander (errance)</label>
+          <input id="snake-wanderWeight" type="range" min="0" max="3" step="0.1" value="0">
+          <output id="snake-wanderWeight-value" for="snake-wanderWeight">0.0</output>
+        </span>
+        <span class="control">
+          <label for="snake-wanderRadius">Rayon du cercle de wander</label>
+          <input id="snake-wanderRadius" type="range" min="10" max="100" step="5" value="40">
+          <output id="snake-wanderRadius-value" for="snake-wanderRadius">40</output>
+        </span>
+        <span class="control">
+          <label for="snake-avoidWeight">Poids de l’évitement d’obstacles</label>
+          <input id="snake-avoidWeight" type="range" min="0" max="5" step="0.1" value="3">
+          <output id="snake-avoidWeight-value" for="snake-avoidWeight">3.0</output>
+        </span>
+        <div class="field">
+          <label for="snake-avoidMode">Algorithme d’évitement</label>
+          <select id="snake-avoidMode"></select>
+        </div>
+        <span class="control">
+          <label for="snake-avoidRays">Nombre de rayons</label>
+          <input id="snake-avoidRays" type="range" min="3" max="9" step="2" value="5">
+          <output id="snake-avoidRays-value" for="snake-avoidRays">5</output>
+        </span>
+        <span class="control">
+          <label for="snake-avoidFan">Ouverture de l’éventail (°)</label>
+          <input id="snake-avoidFan" type="range" min="10" max="80" step="5" value="40">
+          <output id="snake-avoidFan-value" for="snake-avoidFan">40</output>
+        </span>
+        <p class="hint">Classique : l’algorithme de 6-ObstacleAvoidance (vecteurs ahead et ahead2). Multi-rayons : plusieurs rayons en éventail prédisent où le véhicule touchera un obstacle ; chaque impact repousse selon son urgence.</p>
+        <p class="hint">Le serpent suit le chemin avec <b>follow</b> ; sa tête et ses anneaux s’écartent des insectes avec <b>separate</b> ; <b>wander</b> le fait errer. Un poids à zéro coupe le comportement.</p>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Apparence des serpents</summary>
+        <div class="section-body">
+        <div class="field">
+          <label for="snake-snakePattern">Motif des nouveaux serpents</label>
+          <select id="snake-snakePattern"></select>
+        </div>
+        <label for="snake-randomSizes" class="switch"><input id="snake-randomSizes" type="checkbox" checked> Dimensions aléatoires avec t</label>
+        <span class="control">
+          <label for="snake-snakeSize">Taille de la tête</label>
+          <input id="snake-snakeSize" type="range" min="6" max="24" step="1" value="14">
+          <output id="snake-snakeSize-value" for="snake-snakeSize">14</output>
+        </span>
+        <span class="control">
+          <label for="snake-snakeLength">Nombre d’anneaux</label>
+          <input id="snake-snakeLength" type="range" min="5" max="40" step="1" value="14">
+          <output id="snake-snakeLength-value" for="snake-snakeLength">14</output>
+        </span>
+        <span class="control">
+          <label for="snake-snakeSpeed">Vitesse max</label>
+          <input id="snake-snakeSpeed" type="range" min="1" max="4" step="0.1" value="2.5">
+          <output id="snake-snakeSpeed-value" for="snake-snakeSpeed">2.5</output>
+        </span>
+        <p class="hint">Ces trois curseurs règlent tous les serpents ; ils servent aussi aux nouveaux quand l’interrupteur est coupé.</p>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Circuit et décor</summary>
+        <div class="section-body">
+        <div class="field">
+          <label for="snake-shape">Forme</label>
+          <select id="snake-shape"></select>
+        </div>
+        <div class="field">
+          <label for="snake-theme">Décor</label>
+          <select id="snake-theme"></select>
+        </div>
+        <span class="control">
+          <label for="snake-circuitSize">Taille du circuit (%)</label>
+          <input id="snake-circuitSize" type="range" min="40" max="100" step="5" value="90">
+          <output id="snake-circuitSize-value" for="snake-circuitSize">90</output>
+        </span>
+        <span class="control">
+          <label for="snake-circuitSegments">Nombre de segments</label>
+          <input id="snake-circuitSegments" type="range" min="12" max="60" step="1" value="30">
+          <output id="snake-circuitSegments-value" for="snake-circuitSegments">30</output>
+        </span>
+        <span class="control">
+          <label for="snake-circuitIrregularity">Irrégularité</label>
+          <input id="snake-circuitIrregularity" type="range" min="0" max="1" step="0.05" value="0.5">
+          <output id="snake-circuitIrregularity-value" for="snake-circuitIrregularity">0.50</output>
+        </span>
+        <span class="control">
+          <label for="snake-roadWidth">Demi-largeur de la route</label>
+          <input id="snake-roadWidth" type="range" min="10" max="45" step="1" value="20">
+          <output id="snake-roadWidth-value" for="snake-roadWidth">20</output>
+        </span>
+        <span class="control">
+          <label for="snake-circuitSeed">Numéro du circuit</label>
+          <input id="snake-circuitSeed" type="range" min="0" max="999" step="1" value="7">
+          <output id="snake-circuitSeed-value" for="snake-circuitSeed">7</output>
+        </span>
+        <button id="new-circuit" type="button">🎲 Nouveau circuit</button>
+        <span class="control">
+          <label for="snake-decorDensity">Densité du décor (%)</label>
+          <input id="snake-decorDensity" type="range" min="0" max="100" step="5" value="60">
+          <output id="snake-decorDensity-value" for="snake-decorDensity">60</output>
+        </span>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Obstacles</summary>
+        <div class="section-body">
+        <label for="snake-clickObstacle" class="switch"><input id="snake-clickObstacle" type="checkbox"> Clic : poser / retirer un obstacle</label>
+        <div class="field">
+          <label for="snake-obstacleType">Type des obstacles posés</label>
+          <select id="snake-obstacleType"></select>
+        </div>
+        <span class="control">
+          <label for="snake-obstacleCount">Nombre d’obstacles</label>
+          <input id="snake-obstacleCount" type="range" min="0" max="20" step="1" value="0">
+          <output id="snake-obstacleCount-value" for="snake-obstacleCount">0</output>
+        </span>
+        <span class="control">
+          <label for="snake-obstacleSize">Taille des obstacles</label>
+          <input id="snake-obstacleSize" type="range" min="10" max="60" step="1" value="28">
+          <output id="snake-obstacleSize-value" for="snake-obstacleSize">28</output>
+        </span>
+        <button id="clear-obstacles" type="button">🧹 Vider les obstacles</button>
+        <p class="hint">Rocher, étang, buisson : un cercle ou un groupe de cercles. Mur : une rangée de cercles. Les serpents et les insectes les contournent avec l’algorithme d’évitement de 6-ObstacleAvoidance (vecteurs ahead et ahead2).</p>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Insectes</summary>
+        <div class="section-body">
+        <span class="control">
+          <label for="snake-insectCount">Nombre d’insectes</label>
+          <input id="snake-insectCount" type="range" min="0" max="40" step="1" value="20">
+          <output id="snake-insectCount-value" for="snake-insectCount">20</output>
+        </span>
+        <span class="control">
+          <label for="snake-insectSize">Taille des insectes</label>
+          <input id="snake-insectSize" type="range" min="6" max="24" step="1" value="12">
+          <output id="snake-insectSize-value" for="snake-insectSize">12</output>
+        </span>
+        <p class="hint">Les insectes sont des véhicules ordinaires que les serpents évitent. Chaque espèce a ses vitesses et sa façon de marcher.</p>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Essaims d’insectes (boids)</summary>
+        <div class="section-body">
+        <label for="snake-swarm" class="switch"><input id="snake-swarm" type="checkbox" checked> Les insectes volent en essaim</label>
+        <span class="control">
+          <label for="snake-flockAlign">Poids de l’alignement</label>
+          <input id="snake-flockAlign" type="range" min="0" max="2" step="0.1" value="1.5">
+          <output id="snake-flockAlign-value" for="snake-flockAlign">1.5</output>
+        </span>
+        <span class="control">
+          <label for="snake-flockCohesion">Poids de la cohésion</label>
+          <input id="snake-flockCohesion" type="range" min="0" max="2" step="0.1" value="1">
+          <output id="snake-flockCohesion-value" for="snake-flockCohesion">1.0</output>
+        </span>
+        <span class="control">
+          <label for="snake-flockSeparation">Poids de la séparation (boids)</label>
+          <input id="snake-flockSeparation" type="range" min="0" max="15" step="0.1" value="3">
+          <output id="snake-flockSeparation-value" for="snake-flockSeparation">3.0</output>
+        </span>
+        <span class="control">
+          <label for="snake-flockRadius">Rayon de perception</label>
+          <input id="snake-flockRadius" type="range" min="15" max="100" step="1" value="40">
+          <output id="snake-flockRadius-value" for="snake-flockRadius">40</output>
+        </span>
+        <span class="control">
+          <label for="snake-scareRadius">Peur des serpents (rayon)</label>
+          <input id="snake-scareRadius" type="range" min="0" max="200" step="10" value="90">
+          <output id="snake-scareRadius-value" for="snake-scareRadius">90</output>
+        </span>
+        <div class="stats"><span class="stat">Essaims <output id="swarm-count" aria-live="off">0</output></span><span class="stat">Plus gros <output id="swarm-largest" aria-live="off">0</output></span></div>
+        <p class="hint">Les règles de boids de 7-Boids (alignement, cohésion, séparation) ne s’appliquent qu’entre insectes de la même espèce : les abeilles volent avec les abeilles, les fourmis avec les fourmis. Un essaim est un groupe de 3 insectes ou plus de même espèce reliés de proche en proche, à moins de 2 × le rayon de perception (la portée de la cohésion). Les têtes de serpent sont des prédateurs : l’essaim se disperse à leur approche, puis se reforme.</p>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Debug</summary>
+        <div class="section-body">
+        <label for="debug-mode" class="switch"><input id="debug-mode" type="checkbox"> Mode debug (touche d)</label>
+        <p class="hint">Cercles de séparation de chaque serpent (jaune, rouge si un insecte est dedans), ligne centrale du chemin, cibles de follow, cercle de wander, essaims (contour et liens), vecteurs ahead (jaune) et ahead2 (violet) de l’évitement classique ou rayons de prédiction (verts libres, rouges jusqu’à l’impact), et cercles rouges des obstacles.</p>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Aide</summary>
+        <div class="section-body">
+        <p class="hint"><kbd>t</kbd> nouveau serpent sous la souris (12 au plus) · <kbd>o</kbd> obstacle sous la souris (ou clic, si l’interrupteur des obstacles est actif ; un clic sur un obstacle le retire) · <kbd>s</kbd> abeille rapide · <kbd>w</kbd> grosse sauterelle qui erre · glisser sur le canvas : insectes (60 au plus) · <kbd>d</kbd> debug.</p>
+        </div>
+      </details>
+    </header>
+    <button id="menu-toggle" type="button" aria-controls="controls" aria-expanded="true">◀ Masquer</button>
   </body>
 </html>

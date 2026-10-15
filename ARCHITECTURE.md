@@ -61,3 +61,28 @@ Créer `monEntite.js` avec une sous-classe de `Vehicle` (ou d'une entité exista
 Chaque nouvelle fonctionnalité d'un exemple doit être accompagnée de tests unitaires pertinents, exécutés avant de présenter la modification comme terminée. Consulter [`AGENTS.md`](AGENTS.md) pour les attentes de couverture, la reproductibilité de l'aléatoire et la communication du résultat des tests.
 
 Dans `1-Seek`, les tests sont dans `tests/population.test.mjs` et se lancent avec `node --test tests/*.test.mjs` depuis le dossier `1-Seek`. Ils exécutent les vrais fichiers de l'exemple dans un contexte isolé, avec un adaptateur vectoriel minimal. Ils comprennent des contrôles de cohérence entre `index.html`, les modules et `sketch.js`, qui n'est pas exécutable sous Node.
+
+## Exemple `5-3-PathFollowingComplex` : serpents, insectes et circuit personnalisable
+
+Tests : `node --test tests/*.test.mjs` depuis `5-3-PathFollowingComplex`. `vehicle.js` est fourni et protégé (le test `tests/snake.test.mjs` en vérifie l'empreinte) ; il fournit `follow(path)`, `separate(vehicles)` et `wander()`.
+
+| Fichier | Rôle |
+|---|---|
+| `vehicle.js`, `path.js` | **Fournis.** Véhicule et chemin. |
+| `steering.js` | `arrive` (loi de `3-Arrival_correction`), `stayInside` (rester dans le canvas), `avoid` (l'`avoidCorrige` de `6-ObstacleAvoidance`, repris tel quel) et `avoidRays` (option : évitement multi-rayons qui prédit les impacts), `flockAlign` / `flockCohesion` / `flockSeparation` (les trois règles de boids de `7-Boids`, reprises telles quelles) et `flee` (fuite à rayon). |
+| `snakeRing.js` | `SnakeRing extends Vehicle` : un anneau, `arrive` sur le précédent + `separate`. |
+| `snake.js` | `Snake extends Vehicle` : la tête fait `follow` + `separate` + `wander` (trois poids) ; les anneaux suivent. |
+| `snakeSkins.js` | Designs aléatoires (motif, tête, yeux, nom), bornes `RANGES` de la touche `t`. |
+| `snakeGroup.js`, `crowd.js` | Création (plafond 12), poids communs ; foule à éviter (les parties d'un serpent ne s'évitent pas entre elles). |
+| `obstacle.js`, `obstacleField.js` | `Obstacle extends Vehicle` (rocher, étang, buisson, mur) : les formes non circulaires sont des groupes de cercles `{ pos, r }`, les seuls obstacles que connaît l'évitement. Gestionnaire : plafond 30, effectif réglé, pose et retrait à la souris. |
+| `swarms.js` | Essaims d'insectes : détection (groupes de 3 ou plus de même espèce, reliés de proche en proche à moins de 2 × le rayon de perception), halo coloré, statistiques. Affichage seulement. |
+| `insect.js`, `insectColony.js` | `Insect extends Vehicle` (5 espèces, pattes animées) et son gestionnaire (plafond 60). |
+| `circuit.js`, `trackScenery.js` | Génération du circuit (forme, taille, segments, irrégularité, graine) et décor en cache (4 thèmes). Rendu, pas des entités. |
+| `snakeSettings.js` | Curseurs, interrupteur, listes, et `GROUPS` : quel module reçoit quel réglage. |
+| `menuToggle.js`, `sketch.js` | Menu masquable ; câblage p5. |
+
+Deux modes : **circuit** (on suit la route) et **arène** (pas de route, terrain bordé où l'on erre avec `wander`, en contournant les obstacles ; `path` vaut `null` et `follow` n'est pas appelé). Changer de mode règle l'errance et le nombre d'obstacles comme le ferait l'utilisateur. Les obstacles peuvent être posés ou retirés à la souris dans les deux modes.
+
+**Essaims** : les insectes appliquent les règles de boids de `7-Boids` uniquement avec ceux de leur espèce (les abeilles volent avec les abeilles) et fuient les têtes de serpent à portée (fuite à rayon, donc l'essaim se disperse puis se reforme).
+
+Les serpents et les insectes sont des véhicules ; le circuit et le décor ne bougent pas. Un serpent n'est jamais téléporté par `edges()` : un garde-fou `stayInside` le retient quand le `wander` l'éloigne de la route.

@@ -1,19 +1,217 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>Sketch</title>
-
+    <title>Serpents — arrive</title>
     <link rel="stylesheet" type="text/css" href="style.css">
-
     <script src="libraries/p5.min.js"></script>
-    <script src="libraries/p5.sound.min.js"></script>
     <script src="vehicle.js"></script>
+    <script src="steering.js"></script>
+    <script src="skins.js"></script>
+    <script src="snakeRing.js"></script>
+    <script src="food.js"></script>
+    <script src="snake.js"></script>
+    <script src="snakeWander.js"></script>
+    <script src="foodField.js"></script>
+    <script src="mouseTarget.js"></script>
+    <script src="sparkle.js"></script>
+    <script src="letterDot.js"></script>
+    <script src="textMenu.js"></script>
+    <script src="debugOptions.js"></script>
+    <script src="snakeControls.js"></script>
+    <script src="snakeWorld.js"></script>
+    <script src="scenarios.js"></script>
+    <script src="skinPicker.js"></script>
+    <script src="menuToggle.js"></script>
     <script src="sketch.js"></script>
   </head>
   <body>
-    <!-- Pas besoin de déclarer un canvas pour dessiner en P5.js -->
+    <header id="controls">
+      <div class="menu-title">Serpents <span>comportement arrive</span></div>
+
+      <details class="section" open>
+        <summary>Scénario</summary>
+        <div class="section-body">
+          <select id="scenario" aria-label="Scénario"></select>
+          <p id="scenario-description" class="hint"></p>
+          <div class="button-row">
+            <button id="pause" type="button">⏸ Pause</button>
+            <button id="reset" type="button">↺ Rejouer</button>
+          </div>
+          <button id="open-menu" type="button">☰ Menu du jeu</button>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary>Serpents</summary>
+        <div class="section-body">
+          <div class="field">
+            <label>Design du premier serpent : <output id="skin-name">Dragon de jade</output></label>
+            <div id="skin-gallery" class="skin-gallery" role="group" aria-label="Designs"></div>
+            <select id="snake-skin" aria-label="Design" hidden></select>
+          </div>
+          <span class="control">
+            <label for="snake-snakeCount">Nombre de serpents</label>
+            <input id="snake-snakeCount" type="range" min="1" max="6" step="1" value="1">
+            <output id="snake-snakeCount-value" for="snake-snakeCount">1</output>
+          </span>
+          <div class="field">
+            <label for="snake-formation">Les autres serpents…</label>
+            <select id="snake-formation"></select>
+          </div>
+          <span class="control">
+            <label for="snake-length">Anneaux</label>
+            <input id="snake-length" type="range" min="3" max="60" step="1" value="18">
+            <output id="snake-length-value" for="snake-length">18</output>
+          </span>
+          <span class="control">
+            <label for="snake-size">Taille</label>
+            <input id="snake-size" type="range" min="6" max="28" step="1" value="14">
+            <output id="snake-size-value" for="snake-size">14</output>
+          </span>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Mouvement (arrive)</summary>
+        <div class="section-body">
+          <span class="control">
+            <label for="snake-speed">Vitesse max de la tête</label>
+            <input id="snake-speed" type="range" min="2" max="14" step="0.5" value="6">
+            <output id="snake-speed-value" for="snake-speed">6.0</output>
+          </span>
+          <span class="control">
+            <label for="snake-force">Force max (agilité)</label>
+            <input id="snake-force" type="range" min="0.05" max="1.5" step="0.05" value="0.35">
+            <output id="snake-force-value" for="snake-force">0.35</output>
+          </span>
+          <span class="control">
+            <label for="snake-braking">Rayon de freinage</label>
+            <input id="snake-braking" type="range" min="20" max="300" step="10" value="120">
+            <output id="snake-braking-value" for="snake-braking">120</output>
+          </span>
+          <span class="control">
+            <label for="snake-spacing">Espacement des anneaux</label>
+            <input id="snake-spacing" type="range" min="4" max="40" step="1" value="14">
+            <output id="snake-spacing-value" for="snake-spacing">14</output>
+          </span>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Nourriture</summary>
+        <div class="section-body">
+          <label for="snake-foodAuto"><input id="snake-foodAuto" type="checkbox" checked> Apparition automatique</label>
+          <span class="control">
+            <label for="snake-foodMax">Quantité max</label>
+            <input id="snake-foodMax" type="range" min="0" max="30" step="1" value="8">
+            <output id="snake-foodMax-value" for="snake-foodMax">8</output>
+          </span>
+          <span class="control">
+            <label for="snake-foodRate">Apparitions par seconde</label>
+            <input id="snake-foodRate" type="range" min="0" max="5" step="0.1" value="0.8">
+            <output id="snake-foodRate-value" for="snake-foodRate">0.8</output>
+          </span>
+          <span class="control">
+            <label for="snake-attraction">Rayon d’attraction</label>
+            <input id="snake-attraction" type="range" min="30" max="300" step="10" value="120">
+            <output id="snake-attraction-value" for="snake-attraction">120</output>
+          </span>
+          <div class="field">
+            <label for="snake-clickFood">Au clic sur la scène</label>
+            <select id="snake-clickFood"></select>
+          </div>
+          <ul id="food-legend" class="legend"></ul>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Adversaire (wander)</summary>
+        <div class="section-body">
+          <p class="hint">Une vipère qui erre : un point glisse sur un cercle devant sa tête, et elle est attirée vers lui. Elle vole la nourriture. <b>Partie</b> : mordez son corps avec votre tête pour lui retirer de la vie (barre au-dessus d’elle) ; si sa tête mord votre corps, vous perdez 2 anneaux. Blessée, elle vous fuit.</p>
+          <span class="control">
+            <label for="snake-rivals">Adversaires</label>
+            <input id="snake-rivals" type="range" min="0" max="3" step="1" value="0">
+            <output id="snake-rivals-value" for="snake-rivals">0</output>
+          </span>
+          <span class="control">
+            <label for="snake-rivalSpeed">Vitesse max</label>
+            <input id="snake-rivalSpeed" type="range" min="1" max="10" step="0.5" value="4">
+            <output id="snake-rivalSpeed-value" for="snake-rivalSpeed">4.0</output>
+          </span>
+          <span class="control">
+            <label for="snake-rivalHealth">Points de vie</label>
+            <input id="snake-rivalHealth" type="range" min="1" max="10" step="1" value="4">
+            <output id="snake-rivalHealth-value" for="snake-rivalHealth">4</output>
+          </span>
+          <span class="control">
+            <label for="snake-wanderRadius">Rayon du cercle</label>
+            <input id="snake-wanderRadius" type="range" min="5" max="100" step="5" value="50">
+            <output id="snake-wanderRadius-value" for="snake-wanderRadius">50</output>
+          </span>
+          <span class="control">
+            <label for="snake-wanderDistance">Distance du cercle</label>
+            <input id="snake-wanderDistance" type="range" min="10" max="300" step="10" value="150">
+            <output id="snake-wanderDistance-value" for="snake-wanderDistance">150</output>
+          </span>
+          <span class="control">
+            <label for="snake-wanderJitter">Variation par image (rad)</label>
+            <input id="snake-wanderJitter" type="range" min="0.05" max="1" step="0.05" value="0.3">
+            <output id="snake-wanderJitter-value" for="snake-wanderJitter">0.30</output>
+          </span>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary>Compteurs</summary>
+        <div class="section-body">
+          <p id="game-status" class="game-status" aria-live="polite">Jeu libre</p>
+          <div class="stats">
+            <span class="stat">Mangés <output id="stat-eaten" aria-live="off">0</output></span>
+            <span class="stat">Score <output id="stat-score" aria-live="off">0</output></span>
+            <span class="stat">Plus long <output id="stat-longest" aria-live="off">0</output></span>
+            <span class="stat">Nourriture <output id="stat-food" aria-live="off">0</output></span>
+            <span class="stat">Volés <output id="stat-stolen" aria-live="off">0</output></span>
+            <span class="stat">Morsures <output id="stat-bites" aria-live="off">0</output></span>
+            <span class="stat">Vaincus <output id="stat-defeated" aria-live="off">0</output></span>
+            <span class="stat">Temps <output id="stat-time" aria-live="off">0 s</output></span>
+          </div>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Debug</summary>
+        <div class="section-body">
+          <label for="debug-mode"><input id="debug-mode" type="checkbox"> Mode debug (touche d)</label>
+          <div class="subtitle">Calques</div>
+          <label for="debug-braking"><input id="debug-braking" type="checkbox"> Cible et rayon de freinage</label>
+          <label for="debug-perception"><input id="debug-perception" type="checkbox"> Rayon d’attraction</label>
+          <label for="debug-vectors"><input id="debug-vectors" type="checkbox"> Vecteurs vitesse</label>
+          <label for="debug-rings"><input id="debug-rings" type="checkbox"> Anneaux et espacement</label>
+          <label for="debug-labels"><input id="debug-labels" type="checkbox"> État de chaque serpent</label>
+          <label for="debug-wander"><input id="debug-wander" type="checkbox"> Cercle de wander (adversaire)</label>
+          <label for="debug-menu"><input id="debug-menu" type="checkbox"> Zones cliquables du menu</label>
+          <div class="stats">
+            <span class="stat">Images / s <output id="stat-fps" aria-live="off">0</output></span>
+            <span class="stat">Anneaux <output id="stat-rings" aria-live="off">0</output></span>
+          </div>
+          <p class="hint"><span class="swatch" style="background:#ffd84d"></span> attraction libre · <span class="swatch" style="background:#ff4d4d"></span> nourriture à portée · <span class="swatch" style="background:#7CFFB2"></span> vitesse · pointillés : freinage · cercle blanc, points rouge et vert : wander</p>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary>Aide</summary>
+        <div class="section-body">
+          <p class="hint">Bougez la souris : la tête du serpent est un véhicule qui <em>arrive</em> sur elle (pleine vitesse au loin, freinage dans le rayon). Chaque anneau arrive sur le précédent en gardant l’espacement. Quand un fruit entre dans le rayon d’attraction de la bouche, il est aspiré puis avalé : la bosse descend le long du corps et le serpent grandit à son arrivée.</p>
+          <p class="hint">Les vipères adverses n’ont pas de cible : elles utilisent <em>wander</em> (point qui glisse sur un cercle devant la tête) et une force qui les garde dans la scène. Elles volent les fruits. Pour gagner, mordez leur corps jusqu’à vider leur barre de vie ; si leur tête mord votre corps, vous perdez 2 anneaux, et mordu sans anneau de réserve, votre serpent est dévoré : game over.</p>
+          <p class="hint">Clic : déposer de la nourriture. Touches : <kbd>m</kbd> menu du jeu, <kbd>d</kbd> debug, <kbd>p</kbd> pause, <kbd>r</kbd> recommencer.</p>
+        </div>
+      </details>
+    </header>
+    <button id="menu-toggle" type="button" aria-controls="controls" aria-expanded="true">◀ Masquer</button>
+    <main id="scene" aria-label="Terrarium des serpents">
+      <div id="scene-hint" class="scene-hint">Bougez la souris · cliquez pour nourrir · <kbd>m</kbd> menu · <kbd>d</kbd> debug</div>
+    </main>
   </body>
 </html>
