@@ -32,7 +32,8 @@ const DebugPanel = {
         return s + (boss.enraged ? " · ENRAGÉ" : "");
     },
 
-    draw(controller, boss, x, y) {
+    /** `fps` (facultatif) : images par seconde mesurées par p5, affichées en tête du panneau. */
+    draw(controller, boss, x, y, fps) {
         const rows = DebugPanel.rows(controller, boss);
         const h = 58 + rows.length * 16 + (rows.length ? 18 : 0);
         push();
@@ -43,7 +44,7 @@ const DebugPanel = {
         fill(255, 220, 0);
         textSize(12);
         textAlign(LEFT, TOP);
-        text("DEBUG · " + (controller ? controller.name : "boss"), 10, 8);
+        text("DEBUG · " + (controller ? controller.name : "boss") + (fps !== undefined ? " · " + Math.round(fps) + " images/s" : ""), 10, 8);
         fill(200);
         textSize(10);
         text(DebugPanel.state(boss, controller), 10, 24);

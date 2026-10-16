@@ -232,20 +232,21 @@ Hud.CONTROLS = [
     ["Piliers", "ils bloquent les coups ; attirez la ruée dedans"]
 ];
 
-/** Étincelles et textes des coups (effets visuels, durées en secondes). */
+/**
+ * Effets visuels d'une vue (combat, écran titre, chaque côté d'un duel) : textes flottants des coups et
+ * particules (particles.js). Durées en secondes. Rendu seulement : rien ici n'agit sur le combat.
+ */
 class Effects {
-    constructor() {
+    constructor(cap = 320) {
         this.items = [];
         this.lastDodge = -Infinity;
+        this.particles = new Particles(cap);
     }
 
     add(event, timeSeconds) {
+        this.particles.fromEvent(event);
         if (event.type === 'hit') {
             const c = event.who === 'boss' ? [255, 80, 60] : [255, 230, 150];
-            for (let i = 0; i < 10; i++) {
-                const a = (i / 10) * Math.PI * 2;
-                this.items.push({ kind: 'spark', x: event.x, y: event.y, vx: Math.cos(a) * (60 + i * 9), vy: Math.sin(a) * (60 + i * 9), life: 0.35, age: 0, c: c });
-            }
             this.items.push({ kind: 'text', x: event.x, y: event.y - 20, text: "-" + event.damage, life: 0.8, age: 0, c: c });
         } else if (event.type === 'dodged' && timeSeconds - this.lastDodge > 0.5) {
             this.lastDodge = timeSeconds;
@@ -257,36 +258,39 @@ class Effects {
         } else if (event.type === 'blocked') {
             this.items.push({ kind: 'text', x: event.x, y: event.y - 36, text: "paré par le pilier", life: 0.8, age: 0, c: [200, 200, 210] });
         } else if (event.type === 'crash' || event.type === 'crumble') {
-            for (let i = 0; i < 14; i++) {
-                const a = (i / 14) * Math.PI * 2;
-                this.items.push({ kind: 'spark', x: event.x, y: event.y, vx: Math.cos(a) * (40 + i * 6), vy: Math.sin(a) * (40 + i * 6), life: 0.5, age: 0, c: [170, 160, 150] });
-            }
             this.items.push({ kind: 'text', x: event.x, y: event.y - 40, text: event.type === 'crumble' ? "le pilier s'effondre !" : "le boss s'écrase !",
                 life: 1.2, age: 0, c: [255, 230, 120] });
         }
     }
 
-    update(dt) {
+    /** `campfire` (facultatif) : position du feu, d'où montent les braises. */
+    update(dt, campfire = null) {
         for (const e of this.items) {
             e.age += dt;
-            if (e.kind === 'spark') { e.x += e.vx * dt; e.y += e.vy * dt; }
-            else e.y -= 30 * dt;
+            e.y -= 30 * dt;
         }
         this.items = this.items.filter(e => e.age < e.life);
+        if (campfire) this.particles.ambient(campfire, dt);
+        this.particles.update(dt);
     }
 
+    /** Particules (sous l'obscurité). */
+    showParticles(glow = true) {
+        this.particles.draw(glow);
+    }
+
+    /** Textes flottants (au-dessus de tout). */
     show() {
         push();
         noStroke();
         textAlign(CENTER, CENTER);
+        textSize(16);
         for (const e of this.items) {
             const a = 255 * (1 - e.age / e.life);
+            fill(0, 0, 0, a * 0.6);
+            text(e.text, e.x + 1, e.y + 1);
             fill(e.c[0], e.c[1], e.c[2], a);
-            if (e.kind === 'spark') circle(e.x, e.y, 4);
-            else {
-                textSize(16);
-                text(e.text, e.x, e.y);
-            }
+            text(e.text, e.x, e.y);
         }
         pop();
     }

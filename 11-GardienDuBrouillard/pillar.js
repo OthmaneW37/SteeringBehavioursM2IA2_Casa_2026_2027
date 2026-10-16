@@ -64,12 +64,26 @@ class Pillar extends Vehicle {
         if (this.shakeTimer > 0) this.shakeTimer = Math.max(0, this.shakeTimer - dt);
     }
 
-    show() {
+    /** Dessin ; `light` (facultatif) : position du feu de camp, l'ombre part à l'opposé. */
+    show(light = null) {
         if (!this.alive) return;
         const shake = this.shakeTimer > 0 ? Math.sin(this.shakeTimer * 80) * 3 : 0;
         push();
         translate(this.pos.x + shake, this.pos.y);
         noStroke();
+        // Ombre portée : allongée à l'opposé de la lumière, d'autant plus longue que le feu est proche
+        if (light) {
+            const dx = this.pos.x - light.x, dy = this.pos.y - light.y;
+            const d = Math.hypot(dx, dy) || 1;
+            const len = this.radius * (1.2 + 260 / Math.max(d, 120));
+            push();
+            rotate(Math.atan2(dy, dx));
+            fill(0, 0, 0, 70);
+            ellipse(len * 0.5, 0, len + this.radius * 1.2, this.radius * 1.9);
+            fill(0, 0, 0, 50);
+            ellipse(len * 0.85, 0, len * 0.9, this.radius * 1.4);
+            pop();
+        }
         // Ombre, socle, fût
         fill(0, 0, 0, 90);
         circle(6, 8, this.radius * 2.2);

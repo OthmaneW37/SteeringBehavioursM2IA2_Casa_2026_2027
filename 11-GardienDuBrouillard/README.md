@@ -172,6 +172,42 @@ La logique de l'interface est dans des modules purs et testés : `screens.js` (�
 les tailles d'écran) et `banners.js` (courbes d'animation des bandeaux). Le rendu ne modifie jamais l'état du
 jeu.
 
+## Les graphismes : « Brouillard et braises »
+
+Tout est dessiné par le code (formes vectorielles, aucun sprite). Ce sont des **dessins** : ils lisent l'état
+du jeu sans jamais le modifier (un test dessine un combat entier avec tous les effets et vérifie que son état
+est identique au bit près), et ils ne tournent pas pendant l'entraînement, la comparaison ni le tournoi.
+
+| Élément | Rendu |
+|---|---|
+| Personnages | Chevalier avec cape qui flotte selon sa vitesse, plastron, bouclier, visière lumineuse, épée et arc de frappe ; Gardien avec cape de brume ondulante, armure à reflets, yeux lumineux (rouges quand il est enragé), hallebarde animée selon la phase de l'attaque. Ombres au sol. |
+| Décor | Dalles en relief, fissures et mousse (dessinées une fois dans un calque, `arena.js`) ; piliers avec une **ombre portée à l'opposé du feu de camp**. |
+| Télégraphes | Cône de hallebarde qui se remplit en dégradé avec un bord qui s'illumine ; ligne de ruée avec des chevrons qui défilent et un éclair blanc quand la visée se fige ; cercle du souffle avec des volutes. Toujours **au-dessus de l'obscurité**. |
+| Éclairage (`lighting.js`) | Obscurité générale percée par des lumières calculées depuis l'état : feu de camp (qui vacille), lueur du chevalier, yeux du boss, nappes de brume. Calque en résolution réduite, découpé en dégradés radiaux (`destination-out`), lueurs colorées additives. |
+| Brouillard (`fog.js`) | Bruit lisse à deux octaves qui dérive, calculé sur une grille grossière une image sur deux à quatre, puis étiré. |
+| Particules (`particles.js`) | Sang, étincelles, poussière des piliers, braises du feu de camp, volutes de brume, dissolution du boss ; réserve plafonnée et recyclée. |
+| Effets d'impact (`gameFeel.js`) | Tremblement d'écran qui s'amortit, flash rouge quand on est touché, **gel d'impact** de 60 à 90 ms, **ralenti** des animations à la mort du boss. |
+
+**Gel d'impact et ralenti** : le gel agit sur la vitesse à laquelle le câblage fait avancer le temps réel
+dans le combat au clavier (moins de pas de simulation pendant 60 à 90 ms). Chaque pas reste identique : les
+règles et l'état ne sont jamais touchés, et l'entraînement, la comparaison, le tournoi et les duels ne
+l'utilisent pas (un test le vérifie). Le ralenti ne concerne que les animations après la mort du boss : le
+combat est alors déjà terminé.
+
+**Qualité graphique** (Options) : Bas, Moyen ou Haut (`quality.js`) règlent la résolution de l'éclairage, le
+plafond de particules, la fréquence et la finesse du brouillard, et les lueurs. Le **debug (G)** affiche les
+images par seconde, pour vérifier le jeu sur sa machine.
+
+Temps de calcul par image mesuré à 1366 × 768 (vrai p5.js 1.7.0). Une partie du travail du canevas est faite
+par la carte graphique et n'est pas comptée ici :
+
+| Situation | Bas | Moyen | Haut |
+|---|---|---|---|
+| Combat | 3,5 ms | 2,2 ms | 2,6 ms |
+| Combat + 10 chevaliers fantômes + réserve de particules pleine | 7,7 ms | 6,9 ms | 10,7 ms |
+| Duel (deux arènes) | 3,5 ms | 4,2 ms | 5,1 ms |
+| Écran titre | 1,3 ms | 1,5 ms | 2,1 ms |
+
 ## Les outils
 
 | Outil | Ce qu'on voit |
@@ -361,10 +397,11 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `fitnessChart.js`, `debugPanel.js`, `hud.js`, `camera.js`, `menuToggle.js` | Courbes, debug, HUD, bandeaux et effets, caméra de verrouillage, panneau du laboratoire masquable. |
 | `screens.js`, `titleMenu.js`, `tutorial.js`, `hudLayout.js`, `banners.js` | Interface : écrans et fondus, menu titre, tutoriel, disposition du HUD, animation des bandeaux. |
 | `libraries/fonts/` | Polices UnifrakturMaguntia et Cinzel (SIL OFL 1.1) et leurs licences. |
+| `quality.js`, `gameFeel.js`, `particles.js`, `lighting.js`, `fog.js` | Rendu : qualité graphique, effets d'impact, particules, éclairage, brouillard. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 
-Les scripts de `index.html` portent un numéro de version (`?v=13`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=14`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -373,7 +410,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 92 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 99 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -384,6 +421,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 92 test
 | `obstacles.test.mjs` | Piliers (collision, fissures, effondrement, abri) ; ligne de vue et rayons ; `orbitPoint` avec `seek` ; piliers dans le combat ; coup paré ; ruée écrasée et étourdissement ; esquive, riposte et riposte qui touche ; portée de la hallebarde ; mesure d'immobilité ; abri du joueur robot ; boss à états ; anti-camping (coin, compteur, mort, note). |
 | `pantheon.test.mjs` | Épreuves et recettes (plages, valeurs) ; note qui suit la recette, changement à la génération suivante, champion réexaminé ; recette sauvegardée ; boss fournis ; ajout, plafond, retrait, stockage invalide ; règles du duel ; tournoi (mêmes combats, budget, profil, rang). |
 | `interface.test.mjs` | Écrans et fondus (changement au noir complet, dernier ordre gagnant, pas de fondu relancé), menu titre (boucle, entrées inactives, Continuer), tutoriel (cartes, mémorisation, stockage bloqué), HUD dans l'écran à toutes les tailles, bandeaux, page (menu, onglets, fenêtres, polices locales et créditées). |
+| `graphics.test.mjs` | Qualité graphique (bornes, ordre, mémorisation) ; effets d'impact (gel exact, trauma plafonné et amorti, tremblement borné, ralenti des animations seulement) ; gel jamais hors du combat au clavier ; particules (plafond, recyclage, durée de vie, réactions, braises) ; sources de lumière ; brouillard (continu, borné, qui dérive) ; **le rendu ne modifie jamais l'état du combat**. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

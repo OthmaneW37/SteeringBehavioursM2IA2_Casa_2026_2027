@@ -13,6 +13,10 @@ const game = {
     fightStarted: false,     // une partie a été lancée (« Continuer » devient possible)
     optionsFrom: null,       // 'title' ou 'pause' : où revenir en fermant les Options
     tutorialRun: null,
+    feel: null,              // tremblement, flash, gel d'impact, ralenti (combat au clavier seulement)
+    quality: 'moyen',
+    light: null,             // calque d'éclairage (rendu)
+    fogLayer: null,          // calque de brouillard (rendu)
     settings: null,
     arena: null,
     campfire: null,
@@ -86,12 +90,17 @@ function setup() {
     game.campfire = new Campfire(game.arena.campfirePos.x, game.arena.campfirePos.y);
     game.camera = new Camera();
     game.human = new HumanController();
-    game.effects = new Effects();
-    game.demoEffects = [new Effects(), new Effects()];
-    game.titleEffects = new Effects();
+    game.storage = safeStorage();
+    game.quality = Quality.load(game.storage);
+    const q = Quality.get(game.quality);
+    game.effects = new Effects(q.particles);
+    game.demoEffects = [new Effects(q.particles), new Effects(q.particles)];
+    game.titleEffects = new Effects(q.particles);
+    game.feel = new GameFeel();
+    game.light = new LightLayer(game.arena);
+    game.fogLayer = new FogLayer(game.arena);
     game.screens = new ScreenFlow('title');
     game.titleMenu = new TitleMenu();
-    game.storage = safeStorage();
     game.pretrained = loadPretrained();
     game.bloodstains = Bloodstain.load(game.storage);
     const pantheon = Pantheon.load(game.storage);
@@ -205,6 +214,19 @@ function initControls() {
     });
     byId('compareBtn').addEventListener('click', startComparison);
     byId('debugCheckbox').addEventListener('change', () => { game.debug = byId('debugCheckbox').checked; });
+    for (const id in Quality.LEVELS) {
+        const o = document.createElement('option');
+        o.value = id;
+        o.textContent = Quality.LEVELS[id].label;
+        byId('qualitySelect').appendChild(o);
+    }
+    byId('qualitySelect').value = game.quality;
+    byId('qualitySelect').addEventListener('change', () => {
+        game.quality = byId('qualitySelect').value;
+        Quality.save(game.storage, game.quality);
+        const cap = Quality.get(game.quality).particles;
+        for (const e of [game.effects, game.titleEffects].concat(game.demoEffects)) e.particles.setCap(cap);
+    });
     byId('menuToggle').addEventListener('click', () => {
         MenuToggle.toggle(document, byId('menuToggle'));
         windowResized();
@@ -608,6 +630,7 @@ function startFight() {
     game.stateTime = 0;
     game.accumulator = 0;
     game.trail = { player: game.fight.player.hp, boss: game.fight.boss.hp };
+    if (game.feel) game.feel.reset();
     const entry = pantheonEntry(kind);
     byId('bossInfo').textContent = kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
         : entry ? Pantheon.describe(entry) : championLabel();
@@ -626,9 +649,15 @@ function advance(fight, dt, onEvents) {
 function updateCombat(dt) {
     const f = game.fight;
     if (game.paused) return;
-    game.stateTime += dt;
+    game.feel.update(dt);
+    // Après la mort du boss, les animations finales ralentissent (le combat, lui, est terminé)
+    game.stateTime += game.state === 'victory' ? dt * game.feel.visualScale() : dt;
     if (game.state === 'fight') {
-        advance(f, dt, events => events.forEach(e => game.effects.add(e, game.time)));
+        // Gel d'impact : le temps de la simulation avance moins vite (chaque pas reste identique)
+        advance(f, dt * game.feel.timeScale(), events => {
+            events.forEach(e => game.effects.add(e, game.time));
+            game.feel.onEvents(events);
+        });
         if (!f.player.alive) {
             game.state = 'dead';
             game.stateTime = 0;
@@ -638,6 +667,8 @@ function updateCombat(dt) {
             Bloodstain.save(game.storage, game.bloodstains);
         } else if (!f.boss.alive) {
             game.state = 'victory';
+            game.feel.onBossDeath();
+            game.effects.particles.emit('curse', f.boss.pos.x, f.boss.pos.y, 40);
             game.victoryCause = f.boss.stats.camped ? 'camping' : null;
             game.stateTime = 0;
         }
@@ -1071,9 +1102,10 @@ function draw() {
         drawComparisonOverlay();
     }
     // Pendant la comparaison et l'entraînement, le combat au clavier reste figé
-    game.effects.update(dt);
-    game.demoEffects.forEach(e => e.update(dt));
-    game.titleEffects.update(dt);
+    const fire = game.arena.campfirePos;
+    game.effects.update(game.mode === 'combat' && !game.paused ? dt * game.feel.visualScale() : (game.mode === 'combat' ? 0 : dt), fire);
+    game.demoEffects.forEach(e => e.update(dt, fire));
+    game.titleEffects.update(dt, fire);
     // Fondu au noir entre deux écrans
     const a = game.screens.alpha();
     if (a > 0) {
@@ -1088,6 +1120,10 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     const { player, boss } = fight;
     game.camera.follow(Camera.target(game.arena, width, height, locked, player, boss), Math.min(deltaTime / 1000, 0.1));
     push();
+    if (game.mode === 'combat') {
+        const s = game.feel.shake(game.time);
+        translate(s.x, s.y);
+    }
     game.camera.apply(width, height);
     drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null);
     if (locked && boss.alive) Hud.lockMark(boss, game.time);
@@ -1101,18 +1137,22 @@ function drawWorld(fight, locked, effects, dimmed = false) {
 
 function drawEntities(fight, effects, stains = null) {
     const { player, boss } = fight;
+    const q = Quality.get(game.quality);
     game.arena.showFloor();
     if (stains) for (const b of stains) b.show(game.time, Math.hypot(player.pos.x - b.pos.x, player.pos.y - b.pos.y) < 45);
     game.campfire.show(game.time);
-    game.arena.showCorners(boss.r, Combat.BOSS.camping.margin, boss.campTime / Combat.BOSS.camping.limit, game.time);
     for (const z of fight.zones) z.show(game.time);
-    for (const p of fight.pillars) p.show();
-    if (game.debug) DebugPanel.drawWorld(boss, player, game.arena);
-    boss.showTelegraph();
+    for (const p of fight.pillars) p.show(game.arena.campfirePos);
     player.show();
     boss.show();
+    effects.showParticles(q.glow);
+    game.fogLayer.draw(game.time, q);
+    game.light.draw(Lighting.sources(fight, game.arena.campfirePos, game.time), q);
+    // Au-dessus de l'obscurité : ce qui doit toujours rester lisible
+    game.arena.showCorners(boss.r, Combat.BOSS.camping.margin, boss.campTime / Combat.BOSS.camping.limit, game.time);
+    boss.showTelegraph();
+    if (game.debug) DebugPanel.drawWorld(boss, player, game.arena);
     effects.show();
-    game.arena.showFog(game.time);
     Hud.techniqueLabel(boss);
 }
 
@@ -1197,7 +1237,15 @@ function drawCombatHud(dt) {
     const layout = HudLayout.compute(width, height);
     Hud.drawPlayer(f.player, game.deaths, game.trail.player, layout);
     Hud.drawBoss(f.boss, game.trail.boss, layout);
-    if (game.debug) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26);
+    if (game.feel.flash > 0) {
+        const ctx = drawingContext;
+        const g = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.25, width / 2, height / 2, Math.max(width, height) * 0.7);
+        g.addColorStop(0, 'rgba(160,0,0,0)');
+        g.addColorStop(1, 'rgba(160,0,0,' + (0.45 * game.feel.flash) + ')');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, width, height);
+    }
+    if (game.debug) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
     if (game.state === 'dead') {
         Hud.banner('death', "VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
             game.stateTime);

@@ -16,7 +16,7 @@ class Arena {
             { x: width * 0.26, y: height * 0.43 }, { x: width * 0.76, y: height * 0.74 },
             { x: width * 0.78, y: height * 0.26 }, { x: width * 0.30, y: height * 0.80 }
         ];
-        // Dalles et brouillard : décor tiré une seule fois avec un aléatoire fixe
+        // Dalles : décor tiré une seule fois avec un aléatoire fixe (le brouillard animé est dans fog.js)
         this.decor = Arena.makeDecor(width, height, wall, 7);
     }
 
@@ -96,38 +96,55 @@ class Arena {
         for (let y = wall; y < h - wall; y += 70) {
             for (let x = wall; x < w - wall; x += 90) slabs.push({ x: x, y: y, shade: 34 + rnd() * 14, crack: rnd() < 0.25 });
         }
-        const fog = [];
-        for (let i = 0; i < 40; i++) fog.push({ x: rnd() * w, y: rnd() * h, r: 80 + rnd() * 160, speed: 6 + rnd() * 14, phase: rnd() * Math.PI * 2 });
-        return { slabs: slabs, fog: fog };
+        return { slabs: slabs };
     }
 
+    /** Sol et murs : décor fixe, dessiné une fois dans un calque puis recopié (moins coûteux). */
     showFloor() {
-        push();
-        noStroke();
-        fill(14, 15, 20);
-        rect(0, 0, this.width, this.height);
+        if (!this.floorCache && typeof createGraphics === 'function') {
+            this.floorCache = createGraphics(this.width, this.height);
+            this.floorCache.pixelDensity(1);
+            this.drawFloor(this.floorCache);
+        }
+        if (this.floorCache) image(this.floorCache, 0, 0, this.width, this.height);
+        else this.drawFloor(window);
+    }
+
+    /** Dessin du sol dans `g` (un calque p5, ou le canvas) : dalles, fissures, mousse, murs. */
+    drawFloor(g) {
+        g.push();
+        g.noStroke();
+        g.fill(12, 13, 18);
+        g.rect(0, 0, this.width, this.height);
         for (const s of this.decor.slabs) {
-            fill(s.shade, s.shade, s.shade + 6);
-            rect(s.x + 2, s.y + 2, 86, 66, 3);
+            g.fill(s.shade - 4, s.shade - 2, s.shade + 4);
+            g.rect(s.x + 2, s.y + 2, 86, 66, 3);
+            // Bord éclairé en haut, ombré en bas : relief des dalles
+            g.fill(255, 255, 255, 10);
+            g.rect(s.x + 2, s.y + 2, 86, 4, 3);
+            g.fill(0, 0, 0, 40);
+            g.rect(s.x + 2, s.y + 63, 86, 5, 3);
             if (s.crack) {
-                stroke(20);
-                strokeWeight(1);
-                line(s.x + 20, s.y + 10, s.x + 50, s.y + 40);
-                line(s.x + 50, s.y + 40, s.x + 70, s.y + 35);
-                noStroke();
+                g.stroke(16);
+                g.strokeWeight(1);
+                g.line(s.x + 20, s.y + 10, s.x + 50, s.y + 40);
+                g.line(s.x + 50, s.y + 40, s.x + 70, s.y + 35);
+                g.noStroke();
+                g.fill(60, 80, 55, 50);
+                g.ellipse(s.x + 26, s.y + 52, 22, 10);
             }
         }
         // Murs
-        fill(46, 42, 52);
-        rect(0, 0, this.width, this.wall);
-        rect(0, this.height - this.wall, this.width, this.wall);
-        rect(0, 0, this.wall, this.height);
-        rect(this.width - this.wall, 0, this.wall, this.height);
-        stroke(80, 74, 90);
-        strokeWeight(2);
-        noFill();
-        rect(this.wall, this.wall, this.width - 2 * this.wall, this.height - 2 * this.wall);
-        pop();
+        g.fill(40, 36, 46);
+        g.rect(0, 0, this.width, this.wall);
+        g.rect(0, this.height - this.wall, this.width, this.wall);
+        g.rect(0, 0, this.wall, this.height);
+        g.rect(this.width - this.wall, 0, this.wall, this.height);
+        g.stroke(84, 76, 92);
+        g.strokeWeight(2);
+        g.noFill();
+        g.rect(this.wall, this.wall, this.width - 2 * this.wall, this.height - 2 * this.wall);
+        g.pop();
     }
 
     /**
@@ -146,25 +163,6 @@ class Arena {
         rect(b.right - margin, 0, this.width - b.right + margin, h);
         rect(0, b.bottom - margin, w, this.height - b.bottom + margin);
         rect(b.right - margin, b.bottom - margin, this.width - b.right + margin, this.height - b.bottom + margin);
-        pop();
-    }
-
-    /** Nappes de brouillard qui dérivent lentement (dessinées au-dessus des entités). */
-    showFog(timeSeconds) {
-        push();
-        // Le brouillard reste dans l'arène
-        drawingContext.save();
-        drawingContext.beginPath();
-        drawingContext.rect(0, 0, this.width, this.height);
-        drawingContext.clip();
-        noStroke();
-        for (const f of this.decor.fog) {
-            const x = (f.x + timeSeconds * f.speed) % (this.width + 2 * f.r) - f.r;
-            const y = f.y + Math.sin(timeSeconds * 0.3 + f.phase) * 20;
-            fill(190, 200, 215, 6);
-            circle(x, y, f.r * 2);
-        }
-        drawingContext.restore();
         pop();
     }
 }

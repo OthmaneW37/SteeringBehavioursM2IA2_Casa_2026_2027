@@ -374,7 +374,7 @@ class Boss extends Vehicle {
 
     // --- Rendu ---
 
-    /** Télégraphe : le cône d'attaque se remplit pendant la préparation (0,6 s). */
+    /** Télégraphe : le cône d'attaque se remplit pendant la préparation (0,6 s), bord lumineux. */
     showTelegraph() {
         if (!this.action) return;
         if (this.action.kind === 'charge') return this.showChargeTelegraph();
@@ -382,23 +382,38 @@ class Boss extends Vehicle {
         const s = this.action.spec;
         const ph = Combat.phase(s, this.action.t);
         const reach = s.reach + 6;
+        const f = this.action.facing, a0 = f - s.arc / 2, a1 = f + s.arc / 2;
         push();
         translate(this.pos.x, this.pos.y);
         noStroke();
         if (ph === 'windup') {
             const k = this.action.t / s.windup;
-            fill(200, 30, 30, 45);
-            arc(0, 0, reach * 2, reach * 2, this.action.facing - s.arc / 2, this.action.facing + s.arc / 2, PIE);
-            fill(255, 60, 40, 60 + 100 * k);
-            arc(0, 0, reach * 2 * k, reach * 2 * k, this.action.facing - s.arc / 2, this.action.facing + s.arc / 2, PIE);
+            // Zone entière, puis remplissage en dégradé qui avance
+            fill(170, 20, 20, 50);
+            arc(0, 0, reach * 2, reach * 2, a0, a1, PIE);
+            const ctx = drawingContext;
+            const g = ctx.createRadialGradient(0, 0, 0, 0, 0, reach * k + 1);
+            g.addColorStop(0, 'rgba(255,60,40,0.05)');
+            g.addColorStop(1, 'rgba(255,70,40,' + (0.35 + 0.45 * k) + ')');
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, reach * k, a0, a1);
+            ctx.closePath();
+            ctx.fill();
+            // Bord extérieur qui s'illumine
+            noFill();
+            stroke(255, 120, 80, 80 + 170 * k);
+            strokeWeight(2 + 2 * k);
+            arc(0, 0, reach * 2, reach * 2, a0, a1);
         } else if (ph === 'active') {
-            fill(255, 230, 200, 200);
-            arc(0, 0, reach * 2, reach * 2, this.action.facing - s.arc / 2, this.action.facing + s.arc / 2, PIE);
+            fill(255, 236, 210, 210);
+            arc(0, 0, reach * 2, reach * 2, a0, a1, PIE);
         }
         pop();
     }
 
-    /** Ruée : ligne rouge qui s'épaissit pendant la préparation (blanche quand la visée est figée). */
+    /** Ruée : ligne rouge qui s'épaissit, chevrons vers la cible ; éclair blanc quand la visée est figée. */
     showChargeTelegraph() {
         const a = this.action;
         const ph = Combat.phase(a.spec, a.t);
@@ -407,12 +422,25 @@ class Boss extends Vehicle {
         if (ph === 'windup') {
             const k = a.t / a.spec.windup;
             const locked = a.t >= a.spec.windup - Combat.BOSS.charge.lockBefore;
-            stroke(locked ? color(255, 240, 220, 220) : color(255, 50, 30, 80 + 150 * k));
-            strokeWeight(4 + 18 * k);
+            const dx = a.target.x - this.pos.x, dy = a.target.y - this.pos.y;
+            const len = Math.hypot(dx, dy) || 1, ang = Math.atan2(dy, dx);
+            stroke(locked ? color(255, 245, 230, 230) : color(255, 50, 30, 60 + 140 * k));
+            strokeWeight(6 + 18 * k);
             line(this.pos.x, this.pos.y, a.target.x, a.target.y);
+            // Chevrons qui défilent vers la cible
+            translate(this.pos.x, this.pos.y);
+            rotate(ang);
+            noFill();
+            stroke(255, 200, 170, 120 + 120 * k);
+            strokeWeight(2.5);
+            const step = 34, shift = (a.t * 120) % step;
+            for (let d = this.r + shift; d < len - 10; d += step) {
+                line(d - 7, -7, d, 0);
+                line(d - 7, 7, d, 0);
+            }
             noStroke();
-            fill(255, 60, 30, 180);
-            circle(a.target.x, a.target.y, 14 + 10 * k);
+            fill(255, 60, 30, 200);
+            circle(len, 0, 14 + 12 * k);
         } else {
             // Traînée de la charge
             noStroke();
@@ -424,7 +452,7 @@ class Boss extends Vehicle {
         pop();
     }
 
-    /** Souffle : cercle vert qui se remplit là où la nappe va apparaître. */
+    /** Souffle : cercle vert qui se remplit là où la nappe va apparaître, volutes qui tournent. */
     showBreathTelegraph() {
         const a = this.action;
         if (Combat.phase(a.spec, a.t) !== 'windup') return;
@@ -435,8 +463,14 @@ class Boss extends Vehicle {
         stroke(120, 255, 200, 200);
         strokeWeight(2);
         circle(a.target.x, a.target.y, R * 2);
+        stroke(160, 255, 220, 140);
+        strokeWeight(3);
+        for (let i = 0; i < 3; i++) {
+            const s0 = a.t * 4 + i * 2.09;
+            arc(a.target.x, a.target.y, R * 1.6, R * 1.6, s0, s0 + 1.1);
+        }
         noStroke();
-        fill(120, 255, 200, 40 + 60 * k);
+        fill(120, 255, 200, 35 + 60 * k);
         circle(a.target.x, a.target.y, R * 2 * k);
         // Le boss inspire : volutes vers sa gueule
         fill(150, 240, 200, 120);
@@ -446,9 +480,12 @@ class Boss extends Vehicle {
 
     show() {
         push();
+        // Ombre au sol
+        noStroke();
+        fill(0, 0, 0, 110);
+        ellipse(this.pos.x + 5, this.pos.y + 8, this.r * 2.6, this.r * 2.1);
         // Aura enragée
         if (this.enraged && this.alive) {
-            noStroke();
             const pulse = 1 + 0.08 * Math.sin(this.time * 12);
             fill(255, 40, 20, 40);
             circle(this.pos.x, this.pos.y, this.r * 3.2 * pulse);
@@ -474,24 +511,38 @@ class Boss extends Vehicle {
         }
         translate(this.pos.x, this.pos.y);
         rotate(this.facing);
-        // Cape de brouillard
+        // Cape de brouillard : plusieurs voiles qui ondulent derrière lui
         noStroke();
-        fill(60, 66, 80, 120);
-        ellipse(-this.r * 0.5, 0, this.r * 2.4, this.r * 2.2);
+        for (let i = 0; i < 3; i++) {
+            const w = Math.sin(this.time * 2.2 + i * 1.7) * 4;
+            fill(58 + i * 8, 64 + i * 8, 80 + i * 8, 95 - i * 20);
+            ellipse(-this.r * (0.55 + i * 0.22), w, this.r * (2.5 - i * 0.3), this.r * (2.2 - i * 0.25));
+        }
         // Armure
-        stroke(10);
+        stroke(8);
         strokeWeight(3);
         if (this.hurtTimer > 0) fill(230, 230, 240);
-        else if (this.enraged) fill(80, 30, 30);
-        else fill(52, 56, 68);
+        else if (this.enraged) fill(84, 32, 30);
+        else fill(50, 54, 66);
         circle(0, 0, this.r * 2);
+        noStroke();
+        fill(255, 255, 255, this.hurtTimer > 0 ? 0 : 30);
+        arc(0, 0, this.r * 1.7, this.r * 1.7, -2.5, -0.8);
+        fill(0, 0, 0, 60);
+        arc(0, 0, this.r * 1.7, this.r * 1.7, 0.8, 2.5);
         // Cornes
-        fill(200, 190, 170);
+        stroke(8);
+        strokeWeight(2);
+        fill(205, 195, 172);
         triangle(this.r * 0.2, -this.r * 0.6, this.r * 0.9, -this.r * 1.25, this.r * 0.6, -this.r * 0.35);
         triangle(this.r * 0.2, this.r * 0.6, this.r * 0.9, this.r * 1.25, this.r * 0.6, this.r * 0.35);
-        // Yeux
+        // Yeux lumineux
         noStroke();
-        fill(this.enraged ? color(255, 60, 30) : color(120, 220, 255));
+        const eye = this.enraged ? [255, 70, 30] : [120, 220, 255];
+        fill(eye[0], eye[1], eye[2], 70);
+        circle(this.r * 0.55, -this.r * 0.25, 16);
+        circle(this.r * 0.55, this.r * 0.25, 16);
+        fill(eye[0], eye[1], eye[2]);
         circle(this.r * 0.55, -this.r * 0.25, 7);
         circle(this.r * 0.55, this.r * 0.25, 7);
         // Hallebarde : levée pendant la préparation, abattue pendant la frappe
@@ -504,12 +555,14 @@ class Boss extends Vehicle {
             else swing = -1.6;
         }
         rotate(swing);
-        stroke(120, 110, 100);
+        stroke(105, 92, 80);
         strokeWeight(5);
         line(this.r * 0.6, 0, this.r + 62, 0);
         noStroke();
-        fill(190, 195, 205);
+        fill(195, 200, 210);
         triangle(this.r + 50, -12, this.r + 72, 0, this.r + 50, 12);
+        fill(255, 255, 255, 90);
+        triangle(this.r + 52, -9, this.r + 70, 0, this.r + 52, -1);
         pop();
     }
 

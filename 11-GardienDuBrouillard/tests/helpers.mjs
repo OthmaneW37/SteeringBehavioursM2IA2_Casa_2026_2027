@@ -33,7 +33,8 @@ export function lcg(seed = 12345) {
 export const FILES = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js',
   'mistPatch.js', 'pillar.js', 'bloodstain.js', 'player.js', 'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js',
   'fitness.js', 'genetic.js', 'training.js', 'trainingStore.js', 'comparison.js', 'demo.js', 'settings.js', 'scenarios.js', 'trials.js', 'doctrines.js', 'pretrainedBoss.js', 'pretrainedPantheon.js', 'pantheon.js', 'tournament.js',
-  'fitnessChart.js', 'debugPanel.js', 'hud.js', 'camera.js', 'menuToggle.js', 'screens.js', 'titleMenu.js', 'tutorial.js', 'hudLayout.js', 'banners.js'];
+  'fitnessChart.js', 'debugPanel.js', 'hud.js', 'camera.js', 'menuToggle.js', 'screens.js', 'titleMenu.js', 'tutorial.js', 'hudLayout.js', 'banners.js', 'quality.js', 'gameFeel.js',
+  'particles.js', 'lighting.js', 'fog.js'];
 
 export function read(file) {
   return readFileSync(new URL('../' + file, import.meta.url), 'utf8');
@@ -60,7 +61,14 @@ export function load(seed = 12345, files = FILES, options = {}) {
     text: noop, textSize: noop, textAlign: noop, image: noop, imageMode: noop, scale: noop,
     beginShape: noop, vertex: noop, endShape: noop, red: c => c[0], green: c => c[1], blue: c => c[2],
     color: (...c) => c, lerpColor: (a) => a,
-    drawingContext: { setLineDash: noop, save: noop, restore: noop, beginPath: noop, rect: noop, clip: noop },
+    blendMode: noop, textFont: noop, textStyle: noop, textWidth: () => 10, ADD: 'add', BLEND: 'blend', BOLD: 'bold', NORMAL: 'normal', CLOSE: 'close',
+    CENTER: 'center', LEFT: 'left', RIGHT: 'right', TOP: 'top', BOTTOM: 'bottom',
+    // Contexte 2D factice : de quoi dessiner sans navigateur (dégradés, arcs, rectangles)
+    drawingContext: {
+      setLineDash: noop, save: noop, restore: noop, beginPath: noop, rect: noop, clip: noop, fillRect: noop,
+      arc: noop, fill: noop, moveTo: noop, closePath: noop,
+      createRadialGradient: () => ({ addColorStop: noop }), createLinearGradient: () => ({ addColorStop: noop })
+    },
   });
   if (options.thisContext) {
     // Chargement dans le contexte principal de Node : bien plus rapide qu'un contexte vm isolé

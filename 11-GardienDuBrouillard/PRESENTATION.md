@@ -88,7 +88,9 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   - une **triche sur la récompense** : récompenser l'esquive a donné des boss qui esquivaient sans jamais
     chercher à gagner. Récompenser seulement la riposte qui touche ferme la faille… mais l'esquive n'émerge
     plus. L'évolution n'apprend que ce qui rapporte.
-- 92 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- Le rendu (éclairage, brouillard, particules, effets d'impact) est séparé de la simulation : un test dessine
+  un combat entier et vérifie que son état n'a pas changé.
+- 99 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

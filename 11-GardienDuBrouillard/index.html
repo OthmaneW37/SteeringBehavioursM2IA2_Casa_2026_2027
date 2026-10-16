@@ -5,53 +5,58 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Le Gardien du Brouillard</title>
-    <link rel="stylesheet" type="text/css" href="style.css?v=13">
+    <link rel="stylesheet" type="text/css" href="style.css?v=14">
 
     <!-- p5.js en local (comme les autres exemples) -->
     <script src="libraries/p5.min.js"></script>
 
     <!-- Une dépendance avant ce qui l'utilise ; sketch.js en dernier -->
-    <script src="vehicle.js?v=13"></script>
-    <script src="steering.js?v=13"></script>
-    <script src="combat.js?v=13"></script>
-    <script src="arena.js?v=13"></script>
-    <script src="NeuralNetwork.js?v=13"></script>
-    <script src="campfire.js?v=13"></script>
-    <script src="mistPatch.js?v=13"></script>
-    <script src="pillar.js?v=13"></script>
-    <script src="bloodstain.js?v=13"></script>
-    <script src="player.js?v=13"></script>
-    <script src="boss.js?v=13"></script>
-    <script src="bossBrain.js?v=13"></script>
-    <script src="handBoss.js?v=13"></script>
-    <script src="scriptedPlayer.js?v=13"></script>
-    <script src="humanController.js?v=13"></script>
-    <script src="fight.js?v=13"></script>
-    <script src="fitness.js?v=13"></script>
-    <script src="genetic.js?v=13"></script>
-    <script src="training.js?v=13"></script>
-    <script src="trainingStore.js?v=13"></script>
-    <script src="comparison.js?v=13"></script>
-    <script src="demo.js?v=13"></script>
-    <script src="settings.js?v=13"></script>
-    <script src="scenarios.js?v=13"></script>
-    <script src="trials.js?v=13"></script>
-    <script src="doctrines.js?v=13"></script>
-    <script src="pretrainedBoss.js?v=13"></script>
-    <script src="pretrainedPantheon.js?v=13"></script>
-    <script src="pantheon.js?v=13"></script>
-    <script src="tournament.js?v=13"></script>
-    <script src="fitnessChart.js?v=13"></script>
-    <script src="debugPanel.js?v=13"></script>
-    <script src="hud.js?v=13"></script>
-    <script src="camera.js?v=13"></script>
-    <script src="menuToggle.js?v=13"></script>
-    <script src="screens.js?v=13"></script>
-    <script src="titleMenu.js?v=13"></script>
-    <script src="tutorial.js?v=13"></script>
-    <script src="hudLayout.js?v=13"></script>
-    <script src="banners.js?v=13"></script>
-    <script src="sketch.js?v=13"></script>
+    <script src="vehicle.js?v=14"></script>
+    <script src="steering.js?v=14"></script>
+    <script src="combat.js?v=14"></script>
+    <script src="arena.js?v=14"></script>
+    <script src="NeuralNetwork.js?v=14"></script>
+    <script src="campfire.js?v=14"></script>
+    <script src="mistPatch.js?v=14"></script>
+    <script src="pillar.js?v=14"></script>
+    <script src="bloodstain.js?v=14"></script>
+    <script src="player.js?v=14"></script>
+    <script src="boss.js?v=14"></script>
+    <script src="bossBrain.js?v=14"></script>
+    <script src="handBoss.js?v=14"></script>
+    <script src="scriptedPlayer.js?v=14"></script>
+    <script src="humanController.js?v=14"></script>
+    <script src="fight.js?v=14"></script>
+    <script src="fitness.js?v=14"></script>
+    <script src="genetic.js?v=14"></script>
+    <script src="training.js?v=14"></script>
+    <script src="trainingStore.js?v=14"></script>
+    <script src="comparison.js?v=14"></script>
+    <script src="demo.js?v=14"></script>
+    <script src="settings.js?v=14"></script>
+    <script src="scenarios.js?v=14"></script>
+    <script src="trials.js?v=14"></script>
+    <script src="doctrines.js?v=14"></script>
+    <script src="pretrainedBoss.js?v=14"></script>
+    <script src="pretrainedPantheon.js?v=14"></script>
+    <script src="pantheon.js?v=14"></script>
+    <script src="tournament.js?v=14"></script>
+    <script src="fitnessChart.js?v=14"></script>
+    <script src="debugPanel.js?v=14"></script>
+    <script src="hud.js?v=14"></script>
+    <script src="camera.js?v=14"></script>
+    <script src="menuToggle.js?v=14"></script>
+    <script src="screens.js?v=14"></script>
+    <script src="titleMenu.js?v=14"></script>
+    <script src="tutorial.js?v=14"></script>
+    <script src="hudLayout.js?v=14"></script>
+    <script src="banners.js?v=14"></script>
+    <script src="quality.js?v=14"></script>
+    <script src="gameFeel.js?v=14"></script>
+    <script src="particles.js?v=14"></script>
+    <script src="lighting.js?v=14"></script>
+    <script src="fog.js?v=14"></script>
+    <script src="sketch.js?v=14"></script>
 </head>
 
 <body class="screen-title">
@@ -180,6 +185,8 @@
                 <button id="helpBtn" type="button">❓ Comment ça marche ?</button>
                 <button id="showTutorialBtn" type="button">Revoir le tutoriel</button>
             </div>
+            <label for="qualitySelect">Qualité graphique</label>
+            <select id="qualitySelect"></select>
             <label class="check"><input type="checkbox" id="debugCheckbox"> Mode debug : voir le « cerveau » du boss (touche G)</label>
             <details open>
                 <summary>Réglages avancés</summary>
@@ -342,7 +349,8 @@
                 (avant / après l'entraînement, ou deux boss du Panthéon côte à côte), Entraîner (choisir une recette et
                 regarder l'évolution, tout est sauvegardé automatiquement), Comparer (50 combats identiques pour mesurer
                 qui est le meilleur boss), Panthéon (le tournoi de tous les boss contre 4 joueurs robots).</li>
-            <li><b>Options</b> : cette aide, le tutoriel, le mode debug, les scénarios et les réglages avancés.</li>
+            <li><b>Options</b> : cette aide, le tutoriel, la qualité graphique (Bas, Moyen, Haut), le mode debug (avec
+                les images par seconde), les scénarios et les réglages avancés.</li>
         </ul>
         <h3>Petit lexique</h3>
         <dl>
