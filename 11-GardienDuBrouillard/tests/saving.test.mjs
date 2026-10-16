@@ -157,7 +157,7 @@ test('démonstration : même combat des deux côtés, score des manches, nouvell
   const { Demo, Settings, BossBrain } = env();
   const settings = { ...Settings.defaults(), maxFightTime: 5 };
   const champion = BossBrain.create(lcg(3));
-  const d = new Demo('random', champion, settings);
+  const d = new Demo(Demo.randomSide(), Demo.brainSide('Champion', champion), settings);
   assert.equal(d.round, 1);
   // Le joueur robot démarre identique des deux côtés
   assert.deepEqual(plain(d.left.player.pos), plain(d.right.player.pos));
@@ -170,6 +170,9 @@ test('démonstration : même combat des deux côtés, score des manches, nouvell
   assert.equal(d.score.rounds, 1);
   assert.equal(d.score.left, d.left.result.winner === 'boss' ? 1 : 0, 'score de gauche = résultat du combat');
   assert.equal(d.score.right, d.right.result.winner === 'boss' ? 1 : 0, 'score de droite = résultat du combat');
+  assert.equal(d.lastWinner, Demo.roundWinner(d.left.result, d.right.result));
+  const duel = d.score.duel;
+  assert.equal(duel.left + duel.right + duel.ties, 1, 'une manche de duel comptée');
   d.update(0.1);
   assert.equal(d.score.rounds, 1, 'la manche n\'est comptée qu\'une fois');
   assert.ok(['Le boss gagne', 'Le chevalier gagne', 'Match nul'].some(s => Demo.verdict(d.left).startsWith(s)));
@@ -177,8 +180,10 @@ test('démonstration : même combat des deux côtés, score des manches, nouvell
   assert.equal(d.round, 2);
   assert.equal(d.over, false, 'nouvelle manche lancée');
   // Boss de gauche au hasard différent d'une manche à l'autre ; boss écrit à la main au choix
-  const hand = new Demo('hand', champion, settings);
+  assert.notDeepEqual(plain(d.left.bossController.brain.toJSON()), plain(new Demo(Demo.randomSide(), Demo.handSide(), settings).left.bossController.brain.toJSON()),
+    'réseau au hasard renouvelé à chaque manche');
+  const hand = new Demo(Demo.handSide(), Demo.brainSide('Champion', champion), settings);
   assert.equal(hand.left.bossController.name, 'Boss à états');
-  assert.match(Demo.leftLabel('hand'), /main/);
-  assert.match(Demo.leftLabel('random'), /hasard/);
+  assert.match(Demo.handSide().label, /main/);
+  assert.match(Demo.randomSide().label, /hasard/);
 });

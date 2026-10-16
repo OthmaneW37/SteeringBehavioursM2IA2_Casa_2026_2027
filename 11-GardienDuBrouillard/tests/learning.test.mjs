@@ -144,6 +144,10 @@ test('fitness : dégâts infligés − reçus + bonus de victoire − pénalité
   // Frapper dans le vide coûte : à dégâts égaux, viser rapporte plus
   assert.ok(Fitness.ofFight({ ...base, damageToPlayer: 22, bossWhiffs: 0 }) > Fitness.ofFight({ ...base, damageToPlayer: 22, bossWhiffs: 5 }));
   assert.equal(Fitness.compute([{ ...base, damageToPlayer: 40 }, { ...base, damageToPlayer: 20 }]), 30);
+  // Gorgées d'Estus : sans effet dans la note de référence ; avec un poids, seules les gorgées réussies coûtent
+  assert.equal(Fitness.ofFight({ ...base, drinks: 3, drinksInterrupted: 1 }), 0);
+  assert.equal(Fitness.ofFight({ ...base, drinks: 3, drinksInterrupted: 1 }, { ...Fitness.WEIGHTS, drink: 30 }), -60);
+  assert.equal(Fitness.ofFight(base, { dealt: 100, received: 100, win: 100, whiff: 4 }), 0, 'poids sans terme drink : 0');
   assert.throws(() => Fitness.compute([]), { name: 'RangeError' });
 });
 

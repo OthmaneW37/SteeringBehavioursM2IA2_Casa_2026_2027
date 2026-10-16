@@ -74,20 +74,82 @@ Si plusieurs techniques dépassent le seuil, la plus forte sortie passe en premi
 **Boss écrit à la main** (référence) : une machine à états `attente` → `attaque` → `recul`. Dès qu'il est
 libre, il souffle sur un joueur qui boit, charge un joueur lointain et souffle à moyenne distance.
 
-## Les quatre modes
+## Les cinq modes
 
 | Mode | Ce qu'on voit |
 |---|---|
-| ⚔️ **Combattre** | Vous affrontez le champion de votre entraînement, le boss pré-entraîné fourni, ou le boss écrit à la main. |
-| 🎬 **Démonstration** | Deux combats côte à côte contre le même joueur robot, avec la même graine : à gauche un boss qui n'a rien appris ou le boss écrit à la main, à droite le champion. Le score des manches est compté. |
-| 🧬 **Entraîner** | Évolution génération par génération. Deux courbes : les victoires du champion à son examen, et la note des boss, lissée. En direct, le champion affronte le joueur robot. |
+| ⚔️ **Combattre** | Vous affrontez le champion de votre entraînement, le boss écrit à la main, ou un boss du Panthéon. |
+| 🎬 **Démonstration et duels** | Deux combats côte à côte contre le même joueur robot, avec la même graine. Par défaut : un boss qui n'a rien appris contre le champion. Avec deux boss du Panthéon, c'est un **duel** (voir plus bas). On choisit aussi le joueur robot affronté. |
+| 🧬 **Entraîner** | On choisit une **recette d'entraînement**, puis on suit l'évolution génération par génération. Deux courbes : les victoires du champion à son examen, et la note des boss, lissée. En direct, le champion affronte le joueur robot. Le bouton « Ajouter le champion au Panthéon » le garde. |
 | 📊 **Comparer** | Les deux boss jouent les mêmes 50 combats, sur des graines jamais vues à l'entraînement. Le résultat donne le taux de victoire, la durée, les dégâts, les techniques utilisées et les fioles bues. **C'est la mesure à retenir.** |
+| 🏛️ **Panthéon** | Le tournoi croisé : chaque boss du Panthéon affronte 4 joueurs robots différents, sur les mêmes combats. |
 
 **Mode debug** :
 - les 12 entrées et les 5 sorties du réseau en direct, avec leurs seuils ;
 - l'état du boss et les attentes de ses trois techniques ;
 - le cercle de détection : jaune, rouge quand le joueur est dedans ;
 - la portée d'attaque, les rayons vers les murs, la vitesse, et le cercle du `wander` de `vehicle.js`.
+
+## Le Panthéon : des boss entraînés différemment
+
+Tous les boss du Panthéon ont le même cerveau 12-16-5, le même algorithme génétique, la même population de
+départ (graine 7) et le même nombre de générations (40). Seule la **recette d'entraînement** change
+(`doctrines.js`) :
+- la **note** : les mêmes termes que la fitness, avec d'autres poids ;
+- l'**adversaire** : une des 4 **épreuves** (`trials.js`), c'est-à-dire un réglage du joueur robot.
+
+| Boss | Note | Adversaire à l'entraînement |
+|---|---|---|
+| Le Gardien | référence : infligés × 100, reçus × −100, victoire + 100, coup dans le vide − 4 | référence (40 % de bonnes réactions, 2 fioles) |
+| Le Bourreau | infligés × 200, reçus × −30 : il compte surtout ce qu'il inflige | référence |
+| Le Spectre | infligés × 60, reçus × −220 : il compte surtout ce qu'il encaisse | référence |
+| Le Chasseur | référence | expert (60 % de bonnes réactions, frappe toutes les 0,7 s) |
+| L'Opportuniste | référence | débutant (35 %, frappe toutes les 1,5 s) |
+| Le Geôlier | référence − 30 par gorgée d'Estus réussie par le chevalier | buveur (3 fioles) |
+
+Le Gardien est le boss fourni (`pretrainedBoss.js`). Les autres sont dans `pretrainedPantheon.js`, généré par
+`node tools/pretrain-pantheon.mjs` (environ 6 minutes). Vous pouvez aussi ajouter au Panthéon le champion de
+votre entraînement, avec la recette de votre choix : au plus 6 boss ajoutés, gardés dans le navigateur.
+
+### Le tournoi croisé
+
+Chaque boss affronte chaque épreuve sur les **mêmes 30 combats** (graines 7000 et suivantes, jamais utilisées
+ailleurs). Le résultat est une grille de taux de victoire. La case encadrée est l'adversaire de l'entraînement
+du boss ; ★ marque le meilleur boss de chaque colonne. À droite, le **style** de chaque boss : coups de
+hallebarde, ruées et souffles par combat, dégâts encaissés, fioles bues par le chevalier.
+
+Résultat avec les boss fournis :
+
+| Boss | Débutant | Référence | Expert | Buveur | Moyenne | Frappes | Souffles |
+|---|---|---|---|---|---|---|---|
+| Boss écrit à la main | 23 % | 10 % | 3 % | 10 % | 12 % | 9,9 | 0 |
+| Le Gardien | 37 % | 37 % | 13 % | 20 % | 27 % | 22,9 | 0,4 |
+| Le Bourreau | 43 % | **47 %** | 17 % | 20 % | 32 % | 23,5 | 0 |
+| Le Spectre | 10 % | 10 % | 7 % | 0 % | 7 % | 16,7 | 5,0 |
+| Le Chasseur | 20 % | 13 % | **23 %** | 7 % | 16 % | 14,1 | 5,5 |
+| L'Opportuniste | **50 %** | 47 % | 17 % | 23 % | 34 % | 23,0 | 0 |
+| Le Geôlier | 50 % | 47 % | 13 % | **27 %** | 34 % | 23,0 | 0 |
+
+Ce que le tournoi montre :
+- **Chaque colonne est gagnée par le boss entraîné contre ce joueur robot** : L'Opportuniste contre le débutant,
+  le Bourreau contre la référence, le Chasseur contre l'expert, le Geôlier contre le buveur.
+- **Deux styles sont apparus.** Le Spectre et le Chasseur gardent leurs distances et soufflent la brume
+  (5 souffles par combat). Les autres frappent à la hallebarde sans arrêt (environ 23 coups par combat).
+- **Une note mal choisie donne un mauvais boss.** Le Spectre, puni surtout quand il est touché, a appris à ne
+  pas s'exposer, mais il gagne rarement (7 %).
+- **Des recettes différentes peuvent converger.** L'Opportuniste et le Geôlier ont des cerveaux différents mais
+  presque le même style : contre ces adversaires, frapper sans arrêt marche bien. C'est une limite honnête du
+  résultat : 40 générations et une seule graine par recette.
+- Personne n'a écrit ces stratégies : elles viennent uniquement de la note et de l'adversaire.
+
+### Pourquoi les boss ne se battent pas entre eux
+
+Leur cerveau a appris à **lire un chevalier** : son endurance, ses fioles, sa vulnérabilité. Face à un autre
+boss, ces entrées n'auraient plus de sens. Les boss s'affrontent donc en **duel**, contre le même chevalier,
+dans le mode Démonstration (`Demo.roundWinner`). À chaque manche :
+1. le boss qui tue le chevalier bat celui qui ne le tue pas, et un match nul bat une défaite ;
+2. si les deux le tuent, le plus **rapide** gagne (au moins 0,5 s d'écart, sinon égalité) ;
+3. si aucun ne le tue, gagne celui qui a infligé le plus de dégâts.
 
 ## L'entraînement
 
@@ -153,6 +215,10 @@ techniques, le boss appris gagnait 64 % contre 30 % pour le boss à états.
 - **Fichier JSON** : « Exporter » et « Importer ». Un fichier importé est entièrement vérifié.
 - **Format version 2** : cerveau 12-16-5. Une sauvegarde de la version 1 (cerveau 8-16-3) est refusée avec un
   message clair.
+- La **recette** de l'entraînement est sauvegardée. Une sauvegarde plus ancienne, sans recette, reprend avec
+  celle du Gardien.
+- Le **Panthéon** est sauvegardé à part (`gardienDuBrouillard.pantheon.v1`). Une entrée invalide est ignorée,
+  avec un message.
 
 ## Scénarios
 
@@ -182,11 +248,14 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `fitness.js`, `genetic.js`, `training.js`, `trainingStore.js` | Note, tournoi et élitisme, entraînement avec champion validé, sauvegarde. |
 | `comparison.js`, `demo.js` | Comparaison sur 50 combats, démonstration côte à côte. |
 | `settings.js`, `scenarios.js` | Plages des curseurs (`RangeError` hors plage) et préréglages. |
+| `trials.js`, `doctrines.js` | Épreuves (réglages du joueur robot) et recettes d'entraînement (poids de la note et épreuve). |
+| `pantheon.js`, `tournament.js` | Panthéon (boss fournis et ajoutés, plafond, sauvegarde) et tournoi croisé boss × épreuves. |
+| `pretrainedBoss.js`, `pretrainedPantheon.js` | Données : le Gardien et les autres boss du Panthéon. |
 | `fitnessChart.js`, `debugPanel.js`, `hud.js`, `camera.js`, `menuToggle.js` | Courbes, debug, interface et effets, caméra de verrouillage, menu masquable. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
-| `tools/pretrain.mjs` | Pré-entraînement sous Node. |
+| `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 
-Les scripts de `index.html` portent un numéro de version (`?v=8`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=9`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -195,7 +264,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 59 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 69 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -203,6 +272,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 59 test
 | `mechanics.test.mjs` | Fioles (soin exact à 0,6 s, interruption, charges) ; brume (brûlure, ralentissement, plafond, durée) ; `avoidZones` ; ruée (visée prédite, visée figée, contact unique, attente) ; souffle ; ordre des techniques ; boss à états ; joueur robot ; taches de sang ; combat complet reproductible. |
 | `learning.test.mjs` | Cerveau 12-16-5 et ses entrées ; décisions ; mutation ; tournoi et élitisme ; fitness ; combats ; entraînement ; comparaison. |
 | `saving.test.mjs` | Champion validé ; sauvegarde complète et reprise ; fichiers invalides, dont la version 1 ; stockage bloqué ; démonstration. |
+| `pantheon.test.mjs` | Épreuves et recettes (plages, valeurs) ; note qui suit la recette, changement à la génération suivante, champion réexaminé ; recette sauvegardée ; boss fournis ; ajout, plafond, retrait, stockage invalide ; règles du duel ; tournoi (mêmes combats, budget, profil, rang). |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni. |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

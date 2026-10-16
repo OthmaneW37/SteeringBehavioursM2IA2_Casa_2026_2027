@@ -237,3 +237,42 @@ dialog dd {
     margin: 0 0 0 14px;
     color: #a9a59a;
 }
+
+/* Panthéon : liste des boss, avec un point à la couleur de leur recette */
+.pantheon-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0;
+}
+
+.pantheon-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #cfc8b4;
+}
+
+.pantheon-entry .dot {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    margin-top: 3px;
+    border-radius: 50%;
+}
+
+.pantheon-entry button {
+    flex: none;
+    margin-left: auto;
+    padding: 2px 8px;
+    font-size: 11px;
+}
+
+.results ul {
+    margin: 8px 0;
+    padding-left: 18px;
+    font-size: 12px;
+    line-height: 1.4;
+}

@@ -5,7 +5,7 @@
 // Chaque accès au stockage est protégé (try/catch) : un navigateur peut le bloquer. Le stockage est injecté.
 //
 // Format du fichier :
-// { format: "gardien-entrainement", version: 2, savedAt, seed, generation, validationFights, settings,
+// { format: "gardien-entrainement", version: 2, savedAt, seed, doctrine (recette, facultative), generation, validationFights, settings,
 //   population: [cerveau, ...], history: [{ generation, best, mean, winRate, championWinRate }],
 //   best: { fitness, generation, brain } | null,
 //   champion: { winRate, fitness, generation, brain } | null }
@@ -22,6 +22,8 @@ const TrainingStore = {
             version: TrainingStore.VERSION,
             savedAt: now.toISOString(),
             seed: training.seed,
+            // recette en cours ; celle choisie pour la génération suivante l'emporte
+            doctrine: training.pendingDoctrine || training.doctrine,
             generation: training.generation,
             validationFights: Training.VALIDATION_FIGHTS,
             settings: Object.assign({}, training.settings),
@@ -32,7 +34,8 @@ const TrainingStore = {
                 winRate: training.champion.winRate, fitness: training.champion.fitness,
                 generation: training.champion.generation, brain: brain(training.champion.brain),
                 // vrai si le champion doit repasser l'examen (réglages changés, examen d'une autre taille)
-                stale: training.champion.key !== training.fightKey()
+                stale: training.champion.key !== training.fightKey() ||
+                    !!(training.pendingDoctrine && training.pendingDoctrine !== training.doctrine)
             } : null
         };
     },
@@ -68,7 +71,9 @@ const TrainingStore = {
                 if (typeof h[k] !== 'number' || !Number.isFinite(h[k])) throw new RangeError("Historique invalide (" + k + ").");
             }
         }
-        const t = new Training(Object.assign({}, settings, { populationSize: brains.length }), { seed: data.seed, initialBrains: brains });
+        // Recette : absente des sauvegardes d'avant le Panthéon, qui suivaient toutes la recette de référence
+        const doctrine = Doctrines.get(data.doctrine === undefined ? 'gardien' : data.doctrine).id;
+        const t = new Training(Object.assign({}, settings, { populationSize: brains.length }), { seed: data.seed, initialBrains: brains, doctrine: doctrine });
         if (brains.length !== settings.populationSize) t.updateSettings(settings);
         t.generation = data.generation;
         t.rng = seededRandom(data.seed * 7919 + data.generation);

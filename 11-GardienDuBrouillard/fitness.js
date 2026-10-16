@@ -2,16 +2,19 @@
 //   dégâts infligés au joueur (en % de sa vie)
 // − dégâts reçus (en % de la vie du boss)
 // + bonus si le boss gagne
-// − pénalité par attaque dans le vide (elle évite qu'il frappe sans viser).
+// − pénalité par attaque dans le vide (elle évite qu'il frappe sans viser)
+// − pénalité par gorgée d'Estus réussie par le joueur (fiole commencée et non interrompue). Ce terme vaut 0
+//   dans la note de référence ; une recette du Panthéon (le Geôlier) l'utilise.
 // Les deux dégâts sont rapportés à 100 pour peser autant, malgré des vies maximales différentes.
 const Fitness = {
-    WEIGHTS: { dealt: 100, received: 100, win: 100, whiff: 4 },
+    WEIGHTS: { dealt: 100, received: 100, win: 100, whiff: 4, drink: 0 },
 
     ofFight(r, w = Fitness.WEIGHTS) {
         return w.dealt * r.damageToPlayer / r.playerMaxHp
             - w.received * r.damageToBoss / r.bossMaxHp
             + (r.winner === 'boss' ? w.win : 0)
-            - w.whiff * r.bossWhiffs;
+            - w.whiff * r.bossWhiffs
+            - (w.drink || 0) * ((r.drinks || 0) - (r.drinksInterrupted || 0));
     },
 
     compute(results, w = Fitness.WEIGHTS) {
