@@ -1,9 +1,10 @@
 // Câblage p5 : écrans, contrôles, modes, boucle de jeu et rendu. Aucune règle de comportement ici :
-// elles sont dans les modules (Player, Boss, BossBrain, Fight, Training, Comparison, Demo...), et la
-// logique de l'interface dans ScreenFlow, TitleMenu, Tutorial, HudLayout et Banner.
+// elles sont dans les modules (Player, Boss, BossBrain, Fight, Training, Comparison, Demo...), la meute du
+// niveau 1 dans Creux, PackBrain, PackFight, PackTraining et PackComparison, et la logique de l'interface
+// dans ScreenFlow, TitleMenu, Tutorial, HudLayout et Banner.
 
 const game = {
-    mode: 'title',           // 'title', 'combat', 'demo', 'training', 'comparison' ou 'pantheon'
+    mode: 'title',           // 'title', 'combat', 'demo', 'training', 'comparison', 'pantheon' ou 'pack'
     screens: null,           // écrans et fondus (ScreenFlow)
     titleMenu: null,
     labMode: 'demo',         // outil ouvert dans le laboratoire
@@ -23,7 +24,7 @@ const game = {
     camera: null,
     human: null,
     effects: null,
-    fight: null,             // combat joué au clavier
+    fight: null,             // combat joué au clavier (Fight contre un boss, ou PackFight contre la meute)
     state: 'fight',          // 'fight', 'dead' ou 'victory'
     stateTime: 0,
     deaths: 0,
@@ -44,7 +45,14 @@ const game = {
     pantheon: [],            // boss du Panthéon (fournis + ajoutés)
     tournament: null,
     resetArmed: 0,          // « Tout recommencer » demande une confirmation (deuxième clic)
-    storage: null
+    storage: null,
+    // Niveau 1 : la meute des Creux
+    packSettings: null,
+    packPretrained: null,    // cerveau partagé fourni (pretrainedPack.js)
+    packTraining: null,      // entraînement de la meute dans la page (non sauvegardé)
+    packTrainingRunning: false,
+    packComparison: null,
+    packView: null           // combat observé dans l'onglet Meute : le joueur robot contre la meute choisie
 };
 
 function byId(id) {
@@ -108,6 +116,9 @@ function setup() {
 
     initControls();
     game.settings = readSettings();
+    game.packSettings = readPackSettings();
+    game.packPretrained = NeuralNetwork.fromJSON(PRETRAINED_PACK.brain);
+    newPackTraining();
 
     // Entraînement sauvegardé automatiquement lors d'une visite précédente
     const saved = TrainingStore.load(game.storage);
@@ -213,6 +224,26 @@ function initControls() {
         input.value = '';
     });
     byId('compareBtn').addEventListener('click', startComparison);
+    // Onglet Meute
+    for (const name in PackSettings.PARAMETERS) {
+        byId(name).addEventListener('input', () => {
+            showPackValue(name);
+            packSettingsChanged();
+        });
+        showPackValue(name);
+    }
+    byId('packViewSelect').addEventListener('change', () => { game.packView = null; });
+    byId('packPlayBtn').addEventListener('click', () => playLevel('pack'));
+    byId('packCompareBtn').addEventListener('click', startPackComparison);
+    byId('packTrainBtn').addEventListener('click', () => {
+        game.packTrainingRunning = !game.packTrainingRunning;
+        updatePackButtons();
+    });
+    byId('packResetBtn').addEventListener('click', () => {
+        newPackTraining();
+        updatePackButtons();
+        setStatus("Nouvel entraînement de la meute, avec les réglages actuels.");
+    });
     byId('debugCheckbox').addEventListener('change', () => { game.debug = byId('debugCheckbox').checked; });
     for (const id in Quality.LEVELS) {
         const o = document.createElement('option');
@@ -269,7 +300,7 @@ function settingsChanged() {
         return setStatus(e.message, true);
     }
     if (game.training) game.training.updateSettings(game.settings);
-    if (game.fight) game.fight.boss.detectRadius = game.settings.detectRadius;
+    if (game.fight && game.fight.boss) game.fight.boss.detectRadius = game.settings.detectRadius;
 }
 
 /** Message pour une sauvegarde d'avant les piliers, convertie au chargement. */
@@ -348,7 +379,8 @@ function fillBossSelect(select, fixed) {
 /** Listes de boss et liste du Panthéon, après un ajout ou un retrait. */
 function refreshPantheon() {
     const champion = ['champion', "Champion de votre entraînement"], hand = ['hand', "Boss écrit à la main (machine à états)"];
-    fillBossSelect(byId('opponentSelect'), [champion, hand]);
+    fillBossSelect(byId('opponentSelect'), [champion, hand, ['pack', "Niveau 1 : la meute des Creux (apprise)"],
+        ['packHand', "Niveau 1 : la meute écrite à la main"]]);
     fillBossSelect(byId('demoLeftSelect'), [['random', "Avant entraînement (réseau au hasard)"], hand, champion]);
     fillBossSelect(byId('demoRightSelect'), [champion, hand]);
     const list = byId('pantheonList');
@@ -433,6 +465,9 @@ function showMode() {
         setStatus(game.trainingRunning ? "Entraînement en cours." : "Choisissez une recette, puis cliquez sur « Lancer l'entraînement ».");
     } else if (game.mode === 'pantheon') {
         setStatus("Cliquez sur « Lancer le tournoi » : chaque boss affronte 4 joueurs robots différents.");
+    } else if (game.mode === 'pack') {
+        game.packView = null;
+        setStatus("Le joueur robot contre la meute. « Comparer » mesure la meute apprise et la meute écrite à la main sur les mêmes combats.");
     } else {
         setStatus("Cliquez sur « Lancer 50 combats » pour mesurer les deux boss.");
     }
@@ -445,7 +480,7 @@ function togglePause() {
 
 // --- Écrans (titre, combat, laboratoire) et fenêtres (pause, Options, tutoriel) ---
 
-const LAB_TOOLS = ['demo', 'training', 'comparison', 'pantheon'];
+const LAB_TOOLS = ['demo', 'training', 'comparison', 'pantheon', 'pack'];
 
 function goScreen(name) {
     game.screens.go(name);
@@ -463,7 +498,7 @@ function applyScreen(name) {
         game.mode = 'combat';
         game.paused = false;
         game.accumulator = 0;
-        game.camera.snap(Camera.target(game.arena, width, height, game.fight.player.locked, game.fight.player, game.fight.boss));
+        game.camera.snap(Camera.target(game.arena, width, height, game.fight.player.locked, game.fight.player, foeOf(game.fight)));
         if (Tutorial.shouldShow(game.storage)) openTutorial();
     } else {
         game.mode = game.labMode;
@@ -489,6 +524,8 @@ function activateMenu(id) {
         goScreen('combat');
     } else if (id === 'continue') {
         goScreen('combat');
+    } else if (id === 'pack') {
+        playLevel('pack');
     } else if (id === 'train') {
         openLabTool('training');
     } else if (id === 'pantheon') {
@@ -617,23 +654,44 @@ function drawTitleBackground() {
 
 function startFight() {
     const kind = byId('opponentSelect').value;
-    game.fight = new Fight({
-        arena: game.arena,
-        playerController: game.human,
-        bossController: bossController(kind),
-        maxTime: Infinity,
-        detectRadius: game.settings.detectRadius,
-        estus: game.settings.estusCharges,
-        pillars: game.settings.pillarCount
-    });
+    const opt = { arena: game.arena, playerController: game.human, maxTime: Infinity, estus: game.settings.estusCharges, pillars: game.settings.pillarCount };
+    if (kind === 'pack' || kind === 'packHand') {
+        game.fight = new PackFight(Object.assign(opt, {
+            packController: kind === 'pack' ? new NeuralPackController(packBrain()) : new HandPackController(),
+            size: game.packSettings.packSize,
+            perception: game.packSettings.packPerception
+        }));
+    } else {
+        game.fight = new Fight(Object.assign(opt, { bossController: bossController(kind), detectRadius: game.settings.detectRadius }));
+    }
     game.state = 'fight';
     game.stateTime = 0;
     game.accumulator = 0;
-    game.trail = { player: game.fight.player.hp, boss: game.fight.boss.hp };
+    game.trail = { player: game.fight.player.hp, boss: foeHp(game.fight) };
     if (game.feel) game.feel.reset();
     const entry = pantheonEntry(kind);
     byId('bossInfo').textContent = kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
+        : kind === 'pack' ? "Niveau 1 : " + game.packSettings.packSize + " Creux qui partagent un réseau appris. " + packLabel()
+        : kind === 'packHand' ? "Niveau 1 : " + game.packSettings.packSize + " Creux menés par des règles écrites à la main (poursuite, recul, morsure)."
         : entry ? Pantheon.describe(entry) : championLabel();
+}
+
+/** Lance un niveau depuis le titre ou le laboratoire (l'adversaire de la pause suit). */
+function playLevel(kind) {
+    byId('opponentSelect').value = kind;
+    startFight();
+    game.fightStarted = true;
+    goScreen('combat');
+}
+
+/** L'adversaire d'un combat : le boss, ou le Creux visé par le chevalier (le plus proche). */
+function foeOf(fight) {
+    return fight.boss || fight.focus || null;
+}
+
+/** Vie de l'adversaire : celle du boss, ou la somme des vies de la meute. */
+function foeHp(fight) {
+    return fight.boss ? fight.boss.hp : fight.creux.reduce((sum, c) => sum + c.hp, 0);
 }
 
 /** Fait avancer un combat à pas fixes selon le temps réel écoulé (au plus 4 pas par image). */
@@ -665,17 +723,156 @@ function updateCombat(dt) {
             // Tache de sang là où le chevalier est tombé, gardée d'une session à l'autre
             Bloodstain.add(game.bloodstains, f.player.pos.x, f.player.pos.y, f.lastCause, game.deaths * 977);
             Bloodstain.save(game.storage, game.bloodstains);
-        } else if (!f.boss.alive) {
+        } else if (f.boss ? !f.boss.alive : f.over) {
             game.state = 'victory';
             game.feel.onBossDeath();
-            game.effects.particles.emit('curse', f.boss.pos.x, f.boss.pos.y, 40);
-            game.victoryCause = f.boss.stats.camped ? 'camping' : null;
+            if (f.boss) game.effects.particles.emit('curse', f.boss.pos.x, f.boss.pos.y, 40);
+            game.victoryCause = f.boss && f.boss.stats.camped ? 'camping' : null;
             game.stateTime = 0;
         }
     } else if (game.state === 'dead' && game.stateTime > 3.5) {
         // Réapparition au feu de camp ; le boss retrouve toute sa vie
         startFight();
     }
+}
+
+// --- Niveau 1 : la meute des Creux (onglet Meute) ---
+
+function showPackValue(name) {
+    byId(name + 'Val').textContent = PackSettings.format(name, Number(byId(name).value));
+}
+
+function readPackSettings() {
+    const s = {};
+    for (const name in PackSettings.PARAMETERS) s[name] = Number(byId(name).value);
+    return PackSettings.validate(s);
+}
+
+/** Taille et perception : au prochain combat ; population, combats, mutation : au prochain « Recommencer ». */
+function packSettingsChanged() {
+    try {
+        game.packSettings = readPackSettings();
+    } catch (e) {
+        return setStatus(e.message, true);
+    }
+    game.packView = null;
+    setStatus("Réglages de la meute : ils valent pour les prochains combats ; l'entraînement les prend en cliquant « Recommencer ».");
+}
+
+/** Réglages d'un combat de la meute contre le joueur robot (60 s au plus, comme à l'entraînement). */
+function packFightSettings() {
+    return Object.assign({}, game.settings, game.packSettings, { maxFightTime: 60 });
+}
+
+function newPackTraining() {
+    game.packTraining = new PackTraining(packFightSettings(), { seed: 1 + Math.floor(Math.random() * 100000), arena: game.arena });
+    game.packTrainingRunning = false;
+}
+
+/** Cerveau partagé à affronter : le champion de l'entraînement de la page, sinon la meute fournie. */
+function packBrain() {
+    return (game.packTraining && game.packTraining.bestBrain()) || game.packPretrained;
+}
+
+function packLabel() {
+    const t = game.packTraining;
+    if (t && t.champion) return "Champion de la génération " + t.champion.generation + " de votre entraînement (" + Math.round(t.champion.winRate * 100) + " % à l'examen).";
+    return "Meute fournie : " + PRETRAINED_PACK.generations + " générations, " + Math.round(PRETRAINED_PACK.exam.learned.winRate * 100) +
+        " % de victoires contre le joueur robot (meute à la main : " + Math.round(PRETRAINED_PACK.exam.hand.winRate * 100) + " %).";
+}
+
+function packController(kind) {
+    if (kind === 'hand') return new HandPackController();
+    return new NeuralPackController(kind === 'champion' ? packBrain() : game.packPretrained);
+}
+
+function updatePackButtons() {
+    byId('packTrainBtn').textContent = game.packTrainingRunning ? "⏸ Pause" : "▶ Entraîner la meute";
+}
+
+function startPackComparison() {
+    const champion = game.packTraining.champion;
+    game.packComparison = new PackComparison([
+        { name: "Meute écrite à la main", makeController: () => new HandPackController() },
+        { name: champion ? "Champion de votre entraînement" : "Meute apprise (fournie)", makeController: () => new NeuralPackController(packBrain()) }
+    ], packFightSettings(), PackSettings.COMPARISON_FIGHTS, game.arena);
+    setStatus("Comparaison : " + PackSettings.COMPARISON_FIGHTS + " combats pour chaque meute, les mêmes des deux côtés.");
+}
+
+function newPackView() {
+    const kind = byId('packViewSelect').value;
+    game.packView = PackTraining.makeFight(packController(kind), 1 + Math.floor(Math.random() * 1e6), packFightSettings(), game.arena);
+    game.packView.overTime = 0;
+    game.accumulator = 0;
+}
+
+function updatePack(dt) {
+    const t = game.packTraining;
+    if (game.packTrainingRunning) headless(() => t.work(game.settings.trainingBudget));
+    if (game.packComparison && !game.packComparison.done) headless(() => game.packComparison.work(game.settings.trainingBudget));
+    if (!game.packView || (game.packView.over && game.packView.overTime > 2)) newPackView();
+    if (!game.paused) {
+        if (game.packView.over) game.packView.overTime += dt;
+        else advance(game.packView, dt, events => events.forEach(e => game.effects.add(e, game.time)));
+    }
+    byId('packInfo').textContent = (t.generation > 0 || game.packTrainingRunning ? "Entraînement : génération " + t.generation + ". " : "") + packLabel();
+}
+
+/** Panneau de l'onglet Meute : combat en direct, comparaison, entraînement (lecture seule de l'état). */
+function drawPackOverlay() {
+    const f = game.packView, c = game.packComparison, t = game.packTraining;
+    // Panneau en haut à gauche ; courbes à droite si la place le permet, sinon sous le panneau
+    const chartW = Math.min(360, width * 0.3), wide = width >= 520 + chartW + 110;
+    const px = 48, py = 12, pw = Math.min(520, wide ? width - chartW - 110 : width - 70);
+    const rows = c ? c.summary() : [];
+    const ph = 92 + (c ? 40 + rows.length * 20 : 0);
+    push();
+    noStroke();
+    fill(10, 12, 18, 225);
+    rect(px, py, pw, ph, 8);
+    textAlign(LEFT, TOP);
+    fill(232, 220, 184);
+    textSize(15);
+    text("En direct : " + f.packController.name + " contre le joueur robot", px + 12, py + 10);
+    fill(205);
+    textSize(11);
+    const e = f.lastEncirclement;
+    text("Creux debout : " + f.alivePack.length + " / " + f.creux.length + " · vie du chevalier " + Math.ceil(f.player.hp) +
+        (f.over ? " · " + (f.result.winner === 'pack' ? "la meute gagne" : f.result.winner === 'player' ? "le chevalier gagne" : "temps écoulé") : ""), px + 12, py + 34);
+    fill(e && e.surrounded ? color(255, 110, 90) : color(150, 220, 160));
+    text(e && e.surrounded ? "Chevalier ENCERCLÉ : au moins 3 Creux autour de lui, aucune sortie de 180°" :
+        "Encerclé " + Math.round(100 * f.surroundTime / Math.max(f.time, 1e-9)) + " % du temps dans ce combat", px + 12, py + 52);
+    fill(255, 190, 60);
+    text(t.champion ? "Entraînement : génération " + t.generation + ", champion de la génération " + t.champion.generation + " (" + Math.round(t.champion.winRate * 100) + " % à l'examen)"
+        : (game.packTrainingRunning ? "Entraînement : génération " + t.generation + " en cours" : "Entraînement de la meute : pas encore lancé"), px + 12, py + 70);
+    if (c) {
+        let y = py + 98;
+        fill(232, 220, 184);
+        textSize(12);
+        const cols = [0, 190, 255, 315, 375, 455];
+        ["Meute", "victoires", "dégâts", "pertes", "encerclé", "couverture"].forEach((h, i) => text(h, px + 12 + cols[i], y));
+        y += 18;
+        fill(220);
+        textSize(11);
+        for (const r of rows) {
+            text(r.name, px + 12, y);
+            if (r.fights) {
+                [Math.round(r.winRate * 100) + " %", r.dealt.toFixed(0), Math.round(r.killed * 100) + " %",
+                    (r.surrounded * 100).toFixed(1) + " %", r.coverage.toFixed(2)].forEach((v, i) => text(v, px + 12 + cols[i + 1], y));
+            } else text("…", px + 12 + cols[1], y);
+            y += 20;
+        }
+        fill(40);
+        rect(px + 12, y, pw - 24, 6, 3);
+        fill(232, 190, 90);
+        rect(px + 12, y, (pw - 24) * c.progress(), 6, 3);
+    }
+    pop();
+    if (t.history.length && !game.debug) {
+        const w = wide ? chartW : Math.min(360, width - px - 40);
+        FitnessChart.draw(t.history, wide ? width - w - 24 : px + 12, wide ? 44 : py + ph + 44, w, 220, "des meutes");
+    }
+    if (game.debug) DebugPanel.drawPack(f.packController, f, 14, py + ph + 12);
 }
 
 // --- Démonstration ---
@@ -1096,6 +1293,10 @@ function draw() {
     } else if (game.mode === 'pantheon') {
         updateTournament();
         drawPantheonOverlay();
+    } else if (game.mode === 'pack') {
+        updatePack(dt);
+        drawWorld(game.packView, false, game.effects);
+        drawPackOverlay();
     } else {
         updateComparison();
         drawWorld(game.fight, false, game.effects, true);
@@ -1117,8 +1318,8 @@ function draw() {
 
 /** Dessine l'arène et ses entités dans le repère de la caméra principale. */
 function drawWorld(fight, locked, effects, dimmed = false) {
-    const { player, boss } = fight;
-    game.camera.follow(Camera.target(game.arena, width, height, locked, player, boss), Math.min(deltaTime / 1000, 0.1));
+    const player = fight.player, foe = foeOf(fight);
+    game.camera.follow(Camera.target(game.arena, width, height, locked, player, foe), Math.min(deltaTime / 1000, 0.1));
     push();
     if (game.mode === 'combat') {
         const s = game.feel.shake(game.time);
@@ -1126,7 +1327,7 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     }
     game.camera.apply(width, height);
     drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null);
-    if (locked && boss.alive) Hud.lockMark(boss, game.time);
+    if (locked && foe && foe.alive) Hud.lockMark(foe, game.time);
     pop();
     if (dimmed) {
         noStroke();
@@ -1141,19 +1342,26 @@ function drawEntities(fight, effects, stains = null) {
     game.arena.showFloor();
     if (stains) for (const b of stains) b.show(game.time, Math.hypot(player.pos.x - b.pos.x, player.pos.y - b.pos.y) < 45);
     game.campfire.show(game.time);
-    for (const z of fight.zones) z.show(game.time);
+    for (const z of fight.zones || []) z.show(game.time);
     for (const p of fight.pillars) p.show(game.arena.campfirePos);
     player.show();
-    boss.show();
+    if (boss) boss.show();
+    for (const c of fight.creux || []) c.show();
     effects.showParticles(q.glow);
     game.fogLayer.draw(game.time, q);
     game.light.draw(Lighting.sources(fight, game.arena.campfirePos, game.time), q);
     // Au-dessus de l'obscurité : ce qui doit toujours rester lisible
-    game.arena.showCorners(boss.r, Combat.BOSS.camping.margin, boss.campTime / Combat.BOSS.camping.limit, game.time);
-    boss.showTelegraph();
-    if (game.debug) DebugPanel.drawWorld(boss, player, game.arena);
+    if (boss) {
+        game.arena.showCorners(boss.r, Combat.BOSS.camping.margin, boss.campTime / Combat.BOSS.camping.limit, game.time);
+        boss.showTelegraph();
+    }
+    for (const c of fight.creux || []) c.showTelegraph();
+    if (game.debug) {
+        if (boss) DebugPanel.drawWorld(boss, player, game.arena);
+        else DebugPanel.drawPackWorld(fight);
+    }
     effects.show();
-    Hud.techniqueLabel(boss);
+    if (boss) Hud.techniqueLabel(boss);
 }
 
 /** Un combat dans un rectangle de l'écran (démonstration côte à côte). */
@@ -1233,10 +1441,11 @@ function drawCombatHud(dt) {
     const f = game.fight;
     // Barres « fantômes » qui rattrapent la vie réelle (comme dans les jeux Souls)
     game.trail.player = Math.max(f.player.hp, game.trail.player - 40 * dt);
-    game.trail.boss = Math.max(f.boss.hp, game.trail.boss - 60 * dt);
+    game.trail.boss = Math.max(foeHp(f), game.trail.boss - 60 * dt);
     const layout = HudLayout.compute(width, height);
     Hud.drawPlayer(f.player, game.deaths, game.trail.player, layout);
-    Hud.drawBoss(f.boss, game.trail.boss, layout);
+    if (f.boss) Hud.drawBoss(f.boss, game.trail.boss, layout);
+    else Hud.drawPack(f.creux, game.trail.boss, layout);
     if (game.feel.flash > 0) {
         const ctx = drawingContext;
         const g = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.25, width / 2, height / 2, Math.max(width, height) * 0.7);
@@ -1245,12 +1454,15 @@ function drawCombatHud(dt) {
         ctx.fillStyle = g;
         ctx.fillRect(0, 0, width, height);
     }
-    if (game.debug) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
+    if (game.debug) {
+        if (f.boss) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
+        else DebugPanel.drawPack(f.packController, f, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
+    }
     if (game.state === 'dead') {
         Hud.banner('death', "VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
             game.stateTime);
     } else if (game.state === 'victory') {
-        Hud.banner('victory', "ENNEMI VAINCU", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
+        Hud.banner('victory', f.boss ? "ENNEMI VAINCU" : "MEUTE ANÉANTIE", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
             "Temps " + f.time.toFixed(1) + " s · morts " + game.deaths + " · R pour recommencer", game.stateTime);
     } else if (game.paused && byId('pauseMenu').hidden && byId('tutorial').hidden && byId('optionsScreen').hidden) {
         Hud.pauseLabel("PAUSE · P pour reprendre");

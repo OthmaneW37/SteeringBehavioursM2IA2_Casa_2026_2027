@@ -123,6 +123,24 @@ const Hud = {
         pop();
     },
 
+    /** Barre de vie de la meute (somme des vies des Creux), en bas au centre, avec le nombre de Creux debout. */
+    drawPack(pack, trailHp, L = HudLayout.compute(width, height)) {
+        const hp = pack.reduce((s, c) => s + c.hp, 0), max = pack.reduce((s, c) => s + c.maxHp, 0);
+        push();
+        textFont('Cinzel');
+        textSize(L.fontSize);
+        textAlign(LEFT, BOTTOM);
+        fill(0, 0, 0, 170);
+        text(Hud.PACK_NAME, L.bossName.x + 1, L.bossName.y + 1);
+        fill(235, 225, 200);
+        text(Hud.PACK_NAME, L.bossName.x, L.bossName.y);
+        textAlign(RIGHT, BOTTOM);
+        fill(200, 190, 255);
+        text(pack.filter(c => c.alive).length + " / " + pack.length + " debout", L.boss.x + L.boss.w, L.bossName.y);
+        Hud.bar(L.boss.x, L.boss.y, L.boss.w, L.boss.h, hp, max, color(110, 90, 150), trailHp);
+        pop();
+    },
+
     /**
      * Grand bandeau animé (VOUS ÊTES MORT, ENNEMI VAINCU) : le bandeau s'ouvre, le titre apparaît en
      * lettres espacées qui s'écartent lentement, puis (mort seulement) l'image passe au noir.
@@ -220,6 +238,7 @@ const Hud = {
 
 Hud.RIPOSTE_LABEL = 0.8;   // secondes d'affichage de « Riposte ! »
 Hud.BOSS_NAME = "Gardien du Brouillard";
+Hud.PACK_NAME = "La meute des Creux";
 Hud.CAMP_WARNING = 1;      // secondes dans un coin avant l'avertissement
 
 Hud.CONTROLS = [
@@ -255,6 +274,8 @@ class Effects {
             this.items.push({ kind: 'text', x: event.x, y: event.y - 10, text: "brume !", life: 1, age: 0, c: [120, 255, 200] });
         } else if (event.type === 'camping') {
             this.items.push({ kind: 'text', x: event.x, y: event.y - 40, text: "dévoré par le brouillard !", life: 2, age: 0, c: [190, 120, 255] });
+        } else if (event.type === 'creuxDeath') {
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 30, text: "Creux abattu", life: 1, age: 0, c: [200, 190, 255] });
         } else if (event.type === 'blocked') {
             this.items.push({ kind: 'text', x: event.x, y: event.y - 36, text: "paré par le pilier", life: 0.8, age: 0, c: [200, 200, 210] });
         } else if (event.type === 'crash' || event.type === 'crumble') {

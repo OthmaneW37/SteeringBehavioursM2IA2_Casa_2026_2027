@@ -77,6 +77,80 @@ const DebugPanel = {
         pop();
     },
 
+    /**
+     * Lignes du panneau pour un Creux de la meute apprise : entrées et sorties gardées par le contrôleur
+     * pour CE Creux (memory), rien n'est recalculé. Meute à la main : pas de réseau, aucune ligne.
+     */
+    packRows(controller, creux) {
+        const m = controller && controller.memory && creux ? controller.memory.get(creux) : null;
+        if (!m) return [];
+        const rows = Array.from(m.inputs, (v, i) => ({ group: 'entrée', label: PackBrain.INPUT_LABELS[i], value: v }));
+        Array.from(m.outputs).forEach((v, i) => rows.push({ group: 'sortie', label: PackBrain.OUTPUT_LABELS[i], value: v,
+            threshold: i === 4 ? PackBrain.THRESHOLD : undefined }));
+        return rows;
+    },
+
+    /** Panneau de la meute : réseau partagé vu par le Creux visé (le plus proche du chevalier), encerclement. */
+    drawPack(controller, fight, x, y, fps) {
+        const c = fight.focus;
+        const rows = DebugPanel.packRows(controller, c);
+        const e = fight.lastEncirclement;
+        const h = 58 + rows.length * 16 + (rows.length ? 18 : 0);
+        push();
+        translate(x, y);
+        noStroke();
+        fill(8, 10, 16, 225);
+        rect(0, 0, DebugPanel.WIDTH, h, 8);
+        fill(255, 220, 0);
+        textSize(12);
+        textAlign(LEFT, TOP);
+        text("DEBUG · " + (controller ? controller.name : "meute") + (fps !== undefined ? " · " + Math.round(fps) + " images/s" : ""), 10, 8);
+        fill(200);
+        textSize(10);
+        text(e ? (e.surrounded ? "ENCERCLÉ" : "pas encerclé") + " · " + e.count + " proches · écart max " +
+            Math.round(e.gap * 180 / Math.PI) + "°" : "", 10, 24);
+        text(c ? "Creux visé : vie " + Math.ceil(c.hp) + " · morsure " + c.biteCooldown.toFixed(1) + " s · " + c.near.length + " voisin(s)" : "", 10, 36);
+        text(rows.length ? "Réseau partagé, vu par le Creux visé" : "Règles écrites à la main (pas de réseau)", 10, 48);
+        let yy = 66, group = null;
+        for (const r of rows) {
+            if (r.group !== group) {
+                group = r.group;
+                fill(140);
+                text(group === 'entrée' ? "Entrées (perceptions du Creux)" : "Sorties : poids et morsure", 10, yy - 2);
+                yy += 12;
+            }
+            fill(190);
+            text(r.label, 10, yy);
+            fill(40);
+            rect(100, yy + 1, 110, 9, 2);
+            fill(r.threshold !== undefined && r.value > r.threshold ? color(255, 110, 60) : color(90, 170, 255));
+            rect(100, yy + 1, 110 * Math.max(0, Math.min(1, r.value)), 9, 2);
+            if (r.threshold !== undefined) {
+                stroke(255);
+                line(100 + 110 * r.threshold, yy - 1, 100 + 110 * r.threshold, yy + 12);
+                noStroke();
+            }
+            fill(220);
+            text(r.value.toFixed(2), 216, yy);
+            yy += 16;
+        }
+        pop();
+    },
+
+    /** Dans l'arène, niveau de la meute : perception et forces de chaque Creux, cercle d'encerclement. */
+    drawPackWorld(fight) {
+        for (const c of fight.creux) c.showDebug();
+        const e = fight.lastEncirclement;
+        push();
+        noFill();
+        strokeWeight(2);
+        stroke(e && e.surrounded ? color(255, 60, 60, 200) : color(120, 255, 160, 120));
+        drawingContext.setLineDash([4, 6]);
+        circle(fight.player.pos.x, fight.player.pos.y, PackFight.ENCIRCLE_RADIUS * 2);
+        drawingContext.setLineDash([]);
+        pop();
+    },
+
     /** Dans l'arène : cercle de détection, rayons vers les obstacles, ligne de vue, portée d'attaque. */
     drawWorld(boss, player, arena) {
         boss.showDetection(player);

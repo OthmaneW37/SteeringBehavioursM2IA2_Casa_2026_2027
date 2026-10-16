@@ -3,7 +3,8 @@
 // - flee : fuite de Reynolds. On inverse la vitesse DÉSIRÉE (et non la force finale), puis on
 //   recalcule la force : steering = désirée − vitesse, limitée à maxForce. Ce n'est pas −seek() :
 //   inverser la force finale ajouterait 2 × vitesse (c'est ce que fait vehicle.js, qu'on ne modifie pas).
-// - evade : fuite de la position FUTURE de la cible (position + vitesse × temps de prédiction).
+// - pursue et evade : poursuite ou fuite de la position FUTURE de la cible (position + vitesse × temps de
+//   prédiction).
 // - stayInside : confinement dans l'arène (Reynolds, « containment ») : près d'un mur, la vitesse
 //   désirée pointe vers l'intérieur ; force = désirée − vitesse, limitée à maxForce. Nulle ailleurs.
 // - keepDistancePoint : point situé à `distance` de la cible, du côté de l'agent ; le boss y fait
@@ -29,6 +30,11 @@ const Steering = (() => {
     const future = target.vel.copy();
     future.mult(seconds * 60);
     return p5.Vector.add(target.pos, future);
+  }
+
+  /** pursue : `seek` de la position FUTURE de la cible (vehicle.js en a une version qui dessine). */
+  function pursue(agent, target, seconds = 0.25) {
+    return agent.seek(predict(target, seconds));
   }
 
   function evade(agent, target, seconds = 0.25) {
@@ -104,5 +110,5 @@ const Steering = (() => {
     return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
   }
 
-  return { flee, predict, evade, stayInside, keepDistancePoint, avoidZones, orbitPoint, distanceToSegment };
+  return { flee, predict, pursue, evade, stayInside, keepDistancePoint, avoidZones, orbitPoint, distanceToSegment };
 })();

@@ -19,11 +19,15 @@ const Lighting = {
         const { player, boss } = fight;
         // Le chevalier porte une faible lueur : il reste lisible partout dans l'arène
         if (player.alive) out.push({ x: player.pos.x, y: player.pos.y, r: 175, power: 0.75, color: [200, 205, 230] });
-        if (boss.alive) {
+        // Niveau de la meute : chaque Creux vivant a une petite lueur pâle (ses yeux)
+        for (const c of fight.creux || []) {
+            if (c.alive) out.push({ x: c.pos.x, y: c.pos.y, r: 60, power: 0.35, color: [180, 200, 255] });
+        }
+        if (boss && boss.alive) {
             const rage = boss.enraged;
             out.push({ x: boss.pos.x, y: boss.pos.y, r: rage ? 150 : 110, power: rage ? 0.75 : 0.55, color: rage ? [255, 70, 40] : [110, 200, 255] });
         }
-        for (const z of fight.zones) {
+        for (const z of fight.zones || []) {
             const fade = Math.max(0, Math.min(1, (z.lifetime - z.age) / 0.8, z.age / 0.3));
             out.push({ x: z.pos.x, y: z.pos.y, r: z.radius * 1.7, power: 0.45 * fade, color: [110, 240, 190] });
         }

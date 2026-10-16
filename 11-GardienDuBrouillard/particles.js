@@ -114,6 +114,7 @@ Particles.REACTIONS = {
     crash: { kind: 'dust', n: 22 },
     crumble: { kind: 'dust', n: 40 },
     mist: { kind: 'wisp', n: 10 },
+    creuxDeath: { kind: 'curse', n: 16 },
     camping: { kind: 'curse', n: 30 }
 };
 

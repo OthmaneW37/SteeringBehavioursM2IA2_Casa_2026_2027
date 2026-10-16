@@ -90,7 +90,11 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
     plus. L'évolution n'apprend que ce qui rapporte.
 - Le rendu (éclairage, brouillard, particules, effets d'impact) est séparé de la simulation : un test dessine
   un combat entier et vérifie que son état n'a pas changé.
-- 99 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- Niveau 1, la meute des Creux : cinq Creux, un seul réseau partagé, une note collective. La meute apprise
+  gagne 93 % de ses combats contre le joueur robot (meute écrite à la main : 28 %) et l'encercle 7,2 % du
+  temps (0,2 %). Leçon : un champion qui gagnait 100 % de ses 20 combats de test n'en gagnait que 40 % sur des
+  combats neufs.
+- 116 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

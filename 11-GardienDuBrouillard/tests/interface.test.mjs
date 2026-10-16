@@ -74,10 +74,10 @@ test('écrans : le dernier ordre gagne, le fondu repart du noir atteint, un seul
 
 test('menu titre : navigation qui boucle, entrées inactives sautées, Continuer grisé sans partie', () => {
   const m = new TitleMenu();
-  assert.deepEqual(plain(m.items.map(i => i.id)), ['new', 'continue', 'train', 'pantheon', 'lab', 'options']);
+  assert.deepEqual(plain(m.items.map(i => i.id)), ['new', 'continue', 'pack', 'train', 'pantheon', 'lab', 'options']);
   assert.equal(m.current().id, 'new');
   m.setEnabled('continue', false);
-  assert.equal(m.move(1), 'train', 'Continuer est sauté');
+  assert.equal(m.move(1), 'pack', 'Continuer est sauté');
   assert.equal(m.move(-1), 'new');
   assert.equal(m.move(-1), 'options', 'le menu boucle vers le bas');
   assert.equal(m.move(1), 'new', 'et vers le haut');
@@ -87,9 +87,9 @@ test('menu titre : navigation qui boucle, entrées inactives sautées, Continuer
   assert.equal(m.move(1), 'continue');
   // L'entrée choisie devient inactive : on passe à la suivante active
   m.setEnabled('continue', false);
-  assert.equal(m.current().id, 'train');
+  assert.equal(m.current().id, 'pack');
   assert.equal(m.select('options'), true);
-  assert.equal(m.move(3), 'pantheon', 'trois entrées actives plus loin : options → new → train → pantheon');
+  assert.equal(m.move(3), 'train', 'trois entrées actives plus loin : options → new → pack → train');
   assert.throws(() => m.select('inconnu'), { name: 'RangeError' });
   const none = new TitleMenu([{ id: 'a', label: 'A', enabled: false }]);
   assert.equal(none.move(1), null, 'aucune entrée active');
@@ -172,7 +172,7 @@ test('page : menu titre, onglets du laboratoire et fenêtres présents ; polices
   const items = [...html.matchAll(/data-item="([^"]+)"/g)].map(m => m[1]);
   assert.deepEqual(items, plain(TitleMenu.ITEMS.map(i => i.id)), 'un bouton par entrée du menu, dans l\'ordre');
   const tabs = [...html.matchAll(/data-mode="([^"]+)"/g)].map(m => m[1]);
-  assert.deepEqual(tabs, ['demo', 'training', 'comparison', 'pantheon']);
+  assert.deepEqual(tabs, ['demo', 'training', 'comparison', 'pantheon', 'pack']);
   for (const t of tabs) assert.ok(html.includes(`id="${t}Section"`), 'section ' + t);
   for (const id of ['titleScreen', 'pauseMenu', 'optionsScreen', 'tutorial', 'helpDialog']) assert.ok(html.includes(`id="${id}"`), id);
   for (const id of ['pauseMenu', 'optionsScreen', 'tutorial']) assert.match(html, new RegExp(`id="${id}" class="overlay" hidden`), id + ' caché au départ');

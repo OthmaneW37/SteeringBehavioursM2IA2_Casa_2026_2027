@@ -158,6 +158,73 @@ Conséquence : avec les boss fournis, **aucun boss appris n'esquive**. Le Panth�
 le bonus ne s'étant jamais déclenché, la Brute et le Gardien avaient suivi exactement la même évolution et
 obtenu le **même cerveau**. Cette égalité est elle-même la preuve que le bonus n'a rien changé.
 
+## Niveau 1 : la meute des Creux
+
+Cinq **Creux** (morts-vivants, `creux.js`, sous-classe de `Vehicle`) chassent le chevalier en meute. On y joue
+depuis le titre (« La meute des Creux »), ou on l'observe dans l'onglet **Meute** du laboratoire.
+
+**Un Creux** est plus lent que le chevalier (2,8 contre 3,2 : on peut toujours fuir), a 60 points de vie (cinq
+coups légers ou deux lourds) et mord : préparation visible de 0,4 s (yeux rouges, arc qui se remplit), 15 dégâts,
+1,2 s d'attente. Un coup reçu pendant la préparation interrompt la morsure. Un coup du chevalier touche **tous**
+les Creux de son cône (une fois chacun) ; un pilier pare les coups dans les deux sens.
+
+**Pilotage** (Reynolds, aucun déplacement direct). Chaque Creux additionne des forces pondérées :
+
+| Comportement | Force |
+|---|---|
+| pursue | `seek` de la position du chevalier 0,3 s plus tard (`Steering.pursue`) |
+| flanc | `seek` d'un point en avance sur un cercle de 48 px autour du chevalier, du côté opposé au voisin le plus proche (en angle) |
+| evade | fuite de la position future du chevalier (`Steering.evade`, fuite de Reynolds) |
+| flocking | alignement + cohésion (`flocking.js`, voisins dans le rayon de perception) |
+| toujours | séparation (34 px), évitement des piliers, confinement dans l'arène |
+
+La somme des quatre premiers est limitée à `maxForce` ; séparation, évitement et confinement passent toujours.
+Les trois règles des boids restent des fonctions distinctes qui retournent chacune une force.
+
+**Un cerveau partagé** (`packBrain.js`). Toute la meute utilise **un seul** réseau 12-12-5 (221 paramètres).
+Chaque Creux l'interroge avec SES perceptions locales : distance au chevalier, « il me regarde », il attaque,
+il est vulnérable, son endurance et sa vie, ma vie, mon attente de morsure, mes voisins perçus, l'écart d'angle
+avec mon voisin le plus proche autour du chevalier, un obstacle devant moi, il roule. Les 5 sorties sont les
+**poids** de pursue, flanc, evade et flocking, et la morsure (au-dessus de 0,6). Le réseau ne calcule aucune
+force : il choisit le dosage des comportements.
+
+**Note collective** (`packFitness.js`) : une seule note pour la meute — dégâts infligés − part de la meute
+perdue + victoire + **bonus d'encerclement** − morsures dans le vide. Le bonus est plafonné à 60 points, sous la
+victoire (100) : tourner autour du chevalier sans mordre ne rapporte pas plus que gagner.
+
+**Encerclement** (`PackFight.encirclement`). Le chevalier est **encerclé** quand au moins 3 Creux sont à moins de
+110 px et qu'aucun écart d'angle entre eux, vu depuis le chevalier, n'atteint 180° : il est à l'intérieur du
+polygone qu'ils forment, sans sortie libre. (Avec deux Creux, le plus grand écart vaut toujours au moins 180° :
+la condition « au moins 3 » est en fait impliquée.) On mesure aussi la **couverture** : 1 quand les Creux proches
+sont répartis régulièrement autour de lui.
+
+**Résultat** (`node tools/pretrain-pack.mjs 60 7`, 40 combats d'examen neufs, même joueur robot, mêmes graines) :
+
+| Meute | Victoires | Dégâts au chevalier | Pertes | Chevalier encerclé | Couverture |
+|---|---|---|---|---|---|
+| Écrite à la main (`handPack.js` : poursuite, recul quand il attaque, morsure) | 28 % | 65 | 83 % | 0,2 % du temps | 0,23 |
+| Apprise (champion de la génération 52) | **93 %** | 104 | 43 % | **7,2 %** du temps | 0,38 |
+
+La neuroévolution a suffi : le plan de repli (faire évoluer seulement les poids du flocking, comme le
+dossier 8) n'a pas été nécessaire.
+
+**Leçon : l'examen trop court.** Avec la graine 13, le champion gagnait 100 % de ses 20 combats de test… et
+seulement 40 % des 40 combats d'examen neufs : il était adapté à ces 20 combats-là. Il encerclait pourtant
+plus (16 % du temps). On a gardé la graine 7, qui tient sur des combats neufs. Le chiffre à croire est
+toujours celui des combats jamais vus.
+
+**Joueur robot face à la meute** (`packPlayer.js`) : il vise le Creux le plus proche, roule 0,12 s avant une
+morsure qu'il a vue venir (40 % des morsures), recule d'un pas s'il manque d'endurance, sort du cercle quand il
+est encerclé… sauf s'il est acculé contre un mur : il se bat alors (sans cette règle, il fuyait dans un coin
+et ne frappait plus jamais).
+
+**Onglet Meute** : le joueur robot contre la meute choisie (apprise, champion de votre entraînement, ou à la
+main), « Comparer » (40 combats identiques pour les deux meutes), « Entraîner la meute » dans la page (courbes
+comme pour le boss ; cet entraînement n'est pas sauvegardé) et les réglages de la meute (taille, perception,
+population, combats par meute, mutation). **Debug (G)** : rayon de perception de chaque Creux (jaune, rouge
+quand un voisin y est), ses forces (pursue rouge, flanc bleu, evade blanc, flocking vert, séparation jaune), le
+cercle d'encerclement autour du chevalier (rouge quand il est encerclé) et le réseau vu par le Creux visé.
+
 ## L'interface
 
 | Écran | Ce qu'on y fait |
@@ -212,7 +279,8 @@ par la carte graphique et n'est pas comptée ici :
 
 | Outil | Ce qu'on voit |
 |---|---|
-| ⚔️ **Combat** | Vous affrontez le champion de votre entraînement, le boss écrit à la main, ou un boss du Panthéon (adversaire choisi dans le menu de pause). |
+| ⚔️ **Combat** | Vous affrontez le champion de votre entraînement, le boss écrit à la main, un boss du Panthéon, ou la meute des Creux (adversaire choisi dans le menu de pause). |
+| 🐺 **Meute** | Le niveau 1 : la meute observée contre le joueur robot, la comparaison meute apprise / meute à la main, l'entraînement de la meute. |
 | 🎬 **Démonstration et duels** | Deux combats côte à côte contre le même joueur robot, avec la même graine. Par défaut : un boss qui n'a rien appris contre le champion. Avec deux boss du Panthéon, c'est un **duel** (voir plus bas). On choisit aussi le joueur robot affronté. |
 | 🧬 **Entraîner** | On choisit une **recette d'entraînement**, puis on suit l'évolution génération par génération. Deux courbes : les victoires du champion à son examen, et la note des boss, lissée. En direct, le champion affronte le joueur robot. Le bouton « Ajouter le champion au Panthéon » le garde. |
 | 📊 **Comparer** | Les deux boss jouent les mêmes 50 combats, sur des graines jamais vues à l'entraînement. Le résultat donne le taux de victoire, la durée, les dégâts, les techniques utilisées et les fioles bues. **C'est la mesure à retenir.** |
@@ -398,10 +466,15 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `screens.js`, `titleMenu.js`, `tutorial.js`, `hudLayout.js`, `banners.js` | Interface : écrans et fondus, menu titre, tutoriel, disposition du HUD, animation des bandeaux. |
 | `libraries/fonts/` | Polices UnifrakturMaguntia et Cinzel (SIL OFL 1.1) et leurs licences. |
 | `quality.js`, `gameFeel.js`, `particles.js`, `lighting.js`, `fog.js` | Rendu : qualité graphique, effets d'impact, particules, éclairage, brouillard. |
+| `flocking.js`, `creux.js` | Boids (séparation, alignement, cohésion) ; le Creux, sous-classe de `Vehicle`. |
+| `packBrain.js`, `handPack.js`, `packPlayer.js` | Cerveau partagé de la meute ; meute écrite à la main ; joueur robot face à la meute. |
+| `packFight.js`, `packFitness.js`, `packSettings.js`, `packTraining.js`, `packComparison.js` | Niveau 1 : combat et encerclement, note collective, réglages, neuroévolution, comparaison. |
+| `pretrainedPack.js` | Données : la meute fournie (`node tools/pretrain-pack.mjs 60 7`). |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
+| `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=14`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=16`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -410,7 +483,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 99 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 116 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -422,6 +495,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 99 test
 | `pantheon.test.mjs` | Épreuves et recettes (plages, valeurs) ; note qui suit la recette, changement à la génération suivante, champion réexaminé ; recette sauvegardée ; boss fournis ; ajout, plafond, retrait, stockage invalide ; règles du duel ; tournoi (mêmes combats, budget, profil, rang). |
 | `interface.test.mjs` | Écrans et fondus (changement au noir complet, dernier ordre gagnant, pas de fondu relancé), menu titre (boucle, entrées inactives, Continuer), tutoriel (cartes, mémorisation, stockage bloqué), HUD dans l'écran à toutes les tailles, bandeaux, page (menu, onglets, fenêtres, polices locales et créditées). |
 | `graphics.test.mjs` | Qualité graphique (bornes, ordre, mémorisation) ; effets d'impact (gel exact, trauma plafonné et amorti, tremblement borné, ralenti des animations seulement) ; gel jamais hors du combat au clavier ; particules (plafond, recyclage, durée de vie, réactions, braises) ; sources de lumière ; brouillard (continu, borné, qui dérive) ; **le rendu ne modifie jamais l'état du combat**. |
+| `pack.test.mjs` | Boids (voisins, séparation, alignement, cohésion, limites) ; pursue et evade ; Creux (poids, somme limitée, flanc du côté libre, perception, morsure à portée, attente en secondes, interruption, mort) ; cerveau partagé (entrées, seuil strict) ; meute à la main ; encerclement (seuils, 180° pile, morts, rayon) ; combat (coup qui touche toute la meute une fois, pilier, roulade, corps, fin) ; simulation courte reproductible ; note collective ; joueur robot (roulade, acculé) ; entraînement et champion validé ; réglages ; le rendu de la meute ne modifie pas l'état. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

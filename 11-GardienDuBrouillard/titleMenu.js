@@ -51,6 +51,7 @@ class TitleMenu {
 TitleMenu.ITEMS = [
     { id: 'new', label: "Nouvelle partie" },
     { id: 'continue', label: "Continuer" },
+    { id: 'pack', label: "La meute des Creux" },
     { id: 'train', label: "Entraîner" },
     { id: 'pantheon', label: "Panthéon" },
     { id: 'lab', label: "Laboratoire" },

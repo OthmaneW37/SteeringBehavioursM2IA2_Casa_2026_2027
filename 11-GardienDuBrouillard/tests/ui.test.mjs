@@ -4,7 +4,10 @@ import { load, read, plain, lcg, FILES } from './helpers.mjs';
 
 const { get } = load(5);
 const html = read('index.html');
-const Settings = get('Settings'), Scenarios = get('Scenarios');
+const Settings = get('Settings'), Scenarios = get('Scenarios'), PackSettings = get('PackSettings');
+// Tous les curseurs de la page : réglages du jeu (Options) et de la meute (onglet Meute)
+const ALL = Object.assign({}, Settings.PARAMETERS, PackSettings.PARAMETERS);
+const formatOf = id => (id in Settings.PARAMETERS ? Settings : PackSettings).format(id, ALL[id].initial);
 const close = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
 test('chaque identifiant utilisé par sketch.js existe dans index.html', () => {
@@ -12,23 +15,23 @@ test('chaque identifiant utilisé par sketch.js existe dans index.html', () => {
   const sketch = read('sketch.js');
   const used = new Set([...sketch.matchAll(/byId\('([^']+)'\)/g)].map(m => m[1]));
   used.add('canvasHolder');
-  for (const name in Settings.PARAMETERS) { used.add(name); used.add(name + 'Val'); }
+  for (const name in ALL) { used.add(name); used.add(name + 'Val'); }
   assert.ok(used.size > 30);
   for (const id of used) assert.ok(ids.has(id), `#${id} manque dans index.html`);
 });
 
-test('curseurs : mêmes min / max / step / value que Settings.PARAMETERS, texte affiché cohérent', () => {
+test('curseurs : mêmes min / max / step / value que Settings.PARAMETERS et PackSettings.PARAMETERS, texte affiché cohérent', () => {
   const sliders = [...html.matchAll(/<input type="range" id="([^"]+)" min="([^"]+)" max="([^"]+)" step="([^"]+)" value="([^"]+)">/g)];
-  assert.equal(sliders.length, Object.keys(Settings.PARAMETERS).length);
+  assert.equal(sliders.length, Object.keys(ALL).length);
   for (const [, id, min, max, step, value] of sliders) {
-    const p = Settings.PARAMETERS[id];
+    const p = ALL[id];
     assert.ok(p, id);
     assert.equal(Number(min), p.min, id + ' min');
     assert.equal(Number(max), p.max, id + ' max');
     assert.equal(Number(step), p.step, id + ' step');
     assert.equal(Number(value), p.initial, id + ' value');
     const shown = new RegExp(`id="${id}Val">([^<]*)<`).exec(html)[1];
-    assert.equal(shown, Settings.format(id, p.initial), id + ' affichage');
+    assert.equal(shown, formatOf(id), id + ' affichage');
   }
 });
 
