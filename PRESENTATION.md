@@ -1,4 +1,4 @@
-# Présenter le projet en 10 minutes
+# Présenter le projet en 12 minutes
 
 ## Avant de commencer
 
@@ -43,7 +43,19 @@ cerveau change. » Laisser tourner 2 ou 3 manches et montrer le score.
 - Courbe du bas : la note moyenne, lissée. Elle monte en dents de scie, car le hasard des combats compte.
 - Montrer que tout est sauvegardé (message « ✔ Sauvegardé automatiquement ») et le bouton « Exporter ».
 
-### 5. La preuve chiffrée (mode 📊 Comparer, 1 min)
+### 5. Le Panthéon (mode 🏛️ Panthéon, 2 min)
+
+« Même cerveau, même algorithme, même départ : seule la recette d'entraînement change. » Lancer le tournoi
+(une dizaine de secondes) et lire la grille :
+- chaque colonne est gagnée par le boss entraîné contre ce joueur robot (case encadrée et ★) ;
+- deux styles sont apparus : le Spectre et le Chasseur soufflent la brume, les autres frappent sans arrêt ;
+- le Spectre, puni surtout quand il est touché, a appris à ne pas s'exposer… et gagne rarement : la note
+  décide de ce que le boss apprend.
+
+Puis, en mode 🎬, choisir deux boss du Panthéon (par exemple le Chasseur et le Bourreau) et l'épreuve
+« Expert » : c'est un duel, le cadre de couleur montre le vainqueur de chaque manche.
+
+### 6. La preuve chiffrée (mode 📊 Comparer, 1 min)
 
 Lancer les 50 combats (quelques secondes). Lire la phrase de conclusion et la ligne « Par combat », qui
 montre les techniques choisies par chaque boss. Résultat de référence avec les réglages par défaut
@@ -51,7 +63,7 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
 - **boss écrit à la main** : 22 % de victoires ;
 - **boss fourni** : 42 %, soit presque 2 fois plus.
 
-### 6. Ce que le projet montre (1 min)
+### 7. Ce que le projet montre (1 min)
 
 - Les **steering behaviors** de Reynolds : `arrive` pour approcher sans foncer, `flee` pour reculer, `evade`
   pour esquiver, `wander` pour errer quand le joueur est loin, plus le confinement contre les murs.
@@ -66,10 +78,14 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   - un joueur robot trop faible : le boss gagnait 100 % en attaquant sans arrêt ;
   - une stratégie passive : les boss n'attaquaient plus du tout, et tous les combats finissaient en match nul ;
   - un « meilleur » boss souvent chanceux, d'où l'examen sur 30 combats et la comparaison sur 50 combats neufs.
-- 59 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- 69 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables
+
+- **Pourquoi les boss du Panthéon ne se battent-ils pas entre eux ?** Leur cerveau a appris à lire un chevalier
+  (endurance, fioles, vulnérabilité). Face à un boss, ces entrées n'auraient pas de sens. Ils s'affrontent en
+  duel : contre le même chevalier, le meilleur gagne la manche.
 
 - **Pourquoi un joueur robot et pas un humain pour l'entraînement ?** Pour comparer 50 boss, il faut que tous
   affrontent exactement le même adversaire : le robot est reproductible.

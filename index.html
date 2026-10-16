@@ -5,42 +5,47 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Le Gardien du Brouillard</title>
-    <link rel="stylesheet" type="text/css" href="style.css?v=8">
+    <link rel="stylesheet" type="text/css" href="style.css?v=9">
 
     <!-- p5.js en local (comme les autres exemples) -->
     <script src="libraries/p5.min.js"></script>
 
     <!-- Une dépendance avant ce qui l'utilise ; sketch.js en dernier -->
-    <script src="vehicle.js?v=8"></script>
-    <script src="steering.js?v=8"></script>
-    <script src="combat.js?v=8"></script>
-    <script src="arena.js?v=8"></script>
-    <script src="NeuralNetwork.js?v=8"></script>
-    <script src="campfire.js?v=8"></script>
-    <script src="mistPatch.js?v=8"></script>
-    <script src="bloodstain.js?v=8"></script>
-    <script src="player.js?v=8"></script>
-    <script src="boss.js?v=8"></script>
-    <script src="bossBrain.js?v=8"></script>
-    <script src="handBoss.js?v=8"></script>
-    <script src="scriptedPlayer.js?v=8"></script>
-    <script src="humanController.js?v=8"></script>
-    <script src="fight.js?v=8"></script>
-    <script src="fitness.js?v=8"></script>
-    <script src="genetic.js?v=8"></script>
-    <script src="training.js?v=8"></script>
-    <script src="trainingStore.js?v=8"></script>
-    <script src="comparison.js?v=8"></script>
-    <script src="demo.js?v=8"></script>
-    <script src="settings.js?v=8"></script>
-    <script src="scenarios.js?v=8"></script>
-    <script src="pretrainedBoss.js?v=8"></script>
-    <script src="fitnessChart.js?v=8"></script>
-    <script src="debugPanel.js?v=8"></script>
-    <script src="hud.js?v=8"></script>
-    <script src="camera.js?v=8"></script>
-    <script src="menuToggle.js?v=8"></script>
-    <script src="sketch.js?v=8"></script>
+    <script src="vehicle.js?v=9"></script>
+    <script src="steering.js?v=9"></script>
+    <script src="combat.js?v=9"></script>
+    <script src="arena.js?v=9"></script>
+    <script src="NeuralNetwork.js?v=9"></script>
+    <script src="campfire.js?v=9"></script>
+    <script src="mistPatch.js?v=9"></script>
+    <script src="bloodstain.js?v=9"></script>
+    <script src="player.js?v=9"></script>
+    <script src="boss.js?v=9"></script>
+    <script src="bossBrain.js?v=9"></script>
+    <script src="handBoss.js?v=9"></script>
+    <script src="scriptedPlayer.js?v=9"></script>
+    <script src="humanController.js?v=9"></script>
+    <script src="fight.js?v=9"></script>
+    <script src="fitness.js?v=9"></script>
+    <script src="genetic.js?v=9"></script>
+    <script src="training.js?v=9"></script>
+    <script src="trainingStore.js?v=9"></script>
+    <script src="comparison.js?v=9"></script>
+    <script src="demo.js?v=9"></script>
+    <script src="settings.js?v=9"></script>
+    <script src="scenarios.js?v=9"></script>
+    <script src="trials.js?v=9"></script>
+    <script src="doctrines.js?v=9"></script>
+    <script src="pretrainedBoss.js?v=9"></script>
+    <script src="pretrainedPantheon.js?v=9"></script>
+    <script src="pantheon.js?v=9"></script>
+    <script src="tournament.js?v=9"></script>
+    <script src="fitnessChart.js?v=9"></script>
+    <script src="debugPanel.js?v=9"></script>
+    <script src="hud.js?v=9"></script>
+    <script src="camera.js?v=9"></script>
+    <script src="menuToggle.js?v=9"></script>
+    <script src="sketch.js?v=9"></script>
 </head>
 
 <body>
@@ -54,9 +59,10 @@
             <label for="modeSelect">Que voulez-vous faire ?</label>
             <select id="modeSelect">
                 <option value="combat" selected>⚔️ Combattre le boss</option>
-                <option value="demo">🎬 Voir la démonstration (avant / après)</option>
+                <option value="demo">🎬 Démonstration et duels de boss</option>
                 <option value="training">🧬 Entraîner les boss</option>
                 <option value="comparison">📊 Comparer sur 50 combats</option>
+                <option value="pantheon">🏛️ Panthéon : tournoi des boss</option>
             </select>
             <p id="statusMsg" class="status" role="status"></p>
         </section>
@@ -68,8 +74,8 @@
             <label for="opponentSelect">Adversaire</label>
             <select id="opponentSelect">
                 <option value="champion" selected>Champion de votre entraînement</option>
-                <option value="pretrained">Boss pré-entraîné (fourni)</option>
                 <option value="hand">Boss écrit à la main (machine à états)</option>
+                <!-- puis les boss du Panthéon, ajoutés par sketch.js -->
             </select>
             <div class="buttons">
                 <button id="restartFightBtn" type="button">Recommencer (R)</button>
@@ -84,13 +90,24 @@
         </section>
 
         <section id="demoSection">
-            <h2>Démonstration</h2>
+            <h2>Démonstration et duels</h2>
             <p class="hint">Deux combats en même temps contre le <b>même joueur robot</b>. Seul le « cerveau » du boss
-                change : à gauche un boss qui n'a rien appris, à droite le champion entraîné.</p>
+                change. Choisissez deux boss du Panthéon pour un <b>duel</b> : à chaque manche, gagne le boss qui tue
+                le chevalier, ou le plus rapide si les deux le tuent.</p>
             <label for="demoLeftSelect">Boss de gauche</label>
             <select id="demoLeftSelect">
                 <option value="random" selected>Avant entraînement (réseau au hasard)</option>
                 <option value="hand">Boss écrit à la main</option>
+                <option value="champion">Champion de votre entraînement</option>
+            </select>
+            <label for="demoRightSelect">Boss de droite</label>
+            <select id="demoRightSelect">
+                <option value="champion" selected>Champion de votre entraînement</option>
+                <option value="hand">Boss écrit à la main</option>
+            </select>
+            <label for="demoTrialSelect">Joueur robot affronté</label>
+            <select id="demoTrialSelect">
+                <option value="settings" selected>Réglages avancés du menu</option>
             </select>
             <p id="demoInfo" class="hint"></p>
         </section>
@@ -100,6 +117,9 @@
             <p class="hint">À chaque génération, 50 boss affrontent un joueur robot. Les meilleurs ont des « enfants »
                 (copies légèrement modifiées) ; les autres disparaissent. Les 2 meilleurs passent ensuite un examen
                 de 30 combats : s'ils gagnent plus souvent que le champion, ils le remplacent.</p>
+            <label for="doctrineSelect">Recette d'entraînement</label>
+            <select id="doctrineSelect"></select>
+            <p id="doctrineInfo" class="hint"></p>
             <div class="buttons">
                 <button id="trainBtn" type="button" class="primary">▶ Lancer l'entraînement</button>
                 <button id="resetTrainingBtn" type="button">Tout recommencer</button>
@@ -108,6 +128,7 @@
                 <button id="exportTrainingBtn" type="button">💾 Exporter (fichier)</button>
                 <label class="file-button">📂 Importer<input type="file" id="importTrainingInput" accept=".json,application/json"></label>
             </div>
+            <button id="addToPantheonBtn" type="button" class="wide">🏛️ Ajouter le champion au Panthéon</button>
             <p id="trainingInfo" class="hint"></p>
             <p id="saveInfo" class="hint"></p>
         </section>
@@ -118,6 +139,16 @@
                 mêmes 50 combats. C'est la mesure à retenir : elle ne dépend pas de la chance.</p>
             <button id="compareBtn" type="button" class="primary">▶ Lancer 50 combats</button>
             <div id="comparisonResults" class="results"></div>
+        </section>
+
+        <section id="pantheonSection">
+            <h2>Panthéon des boss</h2>
+            <p class="hint">Chaque boss du Panthéon a le même cerveau et le même algorithme génétique, mais une
+                <b>recette d'entraînement</b> différente : une autre note, ou un autre joueur robot en face. Le
+                <b>tournoi</b> fait affronter à chacun 4 joueurs robots différents, sur les mêmes combats.</p>
+            <div id="pantheonList" class="pantheon-list"></div>
+            <button id="tournamentBtn" type="button" class="primary">▶ Lancer le tournoi</button>
+            <div id="tournamentResults" class="results"></div>
         </section>
 
         <details>
@@ -220,12 +251,31 @@
         </ol>
         <p>Personne n'explique au boss comment se battre : les comportements qui marchent survivent, les autres
             disparaissent.</p>
-        <h3>Les quatre modes</h3>
+        <h3>Le Panthéon : des boss entraînés différemment</h3>
+        <p>Ce qu'un boss apprend dépend de sa <b>recette d'entraînement</b> : la note qu'on lui donne et le joueur robot
+            qu'il affronte. Tous les boss du Panthéon sont partis de la même population de départ, avec le même
+            nombre de générations ; seule la recette change.</p>
         <ul>
-            <li><b>Combattre</b> : vous affrontez le champion, le boss fourni ou le boss écrit à la main.</li>
-            <li><b>Démonstration</b> : avant / après l'entraînement, côte à côte.</li>
-            <li><b>Entraîner</b> : regardez l'évolution génération par génération ; tout est sauvegardé automatiquement.</li>
+            <li><b>Le Gardien</b> : la recette de référence.</li>
+            <li><b>Le Bourreau</b> : sa note compte surtout les dégâts infligés ; les coups reçus comptent peu.</li>
+            <li><b>Le Spectre</b> : sa note punit surtout les coups reçus.</li>
+            <li><b>Le Chasseur</b> : entraîné contre un joueur robot expert.</li>
+            <li><b>L'Opportuniste</b> : entraîné contre un joueur robot débutant.</li>
+            <li><b>Le Geôlier</b> : entraîné contre un joueur robot qui a 3 fioles.</li>
+        </ul>
+        <p>Le <b>tournoi</b> oppose chaque boss à 4 joueurs robots (débutant, référence, expert, buveur), sur les mêmes
+            combats. La case encadrée est l'adversaire de son entraînement : on regarde si ce boss y fait mieux que
+            les autres. Les colonnes de <b>style</b> montrent comment il gagne : coups de hallebarde, ruées, souffles,
+            dégâts encaissés, fioles que le chevalier a pu boire. Les boss ne se battent pas entre eux : leur cerveau a appris à lire un chevalier.
+            Ils s'affrontent en <b>duel</b>, contre le même chevalier : le meilleur l'emporte. Vous pouvez aussi entraîner
+            votre propre boss avec la recette de votre choix, puis l'ajouter au Panthéon.</p>
+        <h3>Les cinq modes</h3>
+        <ul>
+            <li><b>Combattre</b> : vous affrontez le champion, le boss écrit à la main ou un boss du Panthéon.</li>
+            <li><b>Démonstration et duels</b> : avant / après l'entraînement, ou deux boss du Panthéon, côte à côte.</li>
+            <li><b>Entraîner</b> : choisissez une recette et regardez l'évolution ; tout est sauvegardé automatiquement.</li>
             <li><b>Comparer</b> : 50 combats identiques pour mesurer qui est le meilleur boss.</li>
+            <li><b>Panthéon</b> : le tournoi de tous les boss contre 4 joueurs robots différents.</li>
         </ul>
         <h3>Petit lexique</h3>
         <dl>

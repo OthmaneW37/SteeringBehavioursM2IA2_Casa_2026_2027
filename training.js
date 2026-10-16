@@ -13,10 +13,14 @@
 // combats de test. Les combats étant déterministes, le score du champion ne varie pas : la courbe
 // « victoires du champion » ne peut que monter. Si les réglages du joueur robot changent, le champion
 // est remesuré avec les nouveaux réglages.
+//
+// RECETTE (Doctrines). La note donnée à chaque boss suit les poids de la recette choisie (agressive,
+// prudente…). Changer de recette s'applique à la génération suivante, et le champion repasse l'examen.
 class Training {
     constructor(settings, options = {}) {
         this.settings = Object.assign({}, settings);
         this.seed = options.seed || 1;
+        this.doctrine = Doctrines.get(options.doctrine || 'gardien').id;
         this.rng = seededRandom(this.seed);
         this.arena = options.arena || new Arena();
         const initial = options.initialBrains || [];
@@ -45,9 +49,19 @@ class Training {
         this.pending = Object.assign({}, settings);
     }
 
+    /** Recette : appliquée à partir de la génération suivante (comme les réglages). */
+    setDoctrine(id) {
+        this.pendingDoctrine = Doctrines.get(id).id;
+    }
+
+    /** Poids de la note de la recette en cours. */
+    weights() {
+        return Doctrines.get(this.doctrine).weights;
+    }
+
     /** Réglages qui changent le résultat d'un combat (le champion doit alors être remesuré). */
     fightKey(s = this.settings) {
-        return [s.dodgeProbability, s.attackInterval, s.maxFightTime, s.detectRadius, s.estusCharges].join('|');
+        return [s.dodgeProbability, s.attackInterval, s.maxFightTime, s.detectRadius, s.estusCharges, this.doctrine].join('|');
     }
 
     fightSeed(k) {
@@ -99,7 +113,7 @@ class Training {
     }
 
     finishBoss() {
-        this.fitnesses[this.index] = Fitness.compute(this.results);
+        this.fitnesses[this.index] = Fitness.compute(this.results, this.weights());
         this.results = [];
         this.index++;
         if (this.index >= this.population.length) this.endGeneration();
@@ -131,6 +145,10 @@ class Training {
             this.settings = this.pending;
             this.pending = null;
         }
+        if (this.pendingDoctrine) {
+            this.doctrine = this.pendingDoctrine;
+            this.pendingDoctrine = null;
+        }
         const s = this.settings;
         // File de validation : le champion d'abord s'il doit être remesuré, puis les meilleurs candidats
         this.queue = [];
@@ -150,10 +168,10 @@ class Training {
     }
 
     /** Score de test d'un candidat : taux de victoire, puis fitness moyenne pour départager. */
-    static score(results) {
+    static score(results, weights = Fitness.WEIGHTS) {
         return {
             winRate: results.filter(r => r.winner === 'boss').length / results.length,
-            fitness: Fitness.compute(results)
+            fitness: Fitness.compute(results, weights)
         };
     }
 
@@ -163,7 +181,7 @@ class Training {
 
     finishCandidate() {
         const c = this.queue.shift();
-        const sc = Training.score(this.vResults);
+        const sc = Training.score(this.vResults, this.weights());
         this.vResults = [];
         const entry = { brain: c.brain, winRate: sc.winRate, fitness: sc.fitness, generation: c.generation, key: this.fightKey() };
         if (c.recheck || Training.better(sc, this.champion)) this.champion = entry;
@@ -189,7 +207,7 @@ class Training {
         for (const c of candidates) {
             const results = [];
             for (let k = 0; k < fights; k++) results.push(this.makeFight(c.brain, seedBase + k).run());
-            const sc = Training.score(results);
+            const sc = Training.score(results, this.weights());
             const entry = { brain: c.brain, winRate: sc.winRate, fitness: sc.fitness };
             if (Training.better(entry, best)) best = entry;
         }

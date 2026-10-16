@@ -2,7 +2,7 @@
 // elles sont dans les modules (Player, Boss, BossBrain, Fight, Training, Comparison, Demo...).
 
 const game = {
-    mode: 'combat',          // 'combat', 'demo', 'training' ou 'comparison'
+    mode: 'combat',          // 'combat', 'demo', 'training', 'comparison' ou 'pantheon'
     settings: null,
     arena: null,
     campfire: null,
@@ -27,7 +27,9 @@ const game = {
     demo: null,
     demoEffects: null,
     comparison: null,
-    resetArmed: 0,           // « Tout recommencer » demande une confirmation (deuxième clic)
+    pantheon: [],            // boss du Panthéon (fournis + ajoutés)
+    tournament: null,
+    resetArmed: 0,          // « Tout recommencer » demande une confirmation (deuxième clic)
     storage: null
 };
 
@@ -82,6 +84,8 @@ function setup() {
     game.storage = safeStorage();
     game.pretrained = loadPretrained();
     game.bloodstains = Bloodstain.load(game.storage);
+    const pantheon = Pantheon.load(game.storage);
+    game.pantheon = pantheon.list;
 
     initControls();
     game.settings = readSettings();
@@ -97,6 +101,9 @@ function setup() {
         newTraining();
         if (saved.error) setStatus(saved.error, true);
     }
+    if (pantheon.error) setStatus(pantheon.error, true);
+    showDoctrine();
+    refreshPantheon();
 
     startFight();
     game.camera.snap(Camera.target(game.arena, width, height, true, game.fight.player, game.fight.boss));
@@ -143,6 +150,23 @@ function initControls() {
     byId('restartFightBtn').addEventListener('click', startFight);
     byId('pauseBtn').addEventListener('click', togglePause);
     byId('demoLeftSelect').addEventListener('change', startDemo);
+    byId('demoRightSelect').addEventListener('change', startDemo);
+    for (const t of Trials.LIST) {
+        const o = document.createElement('option');
+        o.value = t.id;
+        o.textContent = "Épreuve « " + t.label + " » : " + t.description;
+        byId('demoTrialSelect').appendChild(o);
+    }
+    byId('demoTrialSelect').addEventListener('change', startDemo);
+    for (const d of Doctrines.LIST) {
+        const o = document.createElement('option');
+        o.value = d.id;
+        o.textContent = d.name;
+        byId('doctrineSelect').appendChild(o);
+    }
+    byId('doctrineSelect').addEventListener('change', doctrineChanged);
+    byId('addToPantheonBtn').addEventListener('click', addChampionToPantheon);
+    byId('tournamentBtn').addEventListener('click', startTournament);
     byId('trainBtn').addEventListener('click', () => {
         game.trainingRunning = !game.trainingRunning;
         updateTrainingButton();
@@ -242,16 +266,122 @@ function championLabel() {
     return "Pas encore d'entraînement : c'est le boss pré-entraîné fourni (" + PRETRAINED_BOSS.generations + " générations).";
 }
 
+/** Boss du Panthéon désigné par une valeur de liste « p:<id> », sinon null. */
+function pantheonEntry(value) {
+    return value && value.startsWith('p:') ? Pantheon.find(game.pantheon, value.slice(2)) : null;
+}
+
 function bossController(kind) {
     if (kind === 'hand') return new HandBossController();
-    if (kind === 'pretrained') return new NeuralBossController(game.pretrained);
+    const entry = pantheonEntry(kind);
+    if (entry) return new NeuralBossController(entry.brain);
     return new NeuralBossController(championBrain());
+}
+
+// --- Panthéon ---
+
+/** Remplit une liste déroulante : options fixes, puis un groupe « Panthéon ». La sélection est gardée si possible. */
+function fillBossSelect(select, fixed) {
+    const previous = select.value;
+    select.innerHTML = '';
+    for (const [value, label] of fixed) {
+        const o = document.createElement('option');
+        o.value = value;
+        o.textContent = label;
+        select.appendChild(o);
+    }
+    const group = document.createElement('optgroup');
+    group.label = "Panthéon";
+    for (const e of game.pantheon) {
+        const o = document.createElement('option');
+        o.value = 'p:' + e.id;
+        o.textContent = e.name + (e.builtin ? "" : " ★");
+        group.appendChild(o);
+    }
+    select.appendChild(group);
+    if ([...select.options].some(o => o.value === previous)) select.value = previous;
+}
+
+/** Listes de boss et liste du Panthéon, après un ajout ou un retrait. */
+function refreshPantheon() {
+    const champion = ['champion', "Champion de votre entraînement"], hand = ['hand', "Boss écrit à la main (machine à états)"];
+    fillBossSelect(byId('opponentSelect'), [champion, hand]);
+    fillBossSelect(byId('demoLeftSelect'), [['random', "Avant entraînement (réseau au hasard)"], hand, champion]);
+    fillBossSelect(byId('demoRightSelect'), [champion, hand]);
+    const list = byId('pantheonList');
+    list.innerHTML = '';
+    for (const e of game.pantheon) {
+        const row = document.createElement('div');
+        row.className = 'pantheon-entry';
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = 'rgb(' + Doctrines.get(e.doctrine).color.join(',') + ')';
+        const text = document.createElement('span');
+        text.textContent = Pantheon.describe(e);
+        row.append(dot, text);
+        if (!e.builtin) {
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.textContent = "Retirer";
+            del.addEventListener('click', () => removeFromPantheon(e.id));
+            row.appendChild(del);
+        }
+        list.appendChild(row);
+    }
+}
+
+function savePantheon() {
+    const res = Pantheon.save(game.storage, game.pantheon);
+    if (!res.ok) setStatus(res.error, true);
+    return res.ok;
+}
+
+function addChampionToPantheon() {
+    try {
+        const entry = Pantheon.fromTraining(game.training);
+        const res = Pantheon.add(game.pantheon, entry);
+        game.pantheon = res.list;
+        refreshPantheon();
+        if (savePantheon()) {
+            setStatus("« " + entry.name + " » rejoint le Panthéon" + (res.removed ? " (« " + res.removed.name + " », le plus ancien, laisse sa place)" : "") +
+                ". Vous pouvez l'affronter, l'opposer à un autre boss en duel ou le mesurer dans le tournoi.");
+        }
+    } catch (e) {
+        setStatus(e.message, true);
+    }
+}
+
+function removeFromPantheon(id) {
+    const entry = Pantheon.find(game.pantheon, id);
+    game.pantheon = Pantheon.remove(game.pantheon, id);
+    refreshPantheon();
+    if (savePantheon() && entry) setStatus("« " + entry.name + " » a quitté le Panthéon.");
+}
+
+// --- Recette d'entraînement ---
+
+function showDoctrine() {
+    const t = game.training;
+    const id = t.pendingDoctrine || t.doctrine;
+    byId('doctrineSelect').value = id;
+    byId('doctrineInfo').textContent = Doctrines.summary(id) +
+        (t.pendingDoctrine && t.pendingDoctrine !== t.doctrine ? " Elle s'appliquera à la prochaine génération." : "");
+}
+
+/** Nouvelle recette : la note change à la génération suivante, le joueur robot de son épreuve est réglé dans le menu. */
+function doctrineChanged() {
+    const id = byId('doctrineSelect').value;
+    game.training.setDoctrine(id);
+    applySettingsToControls(Doctrines.settings(id, game.settings));
+    settingsChanged();
+    showDoctrine();
+    setStatus("Recette « " + Doctrines.get(id).name + " » : elle s'applique à partir de la prochaine génération ; le champion repassera l'examen.");
 }
 
 // --- Modes ---
 
 function showMode() {
-    for (const m of ['combat', 'demo', 'training', 'comparison']) {
+    for (const m of ['combat', 'demo', 'training', 'comparison', 'pantheon']) {
         byId(m === 'combat' ? 'combatSection' : m + 'Section').style.display = game.mode === m ? '' : 'none';
     }
     if (game.mode === 'combat') {
@@ -259,9 +389,11 @@ function showMode() {
         game.stateTime = 0;
     } else if (game.mode === 'demo') {
         startDemo();
-        setStatus("À gauche : un boss qui n'a rien appris. À droite : le champion. Même adversaire pour les deux.");
+        setStatus("Même joueur robot des deux côtés : seul le cerveau du boss change. Choisissez deux boss du Panthéon pour un duel.");
     } else if (game.mode === 'training') {
-        setStatus(game.trainingRunning ? "Entraînement en cours." : "Cliquez sur « Lancer l'entraînement ».");
+        setStatus(game.trainingRunning ? "Entraînement en cours." : "Choisissez une recette, puis cliquez sur « Lancer l'entraînement ».");
+    } else if (game.mode === 'pantheon') {
+        setStatus("Cliquez sur « Lancer le tournoi » : chaque boss affronte 4 joueurs robots différents.");
     } else {
         setStatus("Cliquez sur « Lancer 50 combats » pour mesurer les deux boss.");
     }
@@ -289,9 +421,9 @@ function startFight() {
     game.stateTime = 0;
     game.accumulator = 0;
     game.trail = { player: game.fight.player.hp, boss: game.fight.boss.hp };
+    const entry = pantheonEntry(kind);
     byId('bossInfo').textContent = kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
-        : kind === 'pretrained' ? "Boss pré-entraîné fourni avec le jeu (" + PRETRAINED_BOSS.generations + " générations)."
-            : championLabel();
+        : entry ? Pantheon.describe(entry) : championLabel();
 }
 
 /** Fait avancer un combat à pas fixes selon le temps réel écoulé (au plus 4 pas par image). */
@@ -329,10 +461,31 @@ function updateCombat(dt) {
 
 // --- Démonstration ---
 
+/** Un côté de la démonstration, d'après la valeur choisie dans la liste. */
+function demoSide(value) {
+    if (value === 'random') return Demo.randomSide();
+    if (value === 'hand') return Demo.handSide();
+    const entry = pantheonEntry(value);
+    if (entry) return Object.assign(Demo.brainSide(entry.name, entry.brain), { color: Doctrines.get(entry.doctrine).color, entry: entry });
+    return Demo.brainSide("Après entraînement : le champion", championBrain());
+}
+
+function demoInfoText(value) {
+    const entry = pantheonEntry(value);
+    if (value === 'champion') return championLabel();
+    if (entry) return Pantheon.describe(entry);
+    return demoSide(value).label + ".";
+}
+
 function startDemo() {
-    game.demo = new Demo(byId('demoLeftSelect').value, championBrain(), game.settings);
+    const left = byId('demoLeftSelect').value, right = byId('demoRightSelect').value;
+    const trial = byId('demoTrialSelect').value;
+    const settings = trial === 'settings' ? game.settings : Trials.settings(trial, game.settings);
+    game.demo = new Demo(demoSide(left), demoSide(right), settings);
+    game.demo.trialLabel = trial === 'settings' ? null : Trials.get(trial).label;
+    game.demo.isDuel = left.startsWith('p:') && right.startsWith('p:');
     game.demoAccumulator = 0;
-    byId('demoInfo').textContent = "Boss de droite — " + championLabel();
+    byId('demoInfo').textContent = "Gauche — " + demoInfoText(left) + " Droite — " + demoInfoText(right);
 }
 
 function updateDemo(dt) {
@@ -351,7 +504,7 @@ function updateDemo(dt) {
 // --- Entraînement ---
 
 function newTraining() {
-    game.training = new Training(game.settings, { seed: 1 + Math.floor(Math.random() * 100000) });
+    game.training = new Training(game.settings, { seed: 1 + Math.floor(Math.random() * 100000), doctrine: byId('doctrineSelect').value || 'gardien' });
     game.lastGeneration = 0;
     game.replay = null;
 }
@@ -367,6 +520,7 @@ function resetTrainingClicked() {
         btn.textContent = "Tout recommencer";
         TrainingStore.clear(game.storage);
         newTraining();
+        showDoctrine();
         startFight();
         byId('saveInfo').textContent = "";
         setStatus("Nouvel entraînement : " + game.settings.populationSize + " boss au cerveau aléatoire.");
@@ -458,6 +612,7 @@ function importTraining(file) {
             game.trainingRunning = false;
             game.replay = null;
             applySettingsToControls(t.settings);
+            showDoctrine();
             autosave(true);
             startFight();
             updateTrainingButton();
@@ -526,6 +681,171 @@ function showComparisonTable(summary) {
     holder.appendChild(p);
 }
 
+// --- Tournoi du Panthéon ---
+
+/** Boss du tournoi : le boss à états (repère), les boss du Panthéon et, s'il existe, votre champion actuel. */
+function tournamentContenders() {
+    const list = [{ name: "Boss écrit à la main", color: [160, 160, 170], home: null, makeController: () => new HandBossController() }];
+    const neural = (name, color, home, brain) => ({ name, color, home, makeController: () => new NeuralBossController(brain) });
+    for (const e of game.pantheon) list.push(neural(e.name, Doctrines.get(e.doctrine).color, e.trial, e.brain));
+    const t = game.training;
+    if (t && t.champion) {
+        list.push(neural("Votre champion (gén. " + t.champion.generation + ")", [245, 245, 245], Trials.matching(t.settings), t.champion.brain));
+    }
+    return list;
+}
+
+function startTournament() {
+    // Réglages d'origine + joueur robot de chaque épreuve : le résultat ne dépend pas des curseurs du menu
+    const trials = Trials.LIST.map(t => ({ id: t.id, label: t.label, settings: Trials.settings(t.id) }));
+    const contenders = tournamentContenders();
+    game.tournament = new CrossTournament(contenders, trials);
+    game.tournament.homes = contenders.map(c => trials.findIndex(t => t.id === c.home));
+    game.tournament.shown = false;
+    byId('tournamentResults').innerHTML = '';
+    setStatus("Tournoi en cours : " + contenders.length + " boss × " + trials.length + " joueurs robots × " + CrossTournament.FIGHTS + " combats.");
+}
+
+function updateTournament() {
+    const tour = game.tournament;
+    if (!tour) return;
+    if (!tour.done) headless(() => tour.work(game.settings.trainingBudget));
+    if (tour.done && !tour.shown) {
+        tour.shown = true;
+        const holder = byId('tournamentResults');
+        holder.innerHTML = '';
+        const ul = document.createElement('ul');
+        for (const sentence of tournamentVerdicts(tour)) {
+            const li = document.createElement('li');
+            li.textContent = sentence;
+            ul.appendChild(li);
+        }
+        holder.appendChild(ul);
+        setStatus("Tournoi terminé.");
+    }
+}
+
+function tournamentVerdicts(tour) {
+    return CrossTournament.verdicts(tour.grid(), tour.contenders.map(c => c.name), tour.trials.map(t => t.label), tour.homes);
+}
+
+function drawPantheonOverlay() {
+    const tour = game.tournament;
+    const x0 = 60;
+    push();
+    textAlign(LEFT, TOP);
+    noStroke();
+    fill(232, 220, 184);
+    textSize(24);
+    text("Le Panthéon des boss", x0, 28);
+    fill(190);
+    textSize(13);
+    text("Même cerveau, même algorithme génétique, même population de départ : seule la recette d'entraînement change.", x0, 62);
+    if (!tour) {
+        game.pantheon.forEach((e, i) => {
+            const y = 100 + i * 54;
+            const d = Doctrines.get(e.doctrine);
+            fill(d.color[0], d.color[1], d.color[2]);
+            circle(x0 + 8, y + 9, 14);
+            textSize(15);
+            text(e.name, x0 + 24, y);
+            fill(185);
+            textSize(11);
+            text(d.description + " " + Pantheon.describe(e).replace(e.name + " — ", "").replace(/^./, c => c.toUpperCase()), x0 + 24, y + 20, width - x0 - 60);
+        });
+        fill(232, 190, 90);
+        textSize(14);
+        text("Cliquez sur « Lancer le tournoi » dans le menu.", x0, 110 + game.pantheon.length * 54);
+        pop();
+        return;
+    }
+    const grid = tour.grid();
+    const best = CrossTournament.bestPerTrial(grid);
+    const nameW = 190, rowH = 30, y0 = 100;
+    const colW = constrain((width - x0 - nameW - 40) / 10, 50, 92);
+    const heatCols = tour.trials.map(t => t.label).concat(["Moyenne"]);
+    const styleCols = [
+        { label: "Frappes", key: 'avgAttacks', digits: 1 },
+        { label: "Ruées", key: 'avgCharges', digits: 1 },
+        { label: "Souffles", key: 'avgBreaths', digits: 1 },
+        { label: "Coups reçus", key: 'avgDamageTaken', digits: 0 },
+        { label: "Fioles bues", key: 'avgDrinks', digits: 1 }
+    ];
+    const profiles = grid.map(CrossTournament.profile);
+    // En-têtes
+    textSize(12);
+    fill(200);
+    textAlign(CENTER, BOTTOM);
+    heatCols.forEach((label, j) => text(label, x0 + nameW + j * colW + colW / 2, y0 + rowH - 6));
+    fill(160);
+    styleCols.forEach((c, k) => text(c.label, x0 + nameW + (heatCols.length + k) * colW + colW / 2 + 12, y0 + rowH - 6));
+    textSize(10);
+    text("victoires du boss contre chaque joueur robot", x0 + nameW + heatCols.length * colW / 2, y0 + 4);
+    text("style : par combat, en moyenne", x0 + nameW + (heatCols.length + styleCols.length / 2) * colW + 12, y0 + 4);
+    // Lignes
+    grid.forEach((row, i) => {
+        const y = y0 + rowH * (i + 1);
+        const c = tour.contenders[i].color;
+        textAlign(LEFT, CENTER);
+        textSize(13);
+        fill(c[0], c[1], c[2]);
+        text(tour.contenders[i].name, x0, y + rowH / 2);
+        const cells = row.concat([{ winRate: profiles[i].winRate, fights: row.some(x => x.fights > 0) ? 1 : 0 }]);
+        cells.forEach((cell, j) => {
+            const x = x0 + nameW + j * colW;
+            fill(cell.fights ? lerpColor(color(30, 34, 50), color(225, 125, 50), cell.winRate) : color(24, 26, 34));
+            rect(x + 2, y + 2, colW - 4, rowH - 4, 4);
+            if (j === tour.homes[i]) {
+                noFill();
+                stroke(255, 215, 120);
+                strokeWeight(2);
+                rect(x + 2, y + 2, colW - 4, rowH - 4, 4);
+                noStroke();
+            }
+            fill(cell.fights ? 245 : 90);
+            textAlign(CENTER, CENTER);
+            textSize(12);
+            text(cell.fights ? Math.round(cell.winRate * 100) + " %" + (j < row.length && best[j] === i && tour.done ? " ★" : "") : "…",
+                x + colW / 2, y + rowH / 2);
+        });
+        styleCols.forEach((sc, k) => {
+            const x = x0 + nameW + (heatCols.length + k) * colW + 12;
+            const max = Math.max(1e-9, ...profiles.map(p => p[sc.key]));
+            fill(45);
+            rect(x + 2, y + 9, colW - 8, rowH - 18, 3);
+            fill(c[0], c[1], c[2], 200);
+            rect(x + 2, y + 9, (colW - 8) * profiles[i][sc.key] / max, rowH - 18, 3);
+            fill(235);
+            textAlign(RIGHT, CENTER);
+            textSize(10);
+            text(profiles[i][sc.key].toFixed(sc.digits), x + colW - 8, y + rowH / 2);
+        });
+    });
+    // Avancement, légende, conclusions
+    let y = y0 + rowH * (grid.length + 1) + 10;
+    const barW = nameW + (heatCols.length + styleCols.length) * colW;
+    fill(40);
+    rect(x0, y, barW, 8, 3);
+    fill(232, 190, 90);
+    rect(x0, y + 0, barW * tour.progress(), 8, 3);
+    textAlign(LEFT, TOP);
+    fill(160);
+    textSize(11);
+    y += 16;
+    text("Case encadrée : le joueur robot contre lequel ce boss s'est entraîné · ★ : meilleur boss contre ce joueur robot · " +
+        CrossTournament.FIGHTS + " combats par case, les mêmes pour tous les boss.", x0, y, barW);
+    if (tour.done) {
+        y += 34;
+        fill(255, 220, 140);
+        textSize(13);
+        for (const sentence of tournamentVerdicts(tour)) {
+            text("• " + sentence, x0, y, barW);
+            y += textWidth(sentence) > barW - 20 ? 36 : 20;
+        }
+    }
+    pop();
+}
+
 // --- Boucle ---
 
 function draw() {
@@ -545,6 +865,9 @@ function draw() {
         updateTraining(dt);
         drawWorld(game.replay, false, game.effects);
         drawTrainingOverlay();
+    } else if (game.mode === 'pantheon') {
+        updateTournament();
+        drawPantheonOverlay();
     } else {
         updateComparison();
         drawWorld(game.fight, false, game.effects, true);
@@ -613,17 +936,26 @@ function drawDemo() {
     line(w, 10, w, height - 10);
     noStroke();
     textAlign(CENTER, TOP);
+    const sideColor = (side, fallback) => (side.color ? color(side.color[0], side.color[1], side.color[2]) : fallback);
     const sides = [
-        { fight: d.left, title: Demo.leftLabel(d.leftKind), score: d.score.left, x: w / 2, c: color(150, 170, 210) },
-        { fight: d.right, title: "Après entraînement : le champion", score: d.score.right, x: w * 1.5, c: color(255, 190, 60) }
+        { fight: d.left, key: 'left', title: d.leftSide.label, score: d.score.left, x: w / 2, c: sideColor(d.leftSide, color(150, 170, 210)) },
+        { fight: d.right, key: 'right', title: d.rightSide.label, score: d.score.right, x: w * 1.5, c: sideColor(d.rightSide, color(255, 190, 60)) }
     ];
     for (const sd of sides) {
+        // Vainqueur de la manche (duel) : cadre à sa couleur pendant la pause
+        if (d.over && d.lastWinner === sd.key) {
+            noFill();
+            stroke(sd.c);
+            strokeWeight(3);
+            rect(sd.x - w / 2 + 4, top - 4, w - 8, h + 8, 6);
+            noStroke();
+        }
         fill(sd.c);
         textSize(17);
         text(sd.title, sd.x, 14);
         fill(200);
         textSize(12);
-        text("Victoires du boss : " + sd.score + " / " + d.score.rounds + " manche" + (d.score.rounds > 1 ? "s" : ""), sd.x, 40);
+        text("Victoires contre le chevalier : " + sd.score + " / " + d.score.rounds + " · manches de duel gagnées : " + d.score.duel[sd.key], sd.x, 40);
         const f = sd.fight;
         const bw = w * 0.7, bx = sd.x - bw / 2;
         Hud.bar(bx, height - bottom + 14, bw * 0.45, 9, f.player.hp, f.player.maxHp, color(190, 40, 40));
@@ -640,7 +972,13 @@ function drawDemo() {
     }
     fill(140);
     textSize(11);
-    text("Manche " + d.round + " · même joueur robot, même graine des deux côtés : seul le cerveau du boss change.", width / 2, height - 20);
+    text("Manche " + d.round + (d.trialLabel ? " · joueur robot « " + d.trialLabel + " »" : "") +
+        " · même graine des deux côtés : seul le cerveau du boss change · égalités : " + d.score.duel.ties, width / 2, height - 20);
+    if (d.over && d.lastWinner) {
+        textSize(16);
+        fill(255, 220, 140);
+        text(d.lastWinner === 'tie' ? "Manche nulle" : "Manche pour " + (d.lastWinner === 'left' ? d.leftSide : d.rightSide).label, width / 2, height - 46);
+    }
     pop();
 }
 
@@ -673,11 +1011,11 @@ function drawTrainingOverlay() {
     const wide = width >= pw + 420;
     const w = wide ? Math.min(360, width - pw - px - 70) : Math.min(360, width - px - 40);
     const h = 260;
-    FitnessChart.draw(t.history, wide ? width - w - 24 : px + 12, wide ? 44 : py + 196, w, h);
+    FitnessChart.draw(t.history, wide ? width - w - 24 : px + 12, wide ? 44 : py + 214, w, h);
     push();
     noStroke();
     fill(10, 12, 18, 225);
-    rect(px, py, pw, 150, 8);
+    rect(px, py, pw, 168, 8);
     fill(232, 220, 184);
     textSize(15);
     textAlign(LEFT, TOP);
@@ -688,15 +1026,19 @@ function drawTrainingOverlay() {
     text("Génération " + t.generation + " — " + t.status(), px + 12, py + 34);
     text(t.population.length + " boss × " + s.fightsPerBoss + " combats contre le joueur robot", px + 12, py + 52);
     text("Le joueur robot esquive " + Math.round(s.dodgeProbability * 100) + " % des attaques", px + 12, py + 68);
+    const doctrine = Doctrines.get(t.doctrine);
+    fill(doctrine.color[0], doctrine.color[1], doctrine.color[2]);
+    text("Recette : " + doctrine.name + (t.pendingDoctrine && t.pendingDoctrine !== t.doctrine
+        ? " → " + Doctrines.get(t.pendingDoctrine).name + " à la prochaine génération" : ""), px + 12, py + 86);
     fill(255, 190, 60);
     text(t.champion ? "Champion : génération " + t.champion.generation + ", gagne " + Math.round(t.champion.winRate * 100) +
-        " % de ses combats d'examen" : "Pas encore de champion (première génération en cours)", px + 12, py + 86);
+        " % de ses combats d'examen" : "Pas encore de champion (première génération en cours)", px + 12, py + 104);
     fill(40);
-    rect(px + 12, py + 110, pw - 24, 10, 3);
+    rect(px + 12, py + 128, pw - 24, 10, 3);
     fill(232, 190, 90);
-    rect(px + 12, py + 110, (pw - 24) * t.progress(), 10, 3);
+    rect(px + 12, py + 128, (pw - 24) * t.progress(), 10, 3);
     fill(150);
-    text("avancement de la génération", px + 12, py + 126);
+    text("avancement de la génération", px + 12, py + 144);
     pop();
     if (game.replay) {
         Hud.drawBoss(game.replay.boss, game.replay.boss.hp);
@@ -706,7 +1048,7 @@ function drawTrainingOverlay() {
         textAlign(CENTER, BOTTOM);
         text("En direct : le champion contre le joueur robot", width / 2, height - 72);
         pop();
-        if (game.debug) DebugPanel.draw(game.replay.bossController, game.replay.boss, 14, 180);
+        if (game.debug) DebugPanel.draw(game.replay.bossController, game.replay.boss, 14, 198);
     }
 }
 
