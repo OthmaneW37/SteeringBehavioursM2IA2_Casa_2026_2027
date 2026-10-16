@@ -233,7 +233,7 @@ test('boss : esquive seulement si le joueur attaque', () => {
   assert.equal(b.dodge, null);
 });
 
-test('boss : wander hors du rayon de détection (sans décision), arrive pour garder sa distance, flee pour reculer', () => {
+test('boss : wander hors du rayon de détection (sans décision), arrive en spirale vers sa distance, flee pour reculer, il rôde', () => {
   const { Player, Boss, Combat, Steering, arena } = world();
   const far = new Player(100, 100), b = new Boss(700, 450);
   b.control({ mode: 'approach', speed: 1, attack: true, dodge: false }, far, arena, Combat.DT);
@@ -244,21 +244,36 @@ test('boss : wander hors du rayon de détection (sans décision), arrive pour ga
   b.control({ mode: 'hold', speed: 0, attack: false, dodge: false }, far, arena, Combat.DT);
   assert.equal(b.wandering, false);
 
-  // Approche : arrive vers un point à distance d'attaque (ralentit près de ce point)
+  // Approche : arrive vers un point du cercle de garde, en avance dans le sens latéral (approche en spirale)
+  const B = Combat.BOSS;
   const p = new Player(500, 350);
-  const near = new Boss(500 + Combat.BOSS.keepDistance + 20, 350);
-  near.vel.set(-2.5, 0); // il arrive à pleine vitesse sur le point de garde
-  near.control({ mode: 'approach', speed: 1, attack: false, dodge: false }, p, arena, Combat.DT);
-  const keep = Steering.keepDistancePoint(near, p.pos, Combat.BOSS.keepDistance);
-  const expected = near.arrive(keep);
+  const near = new Boss(500 + B.keepDistance + 20, 350);
+  near.vel.set(-2.5, 0); // il arrive à pleine vitesse sur le cercle de garde
+  near.control({ mode: 'approach', speed: 1, strafe: -1, attack: false, dodge: false }, p, arena, Combat.DT);
+  const point = Steering.orbitPoint(near, p.pos, B.keepDistance, -1, B.orbitLead);
+  const expected = near.arrive(point);
   assert.ok(close(near.acc.x, expected.x) && close(near.acc.y, expected.y));
-  assert.ok(near.acc.x > 0, 'arrive freine à 20 px du point, là où seek garderait sa vitesse');
-  assert.ok(Math.abs(near.seek(keep).x) < 1e-9);
+  assert.ok(point.y < 350, 'strafe −1 : point en avance vers le haut à l\'écran');
+  assert.ok(close(Math.hypot(point.x - 500, point.y - 350), B.keepDistance), 'sur le cercle de garde');
+  // Sans ordre latéral : il rôde, point en avance de prowlSpeed × orbitLead, sens prowlSide
+  const prowl = new Boss(500 + B.keepDistance, 350);
+  prowl.control({ mode: 'approach', speed: 1, strafe: 0.05, attack: false, dodge: false }, p, arena, Combat.DT);
+  const pp = prowl.arrive(Steering.orbitPoint(prowl, p.pos, B.keepDistance, 1, B.prowlSpeed * B.orbitLead));
+  assert.ok(close(prowl.acc.x, pp.x) && close(prowl.acc.y, pp.y));
+  assert.ok(prowl.acc.mag() > 0.01, 'déjà à distance de garde, il ne reste pas planté');
+  // Le sens de la rôde change toutes les prowlSwitch secondes
+  const later = new Boss(500 + B.keepDistance, 350);
+  later.time = B.prowlSwitch;
+  later.control({ mode: 'hold', speed: 0, strafe: 0, attack: false, dodge: false }, p, arena, Combat.DT);
+  // Sans approche : `seek` vers un point en avance sur le cercle où il se trouve, pondéré par la rôde
+  const lo = later.seek(Steering.orbitPoint(later, p.pos, B.keepDistance, -1, B.orbitLead)).mult(B.prowlSpeed);
+  assert.ok(close(later.acc.x, lo.x) && close(later.acc.y, lo.y), 'sens inversé après 3 s');
+  assert.ok(later.acc.y < 0, 'sens −1 : il part vers le haut à l\'écran (tangente)');
 
-  // Recul : flee de Reynolds
+  // Recul : flee de Reynolds + seek latéral (poids 1)
   const r = new Boss(600, 350);
   r.vel.set(-1, 0.5);
-  r.control({ mode: 'retreat', speed: 1, attack: false, dodge: false }, p, arena, Combat.DT);
-  const f = Steering.flee(r, p.pos);
+  r.control({ mode: 'retreat', speed: 1, strafe: 1, attack: false, dodge: false }, p, arena, Combat.DT);
+  const f = Steering.flee(r, p.pos).add(r.seek(Steering.orbitPoint(r, p.pos, 100, 1, B.orbitLead)));
   assert.ok(close(r.acc.x, f.x) && close(r.acc.y, f.y));
 });

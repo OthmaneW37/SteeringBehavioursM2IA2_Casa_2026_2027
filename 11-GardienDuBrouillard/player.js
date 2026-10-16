@@ -7,7 +7,8 @@
 //     (`avoidZones`, seulement si l'intention le demande : le joueur robot l'utilise, pas l'humain) ;
 //   - locomotion : applyForce puis update(), hérités de Vehicle.
 //
-// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, avoid }.
+// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, avoid, target? }.
+// `target` (point du monde, facultatif) : le joueur va à ce point avec `arrive` au lieu de suivre `move`.
 // Verrouillé sur le boss, move.y = −1 avance vers lui, +1 recule, move.x tourne autour de lui.
 //
 // Fioles d'Estus : boire prend 1 s pendant laquelle on marche très lentement ; le soin arrive à 0,6 s.
@@ -39,6 +40,7 @@ class Player extends Vehicle {
         this.drink = null;    // gorgée en cours : { t, healed }
         this.inMist = false;  // dans une nappe de brume (réglé par le combat à chaque pas)
         this.zones = null;    // nappes de brume du combat (pour l'évitement)
+        this.pillars = null;  // piliers du combat (évitement, abri)
         this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0 };
     }
 
@@ -84,6 +86,12 @@ class Player extends Vehicle {
         return true;
     }
 
+    /** Évitement des obstacles ronds : nappes de brume et piliers debout (Steering.avoidZones). */
+    avoidObstacles() {
+        const obstacles = (this.zones || []).concat((this.pillars || []).filter(p => p.alive));
+        return Steering.avoidZones(this, obstacles);
+    }
+
     /** Direction de déplacement dans le monde ; verrouillé, elle est relative au boss. */
     moveDirection(move, boss) {
         let dir;
@@ -119,6 +127,11 @@ class Player extends Vehicle {
         } else if (this.action) {
             // On est planté pendant une attaque : `arrive` sur place freine
             this.applyForce(this.arrive(this.pos));
+        } else if (intent.target) {
+            // Point précis à rejoindre (le joueur robot va s'abriter derrière un pilier) : `arrive`
+            const t = arena.clampPoint(intent.target, this.r + 4);
+            this.applyForce(this.arrive(createVector(t.x, t.y)));
+            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
         } else {
             const dir = this.moveDirection(intent.move || { x: 0, y: 0 }, boss);
             if (dir.mag() < 0.05) {
@@ -130,8 +143,8 @@ class Player extends Vehicle {
                 if (safe.clamped) this.applyForce(this.arrive(createVector(safe.x, safe.y)));
                 else this.applyForce(this.seek(target));
             }
-            // Évitement des nappes de brume (joueur robot)
-            if (intent.avoid && this.zones) this.applyForce(Steering.avoidZones(this, this.zones).mult(1.5));
+            // Évitement des nappes de brume et des piliers (joueur robot)
+            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
         }
 
         // Orientation : vers le boss si verrouillé, sinon dans le sens de la marche

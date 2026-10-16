@@ -165,10 +165,12 @@ test('panneau de debug : entrées et sorties lues sans recalcul, géométrie du 
   assert.equal(DebugPanel.rows(ctrl, b).length, 0, 'rien avant la première décision');
   ctrl.decide(b, pl, new Arena());
   const rows = DebugPanel.rows(ctrl, b);
-  assert.equal(rows.length, 17);
-  assert.equal(rows.filter(r => r.group === 'sortie').length, 5);
-  assert.equal(rows[12].threshold, 0.5, 'déplacement : seuil 0,5');
-  assert.equal(rows[13].threshold, 0.6);
+  assert.equal(rows.length, 22);
+  assert.equal(rows.filter(r => r.group === 'sortie').length, 6);
+  assert.equal(rows[16].threshold, 0.5, 'déplacement : seuil 0,5');
+  assert.equal(rows[17].threshold, 0.6);
+  assert.equal(rows[21].threshold, 0.5, 'latéral : seuil 0,5');
+  assert.equal(rows[21].label, 'Latéral');
   assert.match(DebugPanel.state(b, ctrl), /décision/);
   // Errance : même point vert que wander() de vehicle.js
   b.wandering = false;
@@ -194,18 +196,21 @@ test('bouton du menu : masque et réaffiche le menu', () => {
   assert.equal(button['aria-expanded'], 'true');
 });
 
-test('boss pré-entraîné : architecture 12-16-5 et équilibre avec le joueur robot (ni 0 %, ni 100 %)', () => {
+test('boss pré-entraîné : architecture 16-16-6 et équilibre avec le joueur robot (ni 0 %, ni 100 %)', () => {
   const PRETRAINED_BOSS = get('PRETRAINED_BOSS'), NeuralNetwork = get('NeuralNetwork'), Comparison = get('Comparison'),
     NeuralBossController = get('NeuralBossController'), HandBossController = get('HandBossController');
   const brain = NeuralNetwork.fromJSON(PRETRAINED_BOSS.brain);
-  assert.deepEqual(plain(brain.sizes), [12, 16, 5]);
+  assert.deepEqual(plain(brain.sizes), [16, 16, 6]);
   assert.ok(PRETRAINED_BOSS.history.length === PRETRAINED_BOSS.generations);
   const c = new Comparison([
     { name: 'Boss à états', makeController: () => new HandBossController() },
     { name: 'Boss appris', makeController: () => new NeuralBossController(brain) }
-  ], Settings.defaults(), 20, 777);
-  for (let guard = 0; !c.done && guard < 100; guard++) c.work(1e6);
+  ], Settings.defaults(), Settings.COMPARISON_FIGHTS, 5000);
+  // Les 50 combats du mode Comparer (graines 5000 et suivantes) : la mesure documentée dans le README.
+  // Sur 20 combats, l'écart entre deux boss aussi proches dépendait surtout de la chance.
+  for (let guard = 0; !c.done && guard < 200; guard++) c.work(1e6);
   const [hand, learned] = c.summary();
   assert.ok(learned.winRate >= 0.3 && learned.winRate <= 0.8, 'boss appris : ' + learned.winRate);
-  assert.ok(learned.winRate > hand.winRate, 'le boss appris fait mieux que le boss à états');
+  assert.ok(learned.winRate > hand.winRate, 'le boss appris fait mieux que le boss à états sur les combats du mode Comparer');
+  assert.equal(learned.campShare, 0, 'il ne meurt jamais dans un coin');
 });

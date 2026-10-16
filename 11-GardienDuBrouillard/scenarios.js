@@ -38,6 +38,16 @@ const Scenarios = {
             id: 'myope', label: "7. Boss myope",
             description: "Rayon de détection de 180 px : au-delà, le boss erre (wander) sans décider ; il doit apprendre à rester proche.",
             changes: { detectRadius: 180 }
+        },
+        {
+            id: 'areneNue', label: "8. Arène sans piliers",
+            description: "Aucun pilier : pas d'abri pour boire, pas d'obstacle à contourner, aucune ruée ne peut s'écraser.",
+            changes: { pillarCount: 0 }
+        },
+        {
+            id: 'ruines', label: "9. Arène en ruines",
+            description: "6 piliers : beaucoup d'abris pour le joueur robot ; le boss doit le débusquer et éviter de charger dans un pilier.",
+            changes: { pillarCount: 6 }
         }
     ],
 

@@ -12,7 +12,7 @@ const DebugPanel = {
         if (controller && controller.lastOutputs) {
             controller.lastOutputs.forEach((v, i) => rows.push({
                 group: 'sortie', label: BossBrain.OUTPUT_LABELS[i], value: v,
-                threshold: i === 0 ? 0.5 : BossBrain.THRESHOLD
+                threshold: i === 0 || i === 5 ? 0.5 : BossBrain.THRESHOLD
             }));
         }
         return rows;
@@ -22,6 +22,8 @@ const DebugPanel = {
     state(boss, controller) {
         let s = boss.wandering ? "errance (wander)" : "décision du contrôleur";
         if (boss.dodge) s = "esquive (evade)";
+        if (boss.stun) s = "étourdi (ruée contre un pilier)";
+        if (boss.campTime > 0) s += " · coin " + boss.campTime.toFixed(1) + " / " + Combat.BOSS.camping.limit + " s";
         if (boss.action) {
             const what = { boss: "hallebarde", charge: "ruée", breath: "souffle" }[boss.action.kind] || boss.action.kind;
             s = what + " : " + ({ windup: "préparation", active: "frappe", recovery: "récupération" })[Combat.phase(boss.action.spec, boss.action.t)];
@@ -32,7 +34,7 @@ const DebugPanel = {
 
     draw(controller, boss, x, y) {
         const rows = DebugPanel.rows(controller, boss);
-        const h = 46 + rows.length * 16 + (rows.length ? 18 : 0);
+        const h = 58 + rows.length * 16 + (rows.length ? 18 : 0);
         push();
         translate(x, y);
         noStroke();
@@ -45,9 +47,9 @@ const DebugPanel = {
         fill(200);
         textSize(10);
         text(DebugPanel.state(boss, controller), 10, 24);
-        text("attentes : hallebarde " + boss.cooldown.toFixed(1) + " s · ruée " + boss.chargeCooldown.toFixed(1) +
-            " s · souffle " + boss.breathCooldown.toFixed(1) + " s", 10, 36);
-        let yy = 54;
+        text("attentes : hallebarde " + boss.cooldown.toFixed(1) + " s · ruée " + boss.chargeCooldown.toFixed(1) + " s", 10, 36);
+        text("souffle " + boss.breathCooldown.toFixed(1) + " s · esquive " + boss.dodgeCooldown.toFixed(1) + " s", 10, 48);
+        let yy = 66;
         let group = null;
         for (const r of rows) {
             if (r.group !== group) {
@@ -74,12 +76,19 @@ const DebugPanel = {
         pop();
     },
 
-    /** Dans l'arène : cercle de détection, rayons vers les murs, portée d'attaque. */
+    /** Dans l'arène : cercle de détection, rayons vers les obstacles, ligne de vue, portée d'attaque. */
     drawWorld(boss, player, arena) {
         boss.showDetection(player);
         push();
+        // Ligne de vue : pointillés gris si un pilier l'interrompt (le joueur est à l'abri)
+        const hidden = Combat.blocker(boss.pos, player.pos, boss.pillars);
+        stroke(hidden ? color(150, 150, 160, 160) : color(255, 255, 255, 60));
+        strokeWeight(1);
+        drawingContext.setLineDash(hidden ? [6, 6] : []);
+        line(boss.pos.x, boss.pos.y, player.pos.x, player.pos.y);
+        drawingContext.setLineDash([]);
         for (const a of [-BossBrain.RAY_ANGLE, BossBrain.RAY_ANGLE]) {
-            const d = arena.rayDistance(boss.pos, boss.facing + a, BossBrain.RAY_SIGHT);
+            const d = arena.rayDistance(boss.pos, boss.facing + a, BossBrain.RAY_SIGHT, boss.pillars);
             stroke(d < BossBrain.RAY_SIGHT ? color(255, 120, 60) : color(120, 255, 120, 120));
             strokeWeight(1.5);
             line(boss.pos.x, boss.pos.y, boss.pos.x + Math.cos(boss.facing + a) * d, boss.pos.y + Math.sin(boss.facing + a) * d);

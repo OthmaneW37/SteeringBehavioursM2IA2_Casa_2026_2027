@@ -10,9 +10,10 @@
 
 ### 1. L'idée, en une phrase (1 min)
 
-« Le boss n'est pas programmé à la main. Il a un petit réseau de neurones : 12 informations entrent
-(distance, angle, fatigue et vie du joueur, s'il est en train de boire…), 5 décisions sortent (avancer ou
-reculer, hallebarde, esquive, ruée, souffle). Il a appris à se battre par sélection naturelle. »
+« Le boss n'est pas programmé à la main. Il a un petit réseau de neurones : 16 informations entrent
+(distance, angle, fatigue et vie du joueur, s'il boit ou attaque, les piliers, le danger du coin…),
+6 décisions sortent (avancer ou reculer, hallebarde, esquive, ruée, souffle, tourner autour du joueur). Il a
+appris à se battre par sélection naturelle. »
 
 ### 2. Jouer 1 minute (mode ⚔️ Combattre)
 
@@ -24,10 +25,11 @@ reculer, hallebarde, esquive, ruée, souffle). Il a appris à se battre par sél
     direction au dernier moment ;
   - le **souffle** : une nappe de brume verte qui brûle et ralentit ;
   - une **fiole d'Estus** (E) : elle soigne, mais pendant 1 s on est une cible facile ;
+  - les **piliers** : ils parent les coups, et une ruée qui en percute un étourdit le boss 1,6 s ;
   - la **tache de sang** laissée à l'endroit d'une mort, avec sa cause.
 - Appuyer sur **G** : on voit le « cerveau » en direct. Les barres d'entrées et de sorties bougent, et le
   trait blanc marque le seuil de 0,6 au-delà duquel le boss attaque ou esquive. On voit aussi le cercle de
-  détection (rouge quand on est dedans) et les rayons vers les murs.
+  détection (rouge quand on est dedans), les rayons vers les murs et les piliers, et la ligne de vue.
 
 ### 3. Avant / après (mode 🎬 Démonstration, 2 min)
 
@@ -47,10 +49,10 @@ cerveau change. » Laisser tourner 2 ou 3 manches et montrer le score.
 
 « Même cerveau, même algorithme, même départ : seule la recette d'entraînement change. » Lancer le tournoi
 (une dizaine de secondes) et lire la grille :
-- chaque colonne est gagnée par le boss entraîné contre ce joueur robot (case encadrée et ★) ;
-- deux styles sont apparus : le Spectre et le Chasseur soufflent la brume, les autres frappent sans arrêt ;
-- le Spectre, puni surtout quand il est touché, a appris à ne pas s'exposer… et gagne rarement : la note
-  décide de ce que le boss apprend.
+- aucun boss appris ne meurt dans un coin, alors que le boss à états, qui ignore la règle, y meurt dans 16 %
+  des combats : l'anti-camping a été appris ;
+- les styles diffèrent : le Spectre ne charge ni ne souffle, le Chasseur charge et souffle le plus ;
+- le boss à états reste le plus solide en moyenne : les boss appris se sont spécialisés.
 
 Puis, en mode 🎬, choisir deux boss du Panthéon (par exemple le Chasseur et le Bourreau) et l'épreuve
 « Expert » : c'est un duel, le cadre de couleur montre le vainqueur de chaque manche.
@@ -60,13 +62,15 @@ Puis, en mode 🎬, choisir deux boss du Panthéon (par exemple le Chasseur et l
 Lancer les 50 combats (quelques secondes). Lire la phrase de conclusion et la ligne « Par combat », qui
 montre les techniques choisies par chaque boss. Résultat de référence avec les réglages par défaut
 (robot à 40 %, 2 fioles) :
-- **boss écrit à la main** : 22 % de victoires ;
-- **boss fourni** : 42 %, soit presque 2 fois plus.
+- **boss écrit à la main** : 42 % de victoires sous Node, 40 % dans le navigateur (il tourne autour du joueur
+  et esquive) ;
+- **boss fourni** : 50 %.
 
 ### 7. Ce que le projet montre (1 min)
 
-- Les **steering behaviors** de Reynolds : `arrive` pour approcher sans foncer, `flee` pour reculer, `evade`
-  pour esquiver, `wander` pour errer quand le joueur est loin, plus le confinement contre les murs.
+- Les **steering behaviors** de Reynolds : `arrive` pour approcher sans foncer, `seek` vers un point en avance
+  sur le cercle pour tourner autour du joueur, `flee` pour reculer, `evade` pour esquiver, `wander` pour errer
+  quand le joueur est loin, l'évitement des piliers, plus le confinement contre les murs.
 - La **neuroévolution** : pas de rétropropagation, seulement sélection et mutation.
 - Une observation intéressante : **la stratégie apprise dépend de l'adversaire**.
   - Contre un robot moyen, le boss se contente de la hallebarde.
@@ -77,11 +81,19 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
 - Les pièges rencontrés et corrigés :
   - un joueur robot trop faible : le boss gagnait 100 % en attaquant sans arrêt ;
   - une stratégie passive : les boss n'attaquaient plus du tout, et tous les combats finissaient en match nul ;
-  - un « meilleur » boss souvent chanceux, d'où l'examen sur 30 combats et la comparaison sur 50 combats neufs.
-- 69 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+  - un « meilleur » boss souvent chanceux, d'où l'examen sur 30 combats et la comparaison sur 50 combats neufs ;
+  - un boss qui restait **planté 97 % du temps** (stratégie « tourelle ») : il rôde maintenant (16 %) ;
+  - une **triche sur la récompense** : récompenser l'esquive a donné des boss qui esquivaient sans jamais
+    chercher à gagner. Récompenser seulement la riposte qui touche ferme la faille… mais l'esquive n'émerge
+    plus. L'évolution n'apprend que ce qui rapporte.
+- 85 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables
+
+- **Pourquoi le boss n'esquive-t-il pas ?** Contre ce joueur robot, l'esquive ne rapporte pas assez : forcer
+  l'esquive sur un boss entraîné faisait chuter ses victoires de 34 % à 10 %. Quand on l'a récompensée, les
+  boss ont triché (esquiver au lieu de gagner). C'est un résultat, pas un bug.
 
 - **Pourquoi les boss du Panthéon ne se battent-ils pas entre eux ?** Leur cerveau a appris à lire un chevalier
   (endurance, fioles, vulnérabilité). Face à un boss, ces entrées n'auraient pas de sens. Ils s'affrontent en

@@ -2,14 +2,14 @@
 // dès l'ouverture de la page. Écrit pretrainedBoss.js (données).
 //
 // Usage, depuis le dossier de l'exemple :
-//   node tools/pretrain.mjs [générations] [graine]
+//   node tools/pretrain.mjs [générations] [graine] [combats par boss]
 // Par défaut : 60 générations, graine 1. Le boss fourni a été obtenu avec : node tools/pretrain.mjs 40 7
 import { writeFileSync } from 'node:fs';
 import { load } from '../tests/helpers.mjs';
 
 const generations = Number(process.argv[2] || 60);
 const seed = Number(process.argv[3] || 1);
-const files = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js', 'mistPatch.js', 'bloodstain.js', 'player.js',
+const files = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js', 'mistPatch.js', 'pillar.js', 'bloodstain.js', 'player.js',
   'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js', 'fitness.js',
   'genetic.js', 'training.js', 'comparison.js', 'settings.js', 'trials.js', 'doctrines.js'];
 // Chargement dans le contexte principal de Node (bien plus rapide qu'un contexte vm isolé) ; l'entraînement
@@ -19,6 +19,7 @@ const Settings = get('Settings'), Training = get('Training'), Comparison = get('
 const HandBossController = get('HandBossController'), NeuralBossController = get('NeuralBossController');
 
 const settings = Settings.defaults();
+if (process.argv[4]) settings.fightsPerBoss = Settings.check('fightsPerBoss', Number(process.argv[4]));
 const training = new Training(settings, { seed });
 const start = Date.now();
 while (training.generation < generations) {
@@ -43,7 +44,9 @@ const comparison = new Comparison([
 while (!comparison.done) comparison.work(500000);
 const summary = comparison.summary();
 for (const s of summary) {
-  console.log(`${s.name} : ${(s.winRate * 100).toFixed(0)} % de victoires, durée moyenne ${s.avgDuration.toFixed(1)} s`);
+  console.log(`${s.name} : ${(s.winRate * 100).toFixed(0)} % de victoires, durée moyenne ${s.avgDuration.toFixed(1)} s, ` +
+    `${s.avgDodges.toFixed(1)} esquives (${s.avgRipostes.toFixed(1)} ripostes), immobile ${Math.round(s.idleShare * 100)} % du temps, ` +
+    `morts dans un coin ${Math.round(s.campShare * 100)} %`);
 }
 
 const data = {
@@ -52,7 +55,7 @@ const data = {
   comparison: summary.map(s => ({ name: s.name, winRate: s.winRate, avgDuration: +s.avgDuration.toFixed(2) })),
   brain: JSON.parse(JSON.stringify(brain.toJSON()))
 };
-const text = '// Boss pré-entraîné : généré par `node tools/pretrain.mjs ' + generations + ' ' + seed + '` (ne pas modifier à la main).\n' +
+const text = '// Boss pré-entraîné : généré par `node tools/pretrain.mjs ' + generations + ' ' + seed + ' ' + settings.fightsPerBoss + '` (ne pas modifier à la main).\n' +
   '// Il sert de « meilleur boss » tant qu\'aucun entraînement n\'a été lancé dans la page.\n' +
   'const PRETRAINED_BOSS = ' + JSON.stringify(data) + ';\n';
 writeFileSync(new URL('../pretrainedBoss.js', import.meta.url), text);

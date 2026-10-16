@@ -1,7 +1,7 @@
 // Joueur robot (scripté) de référence pour l'entraînement et la comparaison. Ce n'est pas un humain :
 // une fitness stable exige un adversaire reproductible (aléatoire injecté, temps en secondes).
 // Il joue comme un joueur de Souls prudent ; il est toujours verrouillé sur le boss et il contourne
-// toujours les nappes de brume (évitement d'obstacles, voir Steering.avoidZones).
+// toujours les nappes de brume et les piliers (évitement d'obstacles, voir Steering.avoidZones).
 //
 // Règles, dans l'ordre de priorité :
 //   1. une technique du boss le menace. À chaque technique, il décide une fois, avec la probabilité fixe
@@ -10,8 +10,10 @@
 //        ruée       : il sort de la ligne de charge en se déplaçant de côté, et roule si le boss arrive sur lui ;
 //        souffle    : il s'écarte de côté de la zone visée ;
 //      s'il a décidé de mal réagir, il reste planté ;
-//   2. vie basse et fioles restantes : il boit, mais seulement à l'abri (boss loin, ou en longue récupération) ;
-//   3. endurance basse : il se repose (recule, tourne autour du boss) jusqu'à la récupérer ;
+//   2. vie basse et fioles restantes : il boit, mais seulement à l'abri (boss loin, en longue récupération,
+//      ou caché derrière un pilier qui coupe la ligne de vue) ; sinon il court se cacher derrière le pilier
+//      le plus proche (`arrive` vers le point abrité), ou recule s'il n'y en a pas ;
+//   3. endurance basse : il se repose derrière un pilier, ou recule en tournant autour du boss ;
 //   4. le boss est en RÉCUPÉRATION : il fonce punir, si son attaque sera finie à temps pour esquiver la suivante ;
 //   5. le coup de hallebarde est prêt (attente < DANGER_COOLDOWN) : il ne s'engage pas ; il tourne autour du boss,
 //      se rapproche s'il est loin, mais ne recule pas. Sa patience est limitée (PATIENCE s) ;
@@ -44,6 +46,26 @@ class ScriptedPlayerController {
      */
     static safeToCommit(kind, remaining) {
         return Combat.duration(Combat.ATTACKS[kind]) <= remaining + Combat.ATTACKS.boss.windup - ScriptedPlayerController.ROLL_LEAD;
+    }
+
+    /**
+     * Abri le plus proche : { pillar, point } où `point` est derrière un pilier debout, à l'opposé du boss,
+     * à moins de COVER_MAX px du joueur ; null sinon.
+     */
+    static cover(player, boss) {
+        let best = null, bestD = ScriptedPlayerController.COVER_MAX;
+        for (const p of player.pillars || []) {
+            if (!p.alive) continue;
+            const point = p.coverPoint(boss.pos, player.r);
+            const d = Math.hypot(point.x - player.pos.x, point.y - player.pos.y);
+            if (d < bestD) { bestD = d; best = { pillar: p, point: point }; }
+        }
+        return best;
+    }
+
+    /** Le joueur est-il caché du boss par un pilier ? */
+    static hidden(player, boss) {
+        return Combat.blocker(boss.pos, player.pos, player.pillars, -4) !== null;
     }
 
     /** Côté (−1 ou +1, en coordonnées verrouillées) qui éloigne le joueur de la ligne boss → cible. */
@@ -118,18 +140,29 @@ class ScriptedPlayerController {
         if (player.hp <= S.DRINK_HP && player.estus > 0) {
             const recoveringLong = a && phase === 'recovery' && Combat.duration(spec) - a.t >= S.DRINK_SAFE_RECOVERY;
             const far = !a && dist > S.DRINK_SAFE_DISTANCE;
-            if (recoveringLong || far || boss.wandering) {
+            const sheltered = S.hidden(player, boss) && dist > S.COVER_DRINK_DISTANCE;
+            if (recoveringLong || far || boss.wandering || sheltered) {
                 intent.drink = true;
                 return intent;
             }
-            // Sinon il prend ses distances pour pouvoir boire
+            // Sinon il court s'abriter derrière un pilier, ou prend ses distances
+            const cover = S.cover(player, boss);
+            if (cover) {
+                intent.target = cover.point;
+                return intent;
+            }
             intent.move.y = 1;
             intent.move.x = this.strafe * 0.5;
             return intent;
         }
 
-        // 3. Repos
+        // 3. Repos, à l'abri si possible
         if (this.resting) {
+            const cover = S.cover(player, boss);
+            if (cover && !S.hidden(player, boss)) {
+                intent.target = cover.point;
+                return intent;
+            }
             intent.move.y = dist < S.REST_DISTANCE ? 1 : 0;
             intent.move.x = this.strafe * 0.6;
             return intent;
@@ -178,3 +211,5 @@ ScriptedPlayerController.DRINK_SAFE_RECOVERY = 0.7;   // ... ou s'il lui reste a
 ScriptedPlayerController.REST_LOW = 25;
 ScriptedPlayerController.REST_HIGH = 75;
 ScriptedPlayerController.REST_DISTANCE = 260;
+ScriptedPlayerController.COVER_MAX = 260;             // il ne va pas chercher un abri plus loin
+ScriptedPlayerController.COVER_DRINK_DISTANCE = 110;  // caché, il boit si le boss est au moins à cette distance

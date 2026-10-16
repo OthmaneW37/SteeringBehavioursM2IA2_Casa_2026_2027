@@ -8,26 +8,54 @@ function env(seed = 3) {
   return { ...e, NeuralNetwork: g('NeuralNetwork'), BossBrain: g('BossBrain'), NeuralBossController: g('NeuralBossController'),
     Genetic: g('Genetic'), Fitness: g('Fitness'), Fight: g('Fight'), Arena: g('Arena'), Player: g('Player'), Boss: g('Boss'),
     ScriptedPlayerController: g('ScriptedPlayerController'), HandBossController: g('HandBossController'), Training: g('Training'),
-    Comparison: g('Comparison'), Settings: g('Settings'), Combat: g('Combat'), seededRandom: g('seededRandom') };
+    Comparison: g('Comparison'), Settings: g('Settings'), Combat: g('Combat'), seededRandom: g('seededRandom'), Pillar: g('Pillar') };
 }
 const close = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
-test('cerveau : 12 entrées, 16 neurones cachés sigmoïdes, 5 sorties dans [0, 1]', () => {
+test('cerveau : 16 entrées, 16 neurones cachés sigmoïdes, 6 sorties dans [0, 1]', () => {
   const { BossBrain } = env();
   const nn = BossBrain.create(lcg(1));
-  assert.deepEqual(plain(nn.sizes), [12, 16, 5]);
-  assert.equal(nn.paramCount(), 12 * 16 + 16 + 16 * 5 + 5);
-  assert.equal(BossBrain.INPUT_LABELS.length, 12);
-  assert.equal(BossBrain.OUTPUT_LABELS.length, 5);
-  for (const x of [new Array(12).fill(0), new Array(12).fill(1), [0.3, 0.9, 0.1, 0.5, 0, 1, 0.7, 0.2, 0.4, 1, 0.5, 0.1]]) {
+  assert.deepEqual(plain(nn.sizes), [16, 16, 6]);
+  assert.equal(nn.paramCount(), 16 * 16 + 16 + 16 * 6 + 6);
+  assert.equal(BossBrain.INPUT_LABELS.length, 16);
+  assert.equal(BossBrain.OUTPUT_LABELS.length, 6);
+  for (const x of [new Array(16).fill(0), new Array(16).fill(1), [0.3, 0.9, 0.1, 0.5, 0, 1, 0.7, 0.2, 0.4, 1, 0.5, 0.1, 1, 0.3, 0, 0.5]]) {
     const out = nn.predict(x);
-    assert.equal(out.length, 5);
+    assert.equal(out.length, 6);
     for (const v of out) assert.ok(v > 0 && v < 1);
   }
 });
 
-test('entrées du boss : 12 valeurs normalisées dans [0, 1], valeurs exactes', () => {
-  const { BossBrain, Arena, Player, Boss, Combat } = env();
+test('conversion des cerveaux 12-16-5 et 15-16-6 : mêmes sorties qu\'avant, nouvelles entrées ignorées, latéral neutre', () => {
+  const { BossBrain, NeuralNetwork } = env();
+  const x = [0.3, 0.9, 0.1, 0.5, 0, 1, 0.7, 0.2, 0.4, 1, 0.5, 0.1];
+  // Avant les piliers : 12 entrées, 5 sorties
+  const old = new NeuralNetwork([12, 16, 5], lcg(4));
+  const nn = BossBrain.migrate(old);
+  assert.deepEqual(plain(nn.sizes), [16, 16, 6]);
+  const before = Array.from(old.predict(x));
+  for (const extra of [[0, 0, 0, 0], [1, 1, 1, 1], [1, 0.4, 0, 0.7]]) {
+    const after = Array.from(nn.predict(x.concat(extra)));
+    for (let k = 0; k < 5; k++) assert.ok(close(after[k], before[k], 1e-6), 'sortie ' + k + ' inchangée');
+    assert.ok(close(after[5], 0.5, 1e-9), 'sortie latérale à 0,5 : le boss rôde');
+  }
+  // Avant l'anti-camping : 15 entrées, 6 sorties (latéral gardé)
+  const mid = new NeuralNetwork([15, 16, 6], lcg(5));
+  const nm = BossBrain.migrate(mid);
+  const x15 = x.concat([1, 0.3, 0]);
+  const ref = Array.from(mid.predict(x15));
+  for (const camp of [0, 1]) {
+    const after = Array.from(nm.predict(x15.concat([camp])));
+    for (let k = 0; k < 6; k++) assert.ok(close(after[k], ref[k], 1e-6), 'sortie ' + k + ' inchangée');
+  }
+  assert.equal(BossBrain.isOld(mid), true);
+  assert.equal(BossBrain.isOld(nm), false);
+  assert.throws(() => BossBrain.migrate(new NeuralNetwork([8, 16, 3], lcg(1))), { name: 'RangeError' });
+  assert.throws(() => BossBrain.migrate(nm), { name: 'RangeError' }, 'cerveau déjà à jour');
+});
+
+test('entrées du boss : 16 valeurs normalisées dans [0, 1], valeurs exactes', () => {
+  const { BossBrain, Arena, Player, Boss, Combat, Pillar } = env();
   const arena = new Arena();
   const b = new Boss(500, 350), p = new Player(600, 350);
   b.facing = 0;
@@ -39,7 +67,7 @@ test('entrées du boss : 12 valeurs normalisées dans [0, 1], valeurs exactes', 
   b.chargeCooldown = Combat.BOSS.charge.cooldown / 2;
   b.breathCooldown = Combat.BOSS.breath.cooldown;
   const x = BossBrain.inputs(b, p, arena);
-  assert.equal(x.length, 12);
+  assert.equal(x.length, 16);
   for (const v of x) assert.ok(v >= 0 && v <= 1);
   assert.ok(close(x[0], 100 / arena.diagonal()));
   assert.ok(close(x[1], 0.5), 'joueur droit devant : 0,5');
@@ -52,6 +80,37 @@ test('entrées du boss : 12 valeurs normalisées dans [0, 1], valeurs exactes', 
   assert.equal(x[9], 0, 'joueur pas vulnérable');
   assert.ok(close(x[10], 0.5), 'attente de la ruée');
   assert.equal(x[11], 1, 'attente du souffle');
+  assert.equal(x[12], 0, 'le joueur n\'attaque pas');
+  assert.equal(x[13], 0, 'esquive prête');
+  assert.equal(x[14], 0, 'pas de pilier entre eux');
+  assert.equal(x[15], 0, 'pas dans un coin');
+  b.campTime = Combat.BOSS.camping.limit / 2;
+  assert.ok(close(BossBrain.inputs(b, p, arena)[15], 0.5), 'danger du coin');
+  b.campTime = 0;
+  // Le joueur prépare puis porte un coup : entrée 12 à 1 ; en récupération : 0
+  p.action = Combat.newAttack('light', 0);
+  assert.equal(BossBrain.inputs(b, p, arena)[12], 1);
+  p.action.t = Combat.ATTACKS.light.windup + 0.01;
+  assert.equal(BossBrain.inputs(b, p, arena)[12], 1, 'frappe');
+  p.action.t = Combat.ATTACKS.light.windup + Combat.ATTACKS.light.active + 0.01;
+  assert.equal(BossBrain.inputs(b, p, arena)[12], 0, 'récupération');
+  p.action = null;
+  b.dodgeCooldown = Combat.BOSS.dodge.cooldown / 4;
+  assert.ok(close(BossBrain.inputs(b, p, arena)[13], 0.25));
+  b.dodgeCooldown = 0;
+  // Pilier entre le boss et le joueur : abri (14) et rayons qui le voient (6, 7)
+  b.pillars = [new Pillar(550, 350)];
+  const hid = BossBrain.inputs(b, p, arena);
+  assert.equal(hid[14], 1, 'ligne de vue coupée');
+  b.pillars[0].pos.set(550, 200);
+  assert.equal(BossBrain.inputs(b, p, arena)[14], 0, 'pilier à côté : pas d\'abri');
+  b.pillars[0].pos.set(500 + 60, 350 + 60);
+  const seen = BossBrain.inputs(b, p, arena);
+  assert.ok(seen[7] > 0, 'pilier à +45° vu par le rayon de droite');
+  assert.equal(seen[6], 0);
+  b.pillars[0].hp = 0;
+  assert.equal(BossBrain.inputs(b, p, arena)[7], 0, 'pilier effondré : plus vu');
+  b.pillars = null;
   // Vulnérable : en train de boire, ou en récupération après une attaque
   p.drink = { t: 0, healed: false };
   assert.equal(BossBrain.inputs(b, p, arena)[9], 1);
@@ -88,6 +147,10 @@ test('sorties → décision : seuils stricts à 0,6, zone morte autour de 0,5', 
   assert.ok(close(d([0.9, 0, 0]).speed, 0.8));
   assert.equal(d([0.1, 0, 0]).mode, 'retreat');
   assert.ok(close(d([0, 0, 0]).speed, 1));
+  // Sortie latérale : −1..1 autour de 0,5
+  assert.ok(close(d([0.5, 0, 0, 0, 0, 1]).strafe, 1));
+  assert.ok(close(d([0.5, 0, 0, 0, 0, 0]).strafe, -1));
+  assert.ok(close(d([0.5, 0, 0, 0, 0, 0.5]).strafe, 0));
 });
 
 test('mutation : copie indépendante, taux 0 sans effet, bruit gaussien sur poids et biais', () => {
@@ -148,6 +211,10 @@ test('fitness : dégâts infligés − reçus + bonus de victoire − pénalité
   assert.equal(Fitness.ofFight({ ...base, drinks: 3, drinksInterrupted: 1 }), 0);
   assert.equal(Fitness.ofFight({ ...base, drinks: 3, drinksInterrupted: 1 }, { ...Fitness.WEIGHTS, drink: 30 }), -60);
   assert.equal(Fitness.ofFight(base, { dealt: 100, received: 100, win: 100, whiff: 4 }), 0, 'poids sans terme drink : 0');
+  // Ripostes : bonus de 15 dans la note de référence, nul si le poids est nul
+  assert.equal(Fitness.ofFight({ ...base, bossRiposteHits: 3 }), 45);
+  assert.equal(Fitness.ofFight({ ...base, bossRipostes: 9 }), 0, "l'esquive seule ne rapporte rien (sinon : esquiver sans fin au lieu de gagner)");
+  assert.equal(Fitness.ofFight({ ...base, bossRiposteHits: 3 }, { ...Fitness.WEIGHTS, riposte: 0 }), 0);
   assert.throws(() => Fitness.compute([]), { name: 'RangeError' });
 });
 

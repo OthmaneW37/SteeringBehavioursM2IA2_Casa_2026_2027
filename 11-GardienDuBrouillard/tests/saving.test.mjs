@@ -98,7 +98,7 @@ test('sauvegarde : fichiers invalides refusés avec un message clair', () => {
   const good = JSON.parse(TrainingStore.serialize(t));
   const bad = [
     d => { d.format = 'autre'; },
-    d => { d.version = 3; },
+    d => { d.version = 5; },
     d => { d.version = 1; },
     d => { d.settings.populationSize = 5000; },
     d => { d.settings.mutationRate = 'beaucoup'; },
@@ -128,6 +128,49 @@ test('sauvegarde : fichiers invalides refusés avec un message clair', () => {
   const d = JSON.parse(JSON.stringify(good));
   d.champion = null;
   assert.equal(TrainingStore.restore(d).champion, null);
+});
+
+test('sauvegarde de la version 2 (avant les piliers) : convertie, rien n\'est perdu, champion réexaminé', () => {
+  const { Training, TrainingStore, Settings, NeuralNetwork, BossBrain } = env();
+  const t = new Training(small(Settings), { seed: 4 });
+  runUntil(t, 1);
+  const v2 = JSON.parse(TrainingStore.serialize(t));
+  v2.version = 2;
+  delete v2.settings.pillarCount;   // réglage qui n'existait pas
+  const old = k => JSON.parse(JSON.stringify(new NeuralNetwork([12, 16, 5], lcg(k)).toJSON()));
+  v2.population = v2.population.map((_, k) => old(k + 1));
+  v2.best.brain = old(50);
+  v2.champion.brain = old(60);
+  const back = TrainingStore.restore(v2);
+  assert.equal(back.convertedFrom, 2);
+  assert.equal(back.population.length, v2.population.length);
+  for (const b of back.population) assert.deepEqual(plain(b.sizes), [16, 16, 6]);
+  assert.deepEqual(plain(back.champion.brain.sizes), [16, 16, 6]);
+  assert.notEqual(back.champion.key, back.fightKey(), 'le champion repasse l\'examen');
+  assert.equal(back.settings.pillarCount, Settings.PARAMETERS.pillarCount.initial, 'réglage manquant : valeur d\'origine');
+  assert.equal(back.generation, v2.generation);
+  // Le cerveau converti décide comme l'ancien (mêmes 5 premières sorties)
+  const x = new Array(12).fill(0.3);
+  const ref = Array.from(NeuralNetwork.fromJSON(v2.population[0]).predict(x));
+  const now = Array.from(back.population[0].predict(x.concat([1, 0, 1, 0.5])));
+  for (let k = 0; k < 5; k++) assert.ok(Math.abs(ref[k] - now[k]) < 1e-6);
+  // La sauvegarde suivante est en version 4, et une version 4 n'est pas « convertie »
+  const again = JSON.parse(TrainingStore.serialize(back));
+  assert.equal(again.version, 4);
+  assert.equal(TrainingStore.restore(again).convertedFrom, null);
+  // Version 3 (cerveau 15-16-6, avant l'anti-camping) : convertie aussi
+  const v3 = JSON.parse(JSON.stringify(again));
+  v3.version = 3;
+  const mid = k => JSON.parse(JSON.stringify(new NeuralNetwork([15, 16, 6], lcg(k)).toJSON()));
+  v3.population = v3.population.map((_, k) => mid(k + 1));
+  v3.best.brain = mid(70);
+  v3.champion.brain = mid(80);
+  const back3 = TrainingStore.restore(v3);
+  assert.equal(back3.convertedFrom, 3);
+  assert.deepEqual(plain(back3.population[0].sizes), [16, 16, 6]);
+  // Un cerveau d'une ancienne architecture dans une sauvegarde de version 4 reste refusé
+  again.population[0] = old(9);
+  assert.throws(() => TrainingStore.restore(again), { name: 'RangeError', message: /architecture/ });
 });
 
 test('sauvegarde automatique : stockage bloqué, plein ou corrompu sans exception', () => {

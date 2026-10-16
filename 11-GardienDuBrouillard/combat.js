@@ -30,8 +30,24 @@ const Combat = {
         turnRate: 3,                       // radians par seconde (le boss pivote vers sa cible)
         windupTurnRate: 1.6,               // il suit encore un peu le joueur pendant la préparation
         keepDistance: 70,                  // distance d'attaque gardée avec `arrive`
+        swingMargin: 15,                   // la hallebarde ne se lève que si le joueur est à portée + 15 px
         detectRadius: 350,                 // au-delà : `wander`, sans décision du réseau
-        dodge: { duration: 0.35, cooldown: 1.8, maxSpeed: 6, maxForce: 1.2 },
+        // Esquive (`evade`) quand le joueur attaque ; réussie (pas touché), elle rend la hallebarde prête
+        // aussitôt : c'est la riposte. Un coup de hallebarde LEVÉ dans les `riposteWindow` s qui suivent et
+        // qui touche est une « riposte qui touche » (c'est elle, et elle seule, que la note récompense)
+        dodge: { duration: 0.35, cooldown: 3, maxSpeed: 6, maxForce: 1.2, riposteWindow: 0.5 },
+        // Déplacement latéral : le boss tourne autour du joueur en visant un point en avance sur le cercle
+        // centré sur le joueur (`seek`, ou `arrive` en approche). Sans ordre du réseau, il rôde : il tourne
+        // lentement (poids `prowlSpeed`) et change de sens toutes les `prowlSwitch` s.
+        // En approche, il vise un point en avance de `latéral × orbitLead` px sur son cercle de garde ;
+        // sinon, un point en avance de `orbitLead` px sur le cercle où il se trouve
+        prowlSpeed: 0.35, prowlSwitch: 3, strafeDeadzone: 0.12, orbitLead: 100,
+        // Ruée qui percute un pilier : le boss reste étourdi `stun` s
+        stun: 1.6,
+        // Anti-camping : le boss dont le centre est à moins de `margin` px de deux murs à la fois est dans
+        // un coin. Son compteur monte d'1 s par seconde dans le coin et redescend de `recover` s par seconde
+        // ailleurs ; à `limit` s, le brouillard le dévore : il meurt (défaite, toute sa vie comptée perdue)
+        camping: { margin: 110, limit: 6, recover: 2 },
         rage: { threshold: 0.3, speedMul: 1.35, cooldownMul: 0.55 },
         // Ruée : vise la position du joueur prédite `predict` s plus tard (comme pursue), visée figée
         // `lockBefore` s avant la fin de la préparation, puis charge en ligne droite (seek du point visé)
@@ -40,6 +56,10 @@ const Combat = {
         // brûle `dps` points de vie par seconde et ralentit (vitesse × `slow`) ; au plus `maxZones` nappes
         breath: { cooldown: 7, predict: 0.5, lifetime: 6, radius: 60, dps: 10, slow: 0.55, maxZones: 3 }
     },
+
+    // Piliers en ruine : obstacles ronds. Ils arrêtent les corps, bloquent les coups et la ligne de vue ;
+    // une ruée qui en percute un l'abîme (`hp` chocs avant effondrement)
+    PILLAR: { r: 28, hp: 2 },
 
     ATTACKS: {
         light: { stamina: 16, windup: 0.12, active: 0.1, recovery: 0.22, damage: 14, reach: 52, arc: Math.PI * 0.6 },
@@ -93,5 +113,17 @@ const Combat = {
         if (d > reach + target.r) return false;
         if (d < 1e-9) return true;
         return Math.abs(Combat.angleDiff(Math.atan2(dy, dx), facing)) <= arc / 2;
+    },
+
+    /**
+     * Pilier qui coupe le segment [a, b] (ligne de vue, trajectoire d'un coup), ou null.
+     * Le segment est coupé si un pilier vivant est à moins de son rayon (+ `margin`) du segment.
+     */
+    blocker(a, b, pillars, margin = 0) {
+        if (!pillars) return null;
+        for (const p of pillars) {
+            if (p.alive && Steering.distanceToSegment(p.pos, a, b) < p.radius + margin) return p;
+        }
+        return null;
     }
 };

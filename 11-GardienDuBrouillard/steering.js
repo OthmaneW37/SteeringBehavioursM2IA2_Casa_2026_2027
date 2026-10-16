@@ -8,7 +8,10 @@
 //   désirée pointe vers l'intérieur ; force = désirée − vitesse, limitée à maxForce. Nulle ailleurs.
 // - keepDistancePoint : point situé à `distance` de la cible, du côté de l'agent ; le boss y fait
 //   `arrive` pour garder sa distance d'attaque.
-// - avoidZones : évitement des nappes de brume (obstacle avoidance) ; distanceToSegment : outil géométrique.
+// - avoidZones : évitement d'obstacles ronds (obstacle avoidance) : nappes de brume et piliers ;
+//   distanceToSegment : outil géométrique.
+// - orbitPoint : point en avance sur un cercle centré sur une cible. Ce n'est pas un comportement : c'est une
+//   cible pour `seek` ou `arrive` (le boss tourne ainsi autour du joueur avec les comportements du cours).
 //
 // Toutes ces fonctions retournent une force ; aucune ne déplace l'entité.
 const Steering = (() => {
@@ -82,6 +85,17 @@ const Steering = (() => {
     return force;
   }
 
+  /**
+   * Point du cercle de rayon `radius` centré sur `center`, en avance de `lead` px (longueur d'arc) sur
+   * l'agent dans le sens `side` (+1 : sens horaire à l'écran, −1 : sens inverse). Avec `lead` = 0, c'est
+   * keepDistancePoint. Le boss y fait `arrive` (approche en spirale vers sa distance d'attaque) ou `seek`
+   * (il tourne autour du joueur à la distance où il se trouve).
+   */
+  function orbitPoint(agent, center, radius, side, lead) {
+    const angle = Math.atan2(agent.pos.y - center.y, agent.pos.x - center.x) + side * lead / radius;
+    return createVector(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius);
+  }
+
   /** Distance du point p au segment [a, b] (ligne de charge du boss). */
   function distanceToSegment(p, a, b) {
     const abx = b.x - a.x, aby = b.y - a.y;
@@ -90,5 +104,5 @@ const Steering = (() => {
     return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
   }
 
-  return { flee, predict, evade, stayInside, keepDistancePoint, avoidZones, distanceToSegment };
+  return { flee, predict, evade, stayInside, keepDistancePoint, avoidZones, orbitPoint, distanceToSegment };
 })();

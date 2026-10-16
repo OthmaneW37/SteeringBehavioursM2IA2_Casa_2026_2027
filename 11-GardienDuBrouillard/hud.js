@@ -57,17 +57,32 @@ const Hud = {
     },
 
     /** Nom de la technique que prépare le boss, au-dessus de lui (aide à lire le combat). */
-    techniqueLabel(boss) {
+    /** Texte au-dessus du boss : technique en préparation, étourdi, ou riposte. */
+    bossLabel(boss) {
         const a = boss.action;
-        if (!a || Combat.phase(a.spec, a.t) !== 'windup') return;
-        const names = { boss: "Hallebarde !", charge: "Ruée !", breath: "Souffle du brouillard !" };
+        if (boss.stun) return { text: "Étourdi !", c: [255, 230, 120] };
+        // Anti-camping : avertissement dès 1 s passée dans un coin, avec le temps restant
+        if (boss.campTime >= Hud.CAMP_WARNING && boss.alive) {
+            return { text: "Le brouillard le dévore… " + Math.max(0, Combat.BOSS.camping.limit - boss.campTime).toFixed(1) + " s", c: [190, 120, 255] };
+        }
+        if (a && Combat.phase(a.spec, a.t) === 'windup') {
+            const names = { boss: "Hallebarde !", charge: "Ruée !", breath: "Souffle du brouillard !" };
+            return { text: names[a.kind] || "", c: a.kind === 'breath' ? [150, 255, 210] : [255, 120, 90] };
+        }
+        if (boss.riposteTime >= 0 && boss.time - boss.riposteTime < Hud.RIPOSTE_LABEL) return { text: "Riposte !", c: [255, 90, 200] };
+        return null;
+    },
+
+    techniqueLabel(boss) {
+        const label = Hud.bossLabel(boss);
+        if (!label) return;
         push();
         textAlign(CENTER, BOTTOM);
         textSize(14);
         fill(0, 0, 0, 160);
-        text(names[a.kind] || "", boss.pos.x + 1, boss.pos.y - boss.r - 13);
-        fill(a.kind === 'breath' ? color(150, 255, 210) : color(255, 120, 90));
-        text(names[a.kind] || "", boss.pos.x, boss.pos.y - boss.r - 14);
+        text(label.text, boss.pos.x + 1, boss.pos.y - boss.r - 13);
+        fill(label.c[0], label.c[1], label.c[2]);
+        text(label.text, boss.pos.x, boss.pos.y - boss.r - 14);
         pop();
     },
 
@@ -135,13 +150,17 @@ const Hud = {
     }
 };
 
+Hud.RIPOSTE_LABEL = 0.8;   // secondes d'affichage de « Riposte ! »
+Hud.CAMP_WARNING = 1;      // secondes dans un coin avant l'avertissement
+
 Hud.CONTROLS = [
     ["ZQSD / flèches", "se déplacer"],
     ["J  /  K", "attaque légère / lourde"],
     ["E", "boire une fiole d'Estus (soin, 1 s planté)"],
     ["Espace", "roulade : esquive le coup du boss"],
     ["L / Tab", "verrouiller la caméra sur le boss"],
-    ["Astuce", "roulez quand le cône ou la ligne rouge se remplit"]
+    ["Astuce", "roulez quand le cône ou la ligne rouge se remplit"],
+    ["Piliers", "ils bloquent les coups ; attirez la ruée dedans"]
 ];
 
 /** Étincelles et textes des coups (effets visuels, durées en secondes). */
@@ -164,6 +183,17 @@ class Effects {
             this.items.push({ kind: 'text', x: event.x, y: event.y - 24, text: "esquivé !", life: 0.8, age: 0, c: [170, 200, 255] });
         } else if (event.type === 'mist') {
             this.items.push({ kind: 'text', x: event.x, y: event.y - 10, text: "brume !", life: 1, age: 0, c: [120, 255, 200] });
+        } else if (event.type === 'camping') {
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 40, text: "dévoré par le brouillard !", life: 2, age: 0, c: [190, 120, 255] });
+        } else if (event.type === 'blocked') {
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 36, text: "paré par le pilier", life: 0.8, age: 0, c: [200, 200, 210] });
+        } else if (event.type === 'crash' || event.type === 'crumble') {
+            for (let i = 0; i < 14; i++) {
+                const a = (i / 14) * Math.PI * 2;
+                this.items.push({ kind: 'spark', x: event.x, y: event.y, vx: Math.cos(a) * (40 + i * 6), vy: Math.sin(a) * (40 + i * 6), life: 0.5, age: 0, c: [170, 160, 150] });
+            }
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 40, text: event.type === 'crumble' ? "le pilier s'effondre !" : "le boss s'écrase !",
+                life: 1.2, age: 0, c: [255, 230, 120] });
         }
     }
 

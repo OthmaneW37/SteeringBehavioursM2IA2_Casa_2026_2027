@@ -52,13 +52,12 @@ function safeStorage() {
     }
 }
 
-/** Boss fourni ; s'il n'a pas l'architecture attendue (fichier d'une ancienne version), réseau au hasard. */
+/** Boss fourni ; converti s'il date d'une version précédente ; réseau au hasard s'il est illisible. */
 function loadPretrained() {
     try {
-        const nn = NeuralNetwork.fromJSON(PRETRAINED_BOSS.brain);
-        if (nn.sizes.join(',') === BossBrain.SIZES.join(',')) return nn;
+        return TrainingStore.checkBrain(PRETRAINED_BOSS.brain, true);
     } catch (e) { /* message ci-dessous */ }
-    setTimeout(() => setStatus("Le boss fourni date d'une ancienne version : il est remplacé par un boss au hasard. " +
+    setTimeout(() => setStatus("Le boss fourni est illisible : il est remplacé par un boss au hasard. " +
         "Lancez un entraînement ou régénérez-le avec « node tools/pretrain.mjs ».", true), 0);
     return BossBrain.create(Math.random);
 }
@@ -96,7 +95,8 @@ function setup() {
         game.training = saved.training;
         game.lastGeneration = saved.training.generation;
         applySettingsToControls(saved.training.settings);
-        byId('saveInfo').textContent = "Entraînement retrouvé : génération " + saved.training.generation + " (sauvegarde automatique).";
+        byId('saveInfo').textContent = "Entraînement retrouvé : génération " + saved.training.generation + " (sauvegarde automatique)." +
+            conversionNote(saved.training);
     } else {
         newTraining();
         if (saved.error) setStatus(saved.error, true);
@@ -109,6 +109,8 @@ function setup() {
     game.camera.snap(Camera.target(game.arena, width, height, true, game.fight.player, game.fight.boss));
     showMode();
     showHelpOnFirstVisit();
+    // Sauvegarde d'avant les piliers : le message reste dans la ligne d'état (saveInfo est réécrit à chaque sauvegarde)
+    if (game.training.convertedFrom) setStatus(conversionNote(game.training).trim());
 }
 
 // --- Réglages ---
@@ -223,6 +225,12 @@ function settingsChanged() {
     }
     if (game.training) game.training.updateSettings(game.settings);
     if (game.fight) game.fight.boss.detectRadius = game.settings.detectRadius;
+}
+
+/** Message pour une sauvegarde d'avant les piliers, convertie au chargement. */
+function conversionNote(training) {
+    return training.convertedFrom ? " Votre entraînement date d'une version précédente (" + (training.convertedFrom === 2 ? "avant les piliers" : "avant l'anti-camping") +
+        ") : ses cerveaux ont été convertis (16 entrées, 6 sorties) et gardent ce qu'ils avaient appris ; le champion repasse l'examen avec les nouvelles règles." : "";
 }
 
 // --- Aide ---
@@ -415,7 +423,8 @@ function startFight() {
         bossController: bossController(kind),
         maxTime: Infinity,
         detectRadius: game.settings.detectRadius,
-        estus: game.settings.estusCharges
+        estus: game.settings.estusCharges,
+        pillars: game.settings.pillarCount
     });
     game.state = 'fight';
     game.stateTime = 0;
@@ -451,6 +460,7 @@ function updateCombat(dt) {
             Bloodstain.save(game.storage, game.bloodstains);
         } else if (!f.boss.alive) {
             game.state = 'victory';
+            game.victoryCause = f.boss.stats.camped ? 'camping' : null;
             game.stateTime = 0;
         }
     } else if (game.state === 'dead' && game.stateTime > 3.5) {
@@ -576,7 +586,8 @@ function updateTraining(dt) {
             bossController: new NeuralBossController(championBrain()),
             maxTime: game.settings.maxFightTime,
             detectRadius: game.settings.detectRadius,
-        estus: game.settings.estusCharges
+        estus: game.settings.estusCharges,
+        pillars: game.settings.pillarCount
         });
         game.replay.overTime = 0;
         game.accumulator = 0;
@@ -616,7 +627,7 @@ function importTraining(file) {
             autosave(true);
             startFight();
             updateTrainingButton();
-            setStatus("Entraînement importé : génération " + t.generation + ". " + championLabel());
+            setStatus("Entraînement importé : génération " + t.generation + ". " + championLabel() + conversionNote(t));
         } catch (e) {
             setStatus("Import refusé : " + e.message, true);
         }
@@ -762,12 +773,13 @@ function drawPantheonOverlay() {
     const grid = tour.grid();
     const best = CrossTournament.bestPerTrial(grid);
     const nameW = 190, rowH = 30, y0 = 100;
-    const colW = constrain((width - x0 - nameW - 40) / 10, 50, 92);
+    const colW = constrain((width - x0 - nameW - 40) / 11, 48, 92);
     const heatCols = tour.trials.map(t => t.label).concat(["Moyenne"]);
     const styleCols = [
         { label: "Frappes", key: 'avgAttacks', digits: 1 },
         { label: "Ruées", key: 'avgCharges', digits: 1 },
         { label: "Souffles", key: 'avgBreaths', digits: 1 },
+        { label: "Esquives", key: 'avgDodges', digits: 1 },
         { label: "Coups reçus", key: 'avgDamageTaken', digits: 0 },
         { label: "Fioles bues", key: 'avgDrinks', digits: 1 }
     ];
@@ -899,7 +911,9 @@ function drawEntities(fight, effects, stains = null) {
     game.arena.showFloor();
     if (stains) for (const b of stains) b.show(game.time, Math.hypot(player.pos.x - b.pos.x, player.pos.y - b.pos.y) < 45);
     game.campfire.show(game.time);
+    game.arena.showCorners(boss.r, Combat.BOSS.camping.margin, boss.campTime / Combat.BOSS.camping.limit, game.time);
     for (const z of fight.zones) z.show(game.time);
+    for (const p of fight.pillars) p.show();
     if (game.debug) DebugPanel.drawWorld(boss, player, game.arena);
     boss.showTelegraph();
     player.show();
@@ -994,7 +1008,8 @@ function drawCombatHud(dt) {
         Hud.banner("VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
             color(170, 20, 20), Math.min(1, game.stateTime / 0.8));
     } else if (game.state === 'victory') {
-        Hud.banner("ENNEMI VAINCU", "Temps " + f.time.toFixed(1) + " s · morts " + game.deaths + " · R pour recommencer",
+        Hud.banner("ENNEMI VAINCU", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
+            "Temps " + f.time.toFixed(1) + " s · morts " + game.deaths + " · R pour recommencer",
             color(230, 190, 90), Math.min(1, game.stateTime / 0.8));
     } else if (game.paused) {
         Hud.banner("PAUSE", "P pour reprendre", color(220, 220, 220), 1);
@@ -1090,7 +1105,8 @@ function drawComparisonOverlay() {
             " · reçus " + s.avgDamageTaken.toFixed(0) + " · coups dans le vide " + s.avgWhiffs.toFixed(1), x0, y + 52);
         fill(170);
         text("Par combat : " + s.avgAttacks.toFixed(1) + " coups de hallebarde · " + s.avgCharges.toFixed(1) + " ruées · " +
-            s.avgBreaths.toFixed(1) + " souffles · le joueur boit " + s.avgDrinks.toFixed(1) + " fiole(s)", x0, y + 70);
+            s.avgBreaths.toFixed(1) + " souffles · " + s.avgDodges.toFixed(1) + " esquives (" + s.avgRipostes.toFixed(1) + " ripostes) · " +
+            "immobile " + Math.round(s.idleShare * 100) + " % du temps · le joueur boit " + s.avgDrinks.toFixed(1) + " fiole(s)", x0, y + 70);
     });
     fill(40);
     rect(x0, 350, barW, 8, 3);

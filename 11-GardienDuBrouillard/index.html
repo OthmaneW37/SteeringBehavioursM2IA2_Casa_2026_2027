@@ -5,47 +5,48 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Le Gardien du Brouillard</title>
-    <link rel="stylesheet" type="text/css" href="style.css?v=9">
+    <link rel="stylesheet" type="text/css" href="style.css?v=12">
 
     <!-- p5.js en local (comme les autres exemples) -->
     <script src="libraries/p5.min.js"></script>
 
     <!-- Une dépendance avant ce qui l'utilise ; sketch.js en dernier -->
-    <script src="vehicle.js?v=9"></script>
-    <script src="steering.js?v=9"></script>
-    <script src="combat.js?v=9"></script>
-    <script src="arena.js?v=9"></script>
-    <script src="NeuralNetwork.js?v=9"></script>
-    <script src="campfire.js?v=9"></script>
-    <script src="mistPatch.js?v=9"></script>
-    <script src="bloodstain.js?v=9"></script>
-    <script src="player.js?v=9"></script>
-    <script src="boss.js?v=9"></script>
-    <script src="bossBrain.js?v=9"></script>
-    <script src="handBoss.js?v=9"></script>
-    <script src="scriptedPlayer.js?v=9"></script>
-    <script src="humanController.js?v=9"></script>
-    <script src="fight.js?v=9"></script>
-    <script src="fitness.js?v=9"></script>
-    <script src="genetic.js?v=9"></script>
-    <script src="training.js?v=9"></script>
-    <script src="trainingStore.js?v=9"></script>
-    <script src="comparison.js?v=9"></script>
-    <script src="demo.js?v=9"></script>
-    <script src="settings.js?v=9"></script>
-    <script src="scenarios.js?v=9"></script>
-    <script src="trials.js?v=9"></script>
-    <script src="doctrines.js?v=9"></script>
-    <script src="pretrainedBoss.js?v=9"></script>
-    <script src="pretrainedPantheon.js?v=9"></script>
-    <script src="pantheon.js?v=9"></script>
-    <script src="tournament.js?v=9"></script>
-    <script src="fitnessChart.js?v=9"></script>
-    <script src="debugPanel.js?v=9"></script>
-    <script src="hud.js?v=9"></script>
-    <script src="camera.js?v=9"></script>
-    <script src="menuToggle.js?v=9"></script>
-    <script src="sketch.js?v=9"></script>
+    <script src="vehicle.js?v=12"></script>
+    <script src="steering.js?v=12"></script>
+    <script src="combat.js?v=12"></script>
+    <script src="arena.js?v=12"></script>
+    <script src="NeuralNetwork.js?v=12"></script>
+    <script src="campfire.js?v=12"></script>
+    <script src="mistPatch.js?v=12"></script>
+    <script src="pillar.js?v=12"></script>
+    <script src="bloodstain.js?v=12"></script>
+    <script src="player.js?v=12"></script>
+    <script src="boss.js?v=12"></script>
+    <script src="bossBrain.js?v=12"></script>
+    <script src="handBoss.js?v=12"></script>
+    <script src="scriptedPlayer.js?v=12"></script>
+    <script src="humanController.js?v=12"></script>
+    <script src="fight.js?v=12"></script>
+    <script src="fitness.js?v=12"></script>
+    <script src="genetic.js?v=12"></script>
+    <script src="training.js?v=12"></script>
+    <script src="trainingStore.js?v=12"></script>
+    <script src="comparison.js?v=12"></script>
+    <script src="demo.js?v=12"></script>
+    <script src="settings.js?v=12"></script>
+    <script src="scenarios.js?v=12"></script>
+    <script src="trials.js?v=12"></script>
+    <script src="doctrines.js?v=12"></script>
+    <script src="pretrainedBoss.js?v=12"></script>
+    <script src="pretrainedPantheon.js?v=12"></script>
+    <script src="pantheon.js?v=12"></script>
+    <script src="tournament.js?v=12"></script>
+    <script src="fitnessChart.js?v=12"></script>
+    <script src="debugPanel.js?v=12"></script>
+    <script src="hud.js?v=12"></script>
+    <script src="camera.js?v=12"></script>
+    <script src="menuToggle.js?v=12"></script>
+    <script src="sketch.js?v=12"></script>
 </head>
 
 <body>
@@ -190,6 +191,10 @@
                 <input type="range" id="estusCharges" min="0" max="5" step="1" value="2">
             </div>
             <div class="control">
+                <label for="pillarCount">Piliers dans l'arène : <span id="pillarCountVal">4</span></label>
+                <input type="range" id="pillarCount" min="0" max="6" step="1" value="4">
+            </div>
+            <div class="control">
                 <label for="maxFightTime">Durée max d'un combat (s) : <span id="maxFightTimeVal">90</span></label>
                 <input type="range" id="maxFightTime" min="20" max="120" step="5" value="90">
             </div>
@@ -224,15 +229,32 @@
         <p>Chaque fiole rend 25 points de vie, mais boire prend une seconde pendant laquelle on avance à peine. Si le boss
             vous touche avant que le soin n'agisse, la gorgée est perdue. Buvez loin de lui, ou pendant qu'il récupère.
             Le joueur robot boit aussi : le boss peut donc <i>apprendre</i> à punir ce moment.</p>
+        <h3>Les piliers en ruine</h3>
+        <ul>
+            <li>On ne les traverse pas. Le boss et le joueur robot les contournent (<i>évitement d'obstacles</i>).</li>
+            <li>Un pilier entre le boss et vous <b>pare ses coups</b>, et les vôtres aussi.</li>
+            <li>Cachez-vous derrière pour <b>boire une fiole</b> : le joueur robot le fait, le boss doit venir le débusquer.</li>
+            <li>Attirez sa <b>ruée</b> contre un pilier : il s'écrase et reste <b>étourdi 1,6 s</b>. Au deuxième choc, le pilier s'effondre.</li>
+        </ul>
+        <h3>Pas de camping dans les coins</h3>
+        <p>Le Gardien est lié au centre de l'arène. S'il reste trop longtemps dans un coin (6 s), le brouillard
+            le <b>dévore</b> : le coin s'assombrit en violet, un compte à rebours s'affiche au-dessus de lui, puis il
+            meurt. Pendant l'entraînement, c'est une défaite complète : les boss apprennent à ne pas se terrer
+            dans les coins.</p>
+        <h3>L'esquive et la riposte du boss</h3>
+        <p>Quand vous attaquez, le boss peut esquiver. S'il esquive sans être touché, il <b>riposte</b> : sa hallebarde est
+            prête aussitôt. N'attaquez donc pas n'importe quand : frappez pendant sa récupération ou quand il est étourdi.</p>
         <h3>Le « cerveau » du boss</h3>
-        <p>Le boss n'a pas de règles écrites à la main. Il a un petit <b>réseau de neurones</b> : 12 informations
-            entrent (distance au joueur, angle, vitesse, fatigue et vie du joueur, s'il est vulnérable, la vie du boss,
-            le temps de recharge de chaque technique, la distance aux murs) et 5 décisions sortent : <b>avancer ou
-            reculer</b>, <b>hallebarde</b>, <b>esquiver</b>, <b>ruée</b>, <b>souffle</b>. Ce sont les comportements de
-            Reynolds qui exécutent ces décisions : <i>arrive</i> pour s'approcher sans foncer, <i>flee</i> pour reculer,
-            <i>evade</i> pour esquiver, <i>seek</i> vers un point prédit pour la ruée (comme <i>pursue</i>), <i>wander</i>
-            pour errer quand le joueur est loin. Le joueur robot, lui, contourne les nappes de brume avec un comportement
-            d'<i>évitement d'obstacles</i>.</p>
+        <p>Le boss n'a pas de règles écrites à la main. Il a un petit <b>réseau de neurones</b> : 16 informations
+            entrent (distance au joueur, angle, vitesse, fatigue et vie du joueur, s'il est vulnérable, <b>s'il attaque</b>,
+            la vie du boss, le temps de recharge de chaque technique et de l'esquive, les obstacles à gauche et à droite,
+            <b>si un pilier vous cache</b>, <b>depuis combien de temps il est dans un coin</b>) et 6 décisions sortent : <b>avancer ou reculer</b>, <b>hallebarde</b>,
+            <b>esquiver</b>, <b>ruée</b>, <b>souffle</b>, <b>tourner autour de vous</b>. Ce sont les comportements de
+            Reynolds qui exécutent ces décisions : <i>arrive</i> pour s'approcher sans foncer (en spirale), <i>seek</i>
+            vers un point en avance sur le cercle pour tourner autour du joueur, <i>flee</i> pour reculer, <i>evade</i> pour esquiver, <i>seek</i> vers un
+            point prédit pour la ruée (comme <i>pursue</i>), <i>wander</i> pour errer quand le joueur est loin, et
+            l'<i>évitement d'obstacles</i> pour contourner les piliers. S'il ne reçoit aucun ordre latéral, il
+            <b>rôde</b> : il ne reste jamais planté à vous regarder.</p>
         <h3>Comment il apprend : la sélection naturelle</h3>
         <ol>
             <li>On crée 50 boss avec des cerveaux au hasard : ils font n'importe quoi.</li>
@@ -240,7 +262,8 @@
                 techniques du boss, punit le boss quand il récupère, se repose quand il est fatigué, contourne la brume et
                 boit ses 2 fioles quand il est à l'abri.</li>
             <li>Chaque boss reçoit une <b>note</b> : dégâts infligés, moins dégâts reçus, plus un bonus s'il gagne,
-                moins une pénalité pour chaque coup dans le vide.</li>
+                moins une pénalité pour chaque coup dans le vide, plus un bonus pour chaque <b>riposte qui touche</b>
+                (une esquive réussie suivie d'un coup de hallebarde qui touche).</li>
             <li>Les mieux notés ont des « enfants » : des copies avec de petites modifications au hasard
                 (<b>mutations</b>). C'est une nouvelle <b>génération</b>.</li>
             <li>Les 2 meilleurs passent un examen de 30 combats toujours identiques. Le <b>champion</b> est celui
@@ -256,7 +279,7 @@
             qu'il affronte. Tous les boss du Panthéon sont partis de la même population de départ, avec le même
             nombre de générations ; seule la recette change.</p>
         <ul>
-            <li><b>Le Gardien</b> : la recette de référence.</li>
+            <li><b>Le Gardien</b> : la recette de référence (avec un bonus à chaque riposte).</li>
             <li><b>Le Bourreau</b> : sa note compte surtout les dégâts infligés ; les coups reçus comptent peu.</li>
             <li><b>Le Spectre</b> : sa note punit surtout les coups reçus.</li>
             <li><b>Le Chasseur</b> : entraîné contre un joueur robot expert.</li>

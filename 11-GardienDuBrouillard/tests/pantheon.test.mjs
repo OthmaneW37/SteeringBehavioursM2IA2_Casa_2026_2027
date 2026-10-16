@@ -54,7 +54,7 @@ test('recettes : Gardien = note de référence, épreuves existantes, poids posi
     assert.ok(!ids.has(d.id));
     ids.add(d.id);
     Trials.get(d.trial);
-    for (const k of ['dealt', 'received', 'win', 'whiff', 'drink']) assert.ok(Number.isFinite(d.weights[k]) && d.weights[k] >= 0, d.id + '.' + k);
+    for (const k of ['dealt', 'received', 'win', 'whiff', 'drink', 'riposte']) assert.ok(Number.isFinite(d.weights[k]) && d.weights[k] >= 0, d.id + '.' + k);
     assert.equal(d.color.length, 3);
     assert.match(Doctrines.summary(d.id), /Note : dégâts infligés/);
     assert.deepEqual(plain(Doctrines.settings(d.id)), plain(Trials.settings(d.trial)));
@@ -62,6 +62,9 @@ test('recettes : Gardien = note de référence, épreuves existantes, poids posi
   // Recettes de note : elles diffèrent bien du Gardien dans le sens annoncé
   assert.ok(Doctrines.get('bourreau').weights.dealt > gardien.weights.dealt && Doctrines.get('bourreau').weights.received < gardien.weights.received);
   assert.ok(Doctrines.get('spectre').weights.received > gardien.weights.received && Doctrines.get('spectre').weights.dealt < gardien.weights.dealt);
+  assert.match(Doctrines.summary('gardien'), /riposte qui touche \+ 15/);
+  for (const d of Doctrines.LIST) assert.equal(d.weights.riposte, Fitness.WEIGHTS.riposte, d.id + ' : bonus de riposte de référence');
+  assert.throws(() => Doctrines.get('brute'), { name: 'RangeError' }, 'la Brute a été retirée (identique au Gardien)');
   assert.throws(() => Doctrines.get('inconnue'), { name: 'RangeError' });
 });
 
@@ -118,7 +121,7 @@ test('Panthéon : boss fournis, un par recette, architecture vérifiée', () => 
   assert.deepEqual(plain(list.map(e => e.doctrine)), plain(Doctrines.LIST.map(d => d.id)), 'un boss fourni par recette, dans l\'ordre');
   for (const e of list) {
     assert.equal(e.builtin, true);
-    assert.deepEqual(plain(e.brain.sizes), [12, 16, 5]);
+    assert.deepEqual(plain(e.brain.sizes), [16, 16, 6]);
     assert.equal(e.trial, Doctrines.get(e.doctrine).trial);
     assert.ok(e.winRate >= 0 && e.winRate <= 1);
     assert.match(Pantheon.describe(e), /fourni/);

@@ -31,7 +31,7 @@ export function lcg(seed = 12345) {
 
 // Ordre de chargement = ordre des scripts de index.html (sketch.js exclu : il n'est pas exécutable sous Node)
 export const FILES = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js',
-  'mistPatch.js', 'bloodstain.js', 'player.js', 'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js',
+  'mistPatch.js', 'pillar.js', 'bloodstain.js', 'player.js', 'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js',
   'fitness.js', 'genetic.js', 'training.js', 'trainingStore.js', 'comparison.js', 'demo.js', 'settings.js', 'scenarios.js', 'trials.js', 'doctrines.js', 'pretrainedBoss.js', 'pretrainedPantheon.js', 'pantheon.js', 'tournament.js',
   'fitnessChart.js', 'debugPanel.js', 'hud.js', 'camera.js', 'menuToggle.js'];
 

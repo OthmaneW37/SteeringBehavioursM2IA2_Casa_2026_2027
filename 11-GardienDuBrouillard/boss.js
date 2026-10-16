@@ -1,14 +1,21 @@
 // Le Gardien du Brouillard : sous-classe de Vehicle (vehicle.js, fourni et protégé).
 //
 // Le boss ne décide pas lui-même : un contrôleur (réseau de neurones ou machine à états) lui donne
-// une décision { mode: 'approach' | 'retreat' | 'hold', speed: 0..1, attack, dodge, charge, breath: bool,
-// order: techniques voulues, de la plus voulue à la moins voulue }.
-// Le boss la traduit en forces :
+// une décision { mode: 'approach' | 'retreat' | 'hold', speed: 0..1, strafe: −1..1, attack, dodge, charge,
+// breath: bool, order: techniques voulues, de la plus voulue à la moins voulue }.
+// Le boss la traduit en forces, additionnées (composition de Reynolds) :
 //   approche → `arrive` vers un point à distance d'attaque (il ralentit au lieu de foncer dessus) ;
 //   recul    → `flee` (Reynolds, steering.js) ;
-//   esquive  → `evade` (fuite de la position prédite du joueur) pendant 0,35 s ;
+//   latéral  → `seek` vers un point en avance sur le cercle centré sur le joueur (Steering.orbitPoint) :
+//              il tourne autour du joueur, du côté et avec le poids donnés par `strafe`.
+//              Si `strafe` est presque nul, il RÔDE : il tourne lentement et change de sens toutes les
+//              3 s. Le boss ne reste donc jamais planté à regarder le joueur ;
+//   esquive  → `evade` (fuite de la position prédite du joueur) pendant 0,35 s, quand le joueur attaque.
+//              Une esquive où il n'est pas touché rend sa hallebarde prête aussitôt : c'est la RIPOSTE ;
 //   joueur hors du rayon de détection → `wander`, sans décision du contrôleur ;
-//   toujours → confinement `stayInside` près des murs.
+//   toujours → évitement des piliers (`avoidZones`) et confinement `stayInside` près des murs.
+// Une ruée qui percute un pilier l'étourdit 1,6 s (il ne peut rien faire, il est à la merci du joueur).
+// `campTime` : temps passé dans un coin (règle anti-camping, appliquée par le combat).
 //
 // Trois techniques, chacune avec sa propre attente (cooldown) :
 //   hallebarde : 0,6 s de préparation visible (cône rouge), 0,15 s de frappe, 1 s de récupération ;
@@ -42,13 +49,19 @@ class Boss extends Vehicle {
         this.dodgeCooldown = 0;
         this.pendingZone = null;  // nappe de brume à créer (lue et vidée par le combat)
         this.action = null;       // attaque en cours
-        this.dodge = null;        // esquive en cours : { t }
+        this.dodge = null;        // esquive en cours : { t, hit }
+        this.stun = null;         // étourdi après une ruée contre un pilier : { t }
+        this.prowlSide = 1;       // sens dans lequel il rôde (+1 ou −1)
+        this.pillars = null;      // piliers du combat (évitement, rayons du réseau)
+        this.riposteTime = -1;    // instant de la dernière riposte (effet visuel, riposte qui touche)
+        this.campTime = 0;        // compteur du coin (anti-camping, voir fight.js)
         this.facing = Math.PI;
         this.wandering = false;
         this.hurtTimer = 0;
         this.rageTime = -1;       // instant (s) du passage en phase enragée, pour l'effet visuel
         this.time = 0;
-        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0, charges: 0, breaths: 0 };
+        // idleTime : secondes passées immobile alors qu'il décide (joueur dans son rayon) et qu'il est libre
+        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0, ripostes: 0, riposteHits: 0, charges: 0, breaths: 0, crashes: 0, idleTime: 0, camped: false };
     }
 
     flee(target) {
@@ -89,12 +102,51 @@ class Boss extends Vehicle {
         return false;
     }
 
+    /**
+     * La hallebarde ne se lève que si le joueur est à portée (+ `swingMargin`) : le boss ne frappe pas
+     * l'air depuis l'autre bout de l'arène (il resterait planté à enchaîner les coups). La ruée et le
+     * souffle sont des techniques à distance : toujours possibles.
+     */
+    inRange(kind, dist, player) {
+        if (kind !== 'attack') return true;
+        return dist <= Combat.ATTACKS.boss.reach + player.r + Combat.BOSS.swingMargin;
+    }
+
     isAttacking() {
         return this.action !== null;
     }
 
     canAct() {
-        return this.alive && this.action === null && this.dodge === null;
+        return this.alive && this.action === null && this.dodge === null && this.stun === null;
+    }
+
+    /** Peut-il esquiver maintenant ? Libre (ni technique, ni esquive, ni étourdi) et esquive prête. */
+    canDodge() {
+        return this.canAct() && this.dodgeCooldown <= 0;
+    }
+
+    /** Sens dans lequel il rôde en ce moment : prowlSide, inversé toutes les prowlSwitch secondes. */
+    prowlSideNow() {
+        return Math.floor(this.time / Combat.BOSS.prowlSwitch) % 2 === 0 ? this.prowlSide : -this.prowlSide;
+    }
+
+    startDodge() {
+        const B = Combat.BOSS;
+        this.dodge = { t: 0, hit: false };
+        this.dodgeCooldown = B.dodge.cooldown;
+        this.maxSpeed = B.dodge.maxSpeed * this.speedMultiplier();
+        this.maxForce = B.dodge.maxForce;
+        this.stats.dodges++;
+    }
+
+    /** Ruée écrasée contre un pilier : la charge s'arrête net, le boss est étourdi. */
+    crash() {
+        this.action = null;
+        this.stun = { t: 0 };
+        this.vel.set(0, 0);
+        this.maxSpeed = this.baseSpeed;
+        this.maxForce = this.baseForce;
+        this.stats.crashes++;
     }
 
     /** Applique une décision du contrôleur (sélection de l'action → steering). */
@@ -104,14 +156,19 @@ class Boss extends Vehicle {
         const dist = p5.Vector.dist(this.pos, player.pos);
         this.wandering = false;
 
-        if (!this.alive) {
+        if (!this.alive || this.stun) {
             this.applyForce(this.arrive(this.pos));
             return;
         }
 
+        // Esquive en priorité : le joueur prépare ou porte un coup
+        if (decision.dodge && player.alive && player.isAttacking() && dist <= this.detectRadius && this.canDodge()) this.startDodge();
+
+        let avoid = true;
         if (this.dodge) {
             this.applyForce(this.evade(player));
         } else if (this.action) {
+            avoid = !(this.action.kind === 'charge' && Combat.phase(this.action.spec, this.action.t) === 'active');
             this.performAction(player, arena, dt, toPlayer);
         } else if (dist > this.detectRadius || !player.alive) {
             // Joueur hors de portée : errance, sans décision
@@ -119,19 +176,37 @@ class Boss extends Vehicle {
             this.maxSpeed = this.baseSpeed * 0.6;
             this.applyForce(this.wander());
         } else {
-            this.maxSpeed = this.baseSpeed * this.speedMultiplier() * (0.35 + 0.65 * decision.speed);
+            // Latéral : ordre du contrôleur, sinon il rôde (sens qui change toutes les prowlSwitch s)
+            const strafe = decision.strafe || 0;
+            let side, lateral;
+            if (Math.abs(strafe) >= B.strafeDeadzone) {
+                side = Math.sign(strafe);
+                lateral = Math.min(1, Math.abs(strafe));
+            } else {
+                side = this.prowlSideNow();
+                lateral = B.prowlSpeed;
+            }
+            const radial = decision.mode === 'hold' ? 0 : decision.speed;
+            this.maxSpeed = this.baseSpeed * this.speedMultiplier() * (0.35 + 0.65 * Math.max(radial, lateral));
             this.maxForce = this.baseForce * this.speedMultiplier();
             if (decision.mode === 'approach') {
-                this.applyForce(this.arrive(Steering.keepDistancePoint(this, player.pos, B.keepDistance)));
-            } else if (decision.mode === 'retreat') {
-                this.applyForce(this.flee(player.pos));
+                // `arrive` vers un point en avance sur le cercle de garde : approche en spirale, puis il tourne
+                this.applyForce(this.arrive(Steering.orbitPoint(this, player.pos, B.keepDistance, side, lateral * B.orbitLead)));
             } else {
-                this.applyForce(this.arrive(this.pos));
+                if (decision.mode === 'retreat') this.applyForce(this.flee(player.pos));
+                // `seek` vers un point en avance sur le cercle où il se trouve : il tourne autour du joueur
+                const radius = Math.max(dist, 1);
+                this.applyForce(this.seek(Steering.orbitPoint(this, player.pos, radius, side, B.orbitLead)).mult(lateral));
             }
         }
 
+        // Évitement des piliers (sauf en pleine ruée : il fonce droit, quitte à s'écraser)
+        if (avoid && this.pillars) this.applyForce(Steering.avoidZones(this, this.pillars.filter(p => p.alive), 80, 10).mult(1.5));
         // Confinement : priorité forte près des murs
         this.applyForce(Steering.stayInside(this, arena, 70).mult(1.5));
+
+        // Mesure : immobile alors qu'il décide (joueur dans son rayon) et qu'il est libre
+        if (!this.wandering && !this.action && !this.dodge && player.alive && this.vel.mag() < Boss.IDLE_SPEED) this.stats.idleTime += dt;
 
         if (!this.action) {
             const target = this.wandering ? this.vel.heading() : toPlayer;
@@ -140,16 +215,8 @@ class Boss extends Vehicle {
 
         if (!this.canAct() || !player.alive || this.wandering) return;
         const order = decision.order || ['attack', 'charge', 'breath'];
-        const wanted = order.find(k => decision[k] && this.ready(k));
-        if (wanted) {
-            this.startTechnique(wanted, player, arena);
-        } else if (decision.dodge && player.isAttacking() && this.dodgeCooldown <= 0) {
-            this.dodge = { t: 0 };
-            this.dodgeCooldown = B.dodge.cooldown;
-            this.maxSpeed = B.dodge.maxSpeed * this.speedMultiplier();
-            this.maxForce = B.dodge.maxForce;
-            this.stats.dodges++;
-        }
+        const wanted = order.find(k => decision[k] && this.ready(k) && this.inRange(k, dist, player));
+        if (wanted) this.startTechnique(wanted, player, arena);
     }
 
     /** Début d'une technique : son action, son attente, sa visée. */
@@ -157,6 +224,8 @@ class Boss extends Vehicle {
         const B = Combat.BOSS;
         if (kind === 'attack') {
             this.action = Combat.newAttack('boss', this.facing);
+            // Coup levé juste après une riposte : s'il touche, c'est une riposte qui touche
+            this.action.riposte = this.riposteTime >= 0 && this.time - this.riposteTime <= B.dodge.riposteWindow;
             this.cooldown = this.attackCooldown();
             this.stats.attacks++;
         } else if (kind === 'charge') {
@@ -236,6 +305,7 @@ class Boss extends Vehicle {
 
     receiveHit(damage) {
         if (!this.alive) return false;
+        if (this.dodge) this.dodge.hit = true;   // touché pendant l'esquive : pas de riposte
         const wasEnraged = this.enraged;
         this.hp = Math.max(0, this.hp - damage);
         this.hurtTimer = 0.2;
@@ -265,10 +335,20 @@ class Boss extends Vehicle {
         if (this.dodge) {
             this.dodge.t += dt;
             if (this.dodge.t >= Combat.BOSS.dodge.duration) {
+                // Riposte : esquive réussie, la hallebarde est prête tout de suite
+                if (!this.dodge.hit && this.alive) {
+                    this.cooldown = 0;
+                    this.stats.ripostes++;
+                    this.riposteTime = this.time;
+                }
                 this.dodge = null;
                 this.maxSpeed = this.baseSpeed;
                 this.maxForce = this.baseForce;
             }
+        }
+        if (this.stun) {
+            this.stun.t += dt;
+            if (this.stun.t >= Combat.BOSS.stun) this.stun = null;
         }
     }
 
@@ -284,6 +364,8 @@ class Boss extends Vehicle {
         this.pendingZone = null;
         this.action = null;
         this.dodge = null;
+        this.stun = null;
+        this.campTime = 0;
         this.maxSpeed = this.baseSpeed;
         this.maxForce = this.baseForce;
         this.rageTime = -1;
@@ -381,6 +463,15 @@ class Boss extends Vehicle {
             strokeWeight(6);
             circle(this.pos.x, this.pos.y, this.r * 2 + k * 400);
         }
+        // Étourdi : étoiles qui tournent au-dessus de lui
+        if (this.stun) {
+            noStroke();
+            fill(255, 230, 120);
+            for (let i = 0; i < 3; i++) {
+                const a = this.time * 6 + i * 2.1;
+                circle(this.pos.x + Math.cos(a) * this.r * 0.8, this.pos.y - this.r - 6 + Math.sin(a) * 6, 7);
+            }
+        }
         translate(this.pos.x, this.pos.y);
         rotate(this.facing);
         // Cape de brouillard
@@ -435,3 +526,5 @@ class Boss extends Vehicle {
         pop();
     }
 }
+
+Boss.IDLE_SPEED = 0.3;   // en dessous (px par pas), le boss est compté comme immobile

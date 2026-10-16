@@ -11,6 +11,7 @@ const Settings = {
         attackInterval: { min: 0.4, max: 2, step: 0.1, initial: 0.9, decimals: 1, label: "Intervalle d'attaque du scripté (s)" },
         detectRadius: { min: 150, max: 600, step: 10, initial: 350, decimals: 0, label: "Rayon de détection du boss" },
         estusCharges: { min: 0, max: 5, step: 1, initial: 2, decimals: 0, label: "Fioles d'Estus du chevalier" },
+        pillarCount: { min: 0, max: 6, step: 1, initial: 4, decimals: 0, label: "Piliers dans l'arène" },
         maxFightTime: { min: 20, max: 120, step: 5, initial: 90, decimals: 0, label: "Durée max d'un combat (s)" },
         trainingBudget: { min: 500, max: 30000, step: 500, initial: 6000, decimals: 0, label: "Pas de simulation par image" }
     },
