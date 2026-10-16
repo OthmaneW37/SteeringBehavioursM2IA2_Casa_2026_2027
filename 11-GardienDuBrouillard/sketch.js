@@ -25,7 +25,9 @@ const game = {
     human: null,
     effects: null,
     fight: null,             // combat joué au clavier (Fight contre un boss, ou PackFight contre la meute)
-    state: 'fight',          // 'fight', 'dead' ou 'victory'
+    state: 'fight',          // 'fight', 'dead', 'victory', 'rest' (feu de camp) ou 'complete' (campagne finie)
+    campaign: null,          // campagne en cours (CampaignRun), ou null pour un combat libre
+    stepTime: 0,             // secondes depuis le début de l'étape (carte de titre)
     stateTime: 0,
     deaths: 0,
     paused: false,
@@ -185,7 +187,8 @@ function initControls() {
     }
     byId('labBackBtn').addEventListener('click', () => goScreen('title'));
     // Pause, Options, tutoriel
-    byId('opponentSelect').addEventListener('change', startFight);
+    // Choisir un adversaire dans la pause : on quitte la campagne pour un combat libre
+    byId('opponentSelect').addEventListener('change', () => { game.campaign = null; startFight(); });
     byId('restartFightBtn').addEventListener('click', () => { startFight(); closePause(); });
     byId('resumeBtn').addEventListener('click', closePause);
     byId('pauseOptionsBtn').addEventListener('click', () => openOptions('pause'));
@@ -508,7 +511,7 @@ function applyScreen(name) {
 }
 
 function refreshTitleMenu() {
-    game.titleMenu.setEnabled('continue', game.fightStarted && game.state !== 'victory');
+    game.titleMenu.setEnabled('continue', game.fightStarted && game.state !== 'victory' && game.state !== 'complete');
     for (const b of document.querySelectorAll('#titleMenu button')) {
         const item = game.titleMenu.items[game.titleMenu.find(b.dataset.item)];
         b.disabled = !item.enabled;
@@ -519,9 +522,7 @@ function refreshTitleMenu() {
 function activateMenu(id) {
     if (!game.screens.interactive || !game.titleMenu.select(id)) return;
     if (id === 'new') {
-        startFight();
-        game.fightStarted = true;
-        goScreen('combat');
+        startCampaign();
     } else if (id === 'continue') {
         goScreen('combat');
     } else if (id === 'pack') {
@@ -652,14 +653,28 @@ function drawTitleBackground() {
 
 // --- Combat au clavier ---
 
+/** (Re)lance le combat : l'étape de la campagne (au point de reprise), ou le combat libre choisi dans la pause. */
 function startFight() {
-    const kind = byId('opponentSelect').value;
-    const opt = { arena: game.arena, playerController: game.human, maxTime: Infinity, estus: game.settings.estusCharges, pillars: game.settings.pillarCount };
+    if (game.campaign) {
+        if (game.campaign.done) game.campaign = new CampaignRun();
+        return startCampaignStep();
+    }
+    launchFight(byId('opponentSelect').value);
+}
+
+/**
+ * Crée le combat au clavier. `carry` (campagne) : vie et fioles de départ ; `options` : réglages de l'étape
+ * (taille de la meute, perception).
+ */
+function launchFight(kind, carry = null, options = {}) {
+    const opt = { arena: game.arena, playerController: game.human, maxTime: Infinity, estus: carry ? carry.estus : game.settings.estusCharges,
+        pillars: game.settings.pillarCount };
+    if (carry) opt.playerHp = carry.hp;
     if (kind === 'pack' || kind === 'packHand') {
         game.fight = new PackFight(Object.assign(opt, {
             packController: kind === 'pack' ? new NeuralPackController(packBrain()) : new HandPackController(),
-            size: game.packSettings.packSize,
-            perception: game.packSettings.packPerception
+            size: options.size || game.packSettings.packSize,
+            perception: options.perception || game.packSettings.packPerception
         }));
     } else {
         game.fight = new Fight(Object.assign(opt, { bossController: bossController(kind), detectRadius: game.settings.detectRadius }));
@@ -670,14 +685,59 @@ function startFight() {
     game.trail = { player: game.fight.player.hp, boss: foeHp(game.fight) };
     if (game.feel) game.feel.reset();
     const entry = pantheonEntry(kind);
-    byId('bossInfo').textContent = kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
-        : kind === 'pack' ? "Niveau 1 : " + game.packSettings.packSize + " Creux qui partagent un réseau appris. " + packLabel()
-        : kind === 'packHand' ? "Niveau 1 : " + game.packSettings.packSize + " Creux menés par des règles écrites à la main (poursuite, recul, morsure)."
+    byId('bossInfo').textContent = game.campaign ? "Campagne · " + game.campaign.progress() + " · " + game.campaign.step.label + "."
+        : kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
+        : kind === 'pack' ? "Niveau 1 : " + game.fight.creux.length + " Creux qui partagent un réseau appris. " + packLabel()
+        : kind === 'packHand' ? "Niveau 1 : " + game.fight.creux.length + " Creux menés par des règles écrites à la main (poursuite, recul, morsure)."
         : entry ? Pantheon.describe(entry) : championLabel();
+}
+
+// --- Campagne : la meute, le feu de camp, le Gardien (vie et fioles reportées) ---
+
+function startCampaign() {
+    game.campaign = new CampaignRun();
+    startCampaignStep();
+    game.fightStarted = true;
+    goScreen('combat');
+}
+
+/** Démarre l'étape en cours avec la vie et les fioles reportées (point de reprise). */
+function startCampaignStep() {
+    const c = game.campaign, step = c.step;
+    game.stepTime = 0;
+    if (step.kind === 'rest') {
+        // Feu de camp : aucun combat ; on garde l'arène du dernier combat, le chevalier y montre la vie reportée
+        if (!game.fight) launchFight('packHand', c.carry);
+        syncRestKnight();
+        game.state = 'rest';
+        game.stateTime = 0;
+        return;
+    }
+    launchFight(step.kind === 'pack' ? 'pack' : 'champion', c.carry, step.options || {});
+}
+
+/** Au feu de camp, le chevalier affiché a la vie et les fioles de la campagne (affichage seulement). */
+function syncRestKnight() {
+    game.fight.player.hp = game.campaign.carry.hp;
+    game.fight.player.estus = game.campaign.carry.estus;
+    game.trail.player = game.fight.player.hp;
+}
+
+function restDrink() {
+    if (game.campaign.drink()) {
+        syncRestKnight();
+        game.effects.particles.emit('ember', game.fight.player.pos.x, game.fight.player.pos.y, 14);
+    }
+}
+
+function leaveRest() {
+    game.campaign.leaveRest();
+    startCampaignStep();
 }
 
 /** Lance un niveau depuis le titre ou le laboratoire (l'adversaire de la pause suit). */
 function playLevel(kind) {
+    game.campaign = null;
     byId('opponentSelect').value = kind;
     startFight();
     game.fightStarted = true;
@@ -710,6 +770,7 @@ function updateCombat(dt) {
     game.feel.update(dt);
     // Après la mort du boss, les animations finales ralentissent (le combat, lui, est terminé)
     game.stateTime += game.state === 'victory' ? dt * game.feel.visualScale() : dt;
+    game.stepTime += dt;
     if (game.state === 'fight') {
         // Gel d'impact : le temps de la simulation avance moins vite (chaque pas reste identique)
         advance(f, dt * game.feel.timeScale(), events => {
@@ -720,6 +781,8 @@ function updateCombat(dt) {
             game.state = 'dead';
             game.stateTime = 0;
             game.deaths++;
+            // Campagne : on recommencera l'étape avec la vie et les fioles qu'on avait en y entrant
+            if (game.campaign) game.campaign.die();
             // Tache de sang là où le chevalier est tombé, gardée d'une session à l'autre
             Bloodstain.add(game.bloodstains, f.player.pos.x, f.player.pos.y, f.lastCause, game.deaths * 977);
             Bloodstain.save(game.storage, game.bloodstains);
@@ -730,6 +793,13 @@ function updateCombat(dt) {
             game.victoryCause = f.boss && f.boss.stats.camped ? 'camping' : null;
             game.stateTime = 0;
         }
+    } else if (game.state === 'victory' && game.campaign && game.stateTime > Banner.DURATION.victory) {
+        // Campagne : la vie et les fioles restantes passent à l'étape suivante
+        game.campaign.win(f.player);
+        if (game.campaign.done) {
+            game.state = 'complete';
+            game.stateTime = 0;
+        } else startCampaignStep();
     } else if (game.state === 'dead' && game.stateTime > 3.5) {
         // Réapparition au feu de camp ; le boss retrouve toute sa vie
         startFight();
@@ -1444,8 +1514,11 @@ function drawCombatHud(dt) {
     game.trail.boss = Math.max(foeHp(f), game.trail.boss - 60 * dt);
     const layout = HudLayout.compute(width, height);
     Hud.drawPlayer(f.player, game.deaths, game.trail.player, layout);
-    if (f.boss) Hud.drawBoss(f.boss, game.trail.boss, layout);
-    else Hud.drawPack(f.creux, game.trail.boss, layout);
+    // Au feu de camp, aucun ennemi : pas de barre d'adversaire
+    if (game.state !== 'rest') {
+        if (f.boss) Hud.drawBoss(f.boss, game.trail.boss, layout);
+        else Hud.drawPack(f.creux, game.trail.boss, layout);
+    }
     if (game.feel.flash > 0) {
         const ctx = drawingContext;
         const g = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.25, width / 2, height / 2, Math.max(width, height) * 0.7);
@@ -1458,12 +1531,22 @@ function drawCombatHud(dt) {
         if (f.boss) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
         else DebugPanel.drawPack(f.packController, f, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
     }
-    if (game.state === 'dead') {
+    const c = game.campaign;
+    if (c && !c.done) {
+        Hud.stepTag(c.progress() + " · " + c.step.label, layout);
+        if (game.state === 'fight') Hud.stepCard(c.step.label, c.step.intro, game.stepTime);
+    }
+    if (game.state === 'rest') {
+        Hud.restPanel(c.carry, f.player.maxHp, c.steps[c.index + 1].label);
+    } else if (game.state === 'complete') {
+        Hud.banner('victory', "SANCTUAIRE LIBÉRÉ", "Campagne achevée · morts " + c.deaths + " · R pour recommencer la campagne", game.stateTime);
+    } else if (game.state === 'dead') {
         Hud.banner('death', "VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
             game.stateTime);
     } else if (game.state === 'victory') {
         Hud.banner('victory', f.boss ? "ENNEMI VAINCU" : "MEUTE ANÉANTIE", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
-            "Temps " + f.time.toFixed(1) + " s · morts " + game.deaths + " · R pour recommencer", game.stateTime);
+            "Temps " + f.time.toFixed(1) + " s · " + (c ? "vie " + Math.ceil(f.player.hp) + " et " + f.player.estus + " fiole(s) gardées pour la suite…" :
+                "morts " + game.deaths + " · R pour recommencer"), game.stateTime);
     } else if (game.paused && byId('pauseMenu').hidden && byId('tutorial').hidden && byId('optionsScreen').hidden) {
         Hud.pauseLabel("PAUSE · P pour reprendre");
     }
@@ -1617,6 +1700,11 @@ function keyPressed() {
     if (!byId('pauseMenu').hidden) return true;
     if (k === 'p') { togglePause(); return false; }
     if (game.mode === 'combat') {
+        // Feu de camp : E pour boire, Entrée pour repartir
+        if (game.state === 'rest') {
+            if (k === 'e') { restDrink(); return false; }
+            if (k === 'enter') { leaveRest(); return false; }
+        }
         if (k === 'r') { startFight(); return false; }
         // Un curseur ou un bouton du menu garde le focus après usage : on le libère pour jouer au clavier
         if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();

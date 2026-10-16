@@ -17,7 +17,10 @@
 6 décisions sortent (avancer ou reculer, hallebarde, esquive, ruée, souffle, tourner autour du joueur). Il a
 appris à se battre par sélection naturelle. »
 
-### 2. Jouer 1 minute (Nouvelle partie)
+### 2. Jouer 1 minute contre le Gardien
+
+« Nouvelle partie » commence la campagne par la meute. Pour montrer directement le Gardien : Échap, puis
+l'adversaire « Champion de votre entraînement » dans le menu de pause.
 
 - Montrer le télégraphe : le cône rouge se remplit pendant 0,6 s, puis la roulade (Espace) au bon moment.
 - Frapper pendant la récupération du boss.
@@ -94,7 +97,10 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   gagne 93 % de ses combats contre le joueur robot (meute écrite à la main : 28 %) et l'encercle 7,2 % du
   temps (0,2 %). Leçon : un champion qui gagnait 100 % de ses 20 combats de test n'en gagnait que 40 % sur des
   combats neufs.
-- 116 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- Campagne : la meute, un feu de camp, le Gardien. La vie et les fioles passent d'une étape à l'autre ; une
+  mort fait recommencer l'étape avec les valeurs qu'on avait en y entrant. Les étapes sont des données : un
+  niveau 2 s'ajoute sans code.
+- 122 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

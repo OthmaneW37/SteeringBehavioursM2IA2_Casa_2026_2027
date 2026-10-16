@@ -141,6 +141,70 @@ const Hud = {
         pop();
     },
 
+    /** Carte de début d'étape (campagne) : titre et phrase d'introduction, visibles CARD s puis en fondu. */
+    stepCard(label, intro, t) {
+        const a = t < Hud.CARD ? 1 : Math.max(0, 1 - (t - Hud.CARD) / 0.8);
+        if (a <= 0) return;
+        push();
+        textFont('Cinzel');
+        textAlign(CENTER, CENTER);
+        noStroke();
+        fill(0, 0, 0, 140 * a);
+        rect(0, height * 0.3 - 50, width, 100);
+        fill(232, 196, 110, 255 * a);
+        textSize(Math.min(40, width / 20));
+        text(label, width / 2, height * 0.3 - 12);
+        fill(220, 214, 200, 230 * a);
+        textSize(Math.min(16, width / 50));
+        text(intro, width / 2, height * 0.3 + 26);
+        pop();
+    },
+
+    /** Étiquette d'étape en haut au centre (« Étape 1 / 3 · Niveau 1 · La meute des Creux »). */
+    stepTag(textValue, L = HudLayout.compute(width, height)) {
+        push();
+        textFont('Cinzel');
+        textAlign(CENTER, TOP);
+        textSize(L.fontSize * 0.85);
+        fill(0, 0, 0, 160);
+        text(textValue, width / 2 + 1, L.margin + 1);
+        fill(210, 200, 180);
+        text(textValue, width / 2, L.margin);
+        pop();
+    },
+
+    /** Feu de camp : panneau de repos (vie et fioles reportées, touches). */
+    restPanel(carry, maxHp, next) {
+        const w = Math.min(460, width - 40), h = 190, x = (width - w) / 2, y = height * 0.5 - h / 2;
+        push();
+        noStroke();
+        fill(16, 12, 8, 225);
+        rect(x, y, w, h, 10);
+        stroke(232, 160, 70, 160);
+        noFill();
+        rect(x + 4, y + 4, w - 8, h - 8, 8);
+        noStroke();
+        textFont('Cinzel');
+        textAlign(CENTER, TOP);
+        fill(255, 190, 90);
+        textSize(26);
+        text("Feu de camp", width / 2, y + 16);
+        fill(225, 215, 195);
+        textSize(14);
+        text("Vie " + Math.ceil(carry.hp) + " / " + maxHp + " · fioles d'Estus : " + carry.estus, width / 2, y + 60);
+        textSize(12);
+        fill(190, 180, 160);
+        // Texte dans une boîte : avec CENTER, x est le bord gauche de la boîte
+        text("Votre vie et vos fioles ne reviennent pas. Ici, on boit sans risque.", x + 20, y + 86, w - 40);
+        fill(255, 220, 150);
+        textSize(13);
+        text("E : boire une fiole (+" + Combat.PLAYER.estus.heal + ")   ·   Entrée : reprendre la route", width / 2, y + 122);
+        fill(160);
+        textSize(11);
+        text("Prochaine étape : " + next, width / 2, y + 152);
+        pop();
+    },
+
     /**
      * Grand bandeau animé (VOUS ÊTES MORT, ENNEMI VAINCU) : le bandeau s'ouvre, le titre apparaît en
      * lettres espacées qui s'écartent lentement, puis (mort seulement) l'image passe au noir.
@@ -239,6 +303,7 @@ const Hud = {
 Hud.RIPOSTE_LABEL = 0.8;   // secondes d'affichage de « Riposte ! »
 Hud.BOSS_NAME = "Gardien du Brouillard";
 Hud.PACK_NAME = "La meute des Creux";
+Hud.CARD = 2.5;            // secondes de la carte de début d'étape
 Hud.CAMP_WARNING = 1;      // secondes dans un coin avant l'avertissement
 
 Hud.CONTROLS = [

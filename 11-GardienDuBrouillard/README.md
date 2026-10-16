@@ -19,7 +19,8 @@ Ouvrir `index.html` via un serveur local, par exemple `python -m http.server` da
 externe (voir [`CREDITS.md`](CREDITS.md)).
 
 Le jeu s'ouvre sur l'**écran titre** : le Gardien combat le joueur robot en fond, dans le brouillard, et un
-menu sur parchemin propose **Nouvelle partie**, **Continuer** (si un combat est en cours), **Entraîner**,
+menu sur parchemin propose **Nouvelle partie** (la campagne : la meute, un feu de camp, le Gardien),
+**Continuer** (si un combat est en cours), **La meute des Creux** (le niveau 1 seul), **Entraîner**,
 **Panthéon**, **Laboratoire** et **Options**. Navigation à la souris ou au clavier (↑ ↓ et Entrée), avec
 des fondus au noir entre les écrans. Au premier combat, un **tutoriel** de 5 cartes présente les commandes ;
 on peut le revoir depuis les Options, où se trouve aussi la **fenêtre d'aide** (« Comment ça marche ? »).
@@ -224,6 +225,30 @@ comme pour le boss ; cet entraînement n'est pas sauvegardé) et les réglages d
 population, combats par meute, mutation). **Debug (G)** : rayon de perception de chaque Creux (jaune, rouge
 quand un voisin y est), ses forces (pursue rouge, flanc bleu, evade blanc, flocking vert, séparation jaune), le
 cercle d'encerclement autour du chevalier (rouge quand il est encerclé) et le réseau vu par le Creux visé.
+
+## La campagne
+
+« Nouvelle partie » lance la campagne (`campaign.js`) : **la meute des Creux**, puis un **feu de camp**, puis
+**le Gardien du Brouillard**. Chaque étape s'ouvre sur une carte de titre ; l'étape en cours est rappelée en haut
+de l'écran.
+
+- **Report** : la vie et les fioles restantes passent d'une étape à l'autre. Rien n'est rendu entre deux
+  combats.
+- **Feu de camp** : un lieu sûr, sans ennemi. On peut y boire ses fioles sans risque (**E**), puis repartir
+  (**Entrée**). Il ne rend ni vie ni fiole (réglage `Campaign.REST`, nul par défaut).
+- **Point de reprise** : en entrant dans une étape, la vie et les fioles sont notées. Mourir fait recommencer
+  l'étape **avec ces valeurs-là**, pas avec celles de la mort : pas de cercle vicieux où chaque essai partirait
+  plus faible. **R** recommence l'étape ; à la fin, **R** relance une campagne.
+- **Combat libre** : choisir un adversaire dans le menu de pause quitte la campagne.
+- **Niveau 2** : une étape est une donnée (`{ id, kind: 'pack' | 'boss' | 'rest', label, intro, options }`).
+  Ajouter un niveau, par exemple une meute de 7 Creux, c'est ajouter une entrée à `Campaign.STEPS` (un test le
+  fait avec `options: { size: 7 }`).
+
+**Mesure avec le joueur robot** (40 essais) : il ne sort vivant de la meute apprise que 8 fois, avec 23 points
+de vie en moyenne. Avec ce report, le Gardien gagne 8 combats sur 8, contre 4 sur 8 quand le robot arrive à neuf.
+Même en buvant toutes ses fioles au feu de camp, il perd presque toujours : les fioles servent surtout pendant
+le combat. La campagne est donc **dure, comme demandé**. Si elle l'est trop, il suffit de donner une valeur à
+`Campaign.REST` (vie rendue, fioles ajoutées au feu de camp), sans toucher au code.
 
 ## L'interface
 
@@ -470,11 +495,12 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `packBrain.js`, `handPack.js`, `packPlayer.js` | Cerveau partagé de la meute ; meute écrite à la main ; joueur robot face à la meute. |
 | `packFight.js`, `packFitness.js`, `packSettings.js`, `packTraining.js`, `packComparison.js` | Niveau 1 : combat et encerclement, note collective, réglages, neuroévolution, comparaison. |
 | `pretrainedPack.js` | Données : la meute fournie (`node tools/pretrain-pack.mjs 60 7`). |
+| `campaign.js` | Campagne : étapes (données), report de la vie et des fioles, feu de camp, point de reprise. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=16`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=18`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -483,7 +509,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 116 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 122 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -496,6 +522,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 116 tes
 | `interface.test.mjs` | Écrans et fondus (changement au noir complet, dernier ordre gagnant, pas de fondu relancé), menu titre (boucle, entrées inactives, Continuer), tutoriel (cartes, mémorisation, stockage bloqué), HUD dans l'écran à toutes les tailles, bandeaux, page (menu, onglets, fenêtres, polices locales et créditées). |
 | `graphics.test.mjs` | Qualité graphique (bornes, ordre, mémorisation) ; effets d'impact (gel exact, trauma plafonné et amorti, tremblement borné, ralenti des animations seulement) ; gel jamais hors du combat au clavier ; particules (plafond, recyclage, durée de vie, réactions, braises) ; sources de lumière ; brouillard (continu, borné, qui dérive) ; **le rendu ne modifie jamais l'état du combat**. |
 | `pack.test.mjs` | Boids (voisins, séparation, alignement, cohésion, limites) ; pursue et evade ; Creux (poids, somme limitée, flanc du côté libre, perception, morsure à portée, attente en secondes, interruption, mort) ; cerveau partagé (entrées, seuil strict) ; meute à la main ; encerclement (seuils, 180° pile, morts, rayon) ; combat (coup qui touche toute la meute une fois, pilier, roulade, corps, fin) ; simulation courte reproductible ; note collective ; joueur robot (roulade, acculé) ; entraînement et champion validé ; réglages ; le rendu de la meute ne modifie pas l'état. |
+| `campaign.test.mjs` | Étapes vérifiées ; report de la vie et des fioles ; feu de camp (gorgée exacte, plafond, sans fiole, seulement au feu, repos réglable) ; mort et point de reprise ; niveau 2 ajouté par des données ; vie de départ des combats bornée ; campagne simulée avec le joueur robot. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

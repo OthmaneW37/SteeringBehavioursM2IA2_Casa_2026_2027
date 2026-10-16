@@ -35,7 +35,7 @@ export const FILES = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'Neu
   'fitness.js', 'genetic.js', 'training.js', 'trainingStore.js', 'comparison.js', 'demo.js', 'settings.js', 'scenarios.js', 'trials.js', 'doctrines.js', 'pretrainedBoss.js', 'pretrainedPantheon.js', 'pantheon.js', 'tournament.js',
   'fitnessChart.js', 'debugPanel.js', 'hud.js', 'camera.js', 'menuToggle.js', 'screens.js', 'titleMenu.js', 'tutorial.js', 'hudLayout.js', 'banners.js', 'quality.js', 'gameFeel.js',
   'particles.js', 'lighting.js', 'fog.js', 'flocking.js', 'creux.js', 'packBrain.js', 'handPack.js', 'packPlayer.js', 'packFight.js',
-  'packFitness.js', 'packSettings.js', 'packTraining.js', 'packComparison.js', 'pretrainedPack.js'];
+  'packFitness.js', 'packSettings.js', 'packTraining.js', 'packComparison.js', 'pretrainedPack.js', 'campaign.js'];
 
 export function read(file) {
   return readFileSync(new URL('../' + file, import.meta.url), 'utf8');

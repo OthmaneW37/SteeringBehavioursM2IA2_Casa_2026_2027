@@ -22,7 +22,8 @@
 class Fight {
     /**
      * options : { arena, playerController, bossController, maxTime (s), seed, estus (fioles du joueur),
-     *             pillars (nombre de piliers, 0 par défaut), antiCamping (true par défaut) }
+     *             pillars (nombre de piliers, 0 par défaut), antiCamping (true par défaut),
+     *             playerHp (vie de départ du chevalier, reportée par la campagne) }
      * seed fixe l'aléatoire de p5 (wander) pour un combat reproductible, quand randomSeed existe.
      */
     constructor(options) {
@@ -35,6 +36,7 @@ class Fight {
         this.boss = new Boss(this.arena.bossStart.x, this.arena.bossStart.y);
         if (options.detectRadius) this.boss.detectRadius = options.detectRadius;
         if (options.estus !== undefined) this.player.estus = options.estus;
+        if (options.playerHp !== undefined) this.player.hp = Math.max(1, Math.min(this.player.maxHp, options.playerHp));
         this.zones = [];                 // nappes de brume en jeu
         this.player.zones = this.zones;  // le joueur robot les évite
         this.pillars = (this.arena.pillarSlots || []).slice(0, options.pillars || 0).map(p => new Pillar(p.x, p.y));

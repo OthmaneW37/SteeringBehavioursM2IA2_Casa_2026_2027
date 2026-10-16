@@ -17,7 +17,7 @@
 class PackFight {
     /**
      * options : { arena, playerController, packController, size (Creux), perception (px), maxTime (s),
-     *             seed, estus, pillars (nombre) }
+     *             seed, estus, pillars (nombre), playerHp (vie de départ, reportée par la campagne) }
      */
     constructor(options) {
         this.arena = options.arena;
@@ -27,6 +27,7 @@ class PackFight {
         if (options.seed !== undefined && typeof randomSeed === 'function') randomSeed(options.seed);
         this.player = new Player(this.arena.playerStart.x, this.arena.playerStart.y);
         if (options.estus !== undefined) this.player.estus = options.estus;
+        if (options.playerHp !== undefined) this.player.hp = Math.max(1, Math.min(this.player.maxHp, options.playerHp));
         this.pillars = (this.arena.pillarSlots || []).slice(0, options.pillars || 0).map(p => new Pillar(p.x, p.y));
         this.player.pillars = this.pillars;
         this.player.zones = [];
