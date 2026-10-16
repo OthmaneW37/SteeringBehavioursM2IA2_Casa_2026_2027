@@ -33,7 +33,7 @@ export function lcg(seed = 12345) {
 export const FILES = ['vehicle.js', 'steering.js', 'combat.js', 'arena.js', 'NeuralNetwork.js', 'campfire.js',
   'mistPatch.js', 'pillar.js', 'bloodstain.js', 'player.js', 'boss.js', 'bossBrain.js', 'handBoss.js', 'scriptedPlayer.js', 'humanController.js', 'fight.js',
   'fitness.js', 'genetic.js', 'training.js', 'trainingStore.js', 'comparison.js', 'demo.js', 'settings.js', 'scenarios.js', 'trials.js', 'doctrines.js', 'pretrainedBoss.js', 'pretrainedPantheon.js', 'pantheon.js', 'tournament.js',
-  'fitnessChart.js', 'debugPanel.js', 'hud.js', 'camera.js', 'menuToggle.js'];
+  'fitnessChart.js', 'debugPanel.js', 'hud.js', 'camera.js', 'menuToggle.js', 'screens.js', 'titleMenu.js', 'tutorial.js', 'hudLayout.js', 'banners.js'];
 
 export function read(file) {
   return readFileSync(new URL('../' + file, import.meta.url), 'utf8');

@@ -15,9 +15,14 @@ les steering behaviors de Reynolds exécutent ces choix :
 ## Lancer
 
 Ouvrir `index.html` via un serveur local, par exemple `python -m http.server` dans ce dossier, puis aller sur
-`http://localhost:8000`. p5.js est chargé en local depuis `libraries/` : aucune ressource externe. Une
-**fenêtre d'aide** (« Comment ça marche ? ») s'ouvre à la première visite : elle explique le jeu,
-l'apprentissage et le vocabulaire sans prérequis.
+`http://localhost:8000`. p5.js et les polices sont chargés en local depuis `libraries/` : aucune ressource
+externe (voir [`CREDITS.md`](CREDITS.md)).
+
+Le jeu s'ouvre sur l'**écran titre** : le Gardien combat le joueur robot en fond, dans le brouillard, et un
+menu sur parchemin propose **Nouvelle partie**, **Continuer** (si un combat est en cours), **Entraîner**,
+**Panthéon**, **Laboratoire** et **Options**. Navigation à la souris ou au clavier (↑ ↓ et Entrée), avec
+des fondus au noir entre les écrans. Au premier combat, un **tutoriel** de 5 cartes présente les commandes ;
+on peut le revoir depuis les Options, où se trouve aussi la **fenêtre d'aide** (« Comment ça marche ? »).
 
 | Touche | Action |
 |---|---|
@@ -26,8 +31,9 @@ l'apprentissage et le vocabulaire sans prérequis.
 | Espace | roulade : `evade` loin du boss, 0,3 s d'invulnérabilité |
 | E | boire une fiole d'Estus (soin de 25 PV, 1 s presque immobile) |
 | L ou Tab | verrouiller la caméra sur le boss (lock-on) |
-| G | mode debug (aussi par la case des réglages avancés) |
-| R / P | recommencer le combat / pause |
+| G | mode debug (aussi par la case des Options) |
+| Échap | menu de pause : reprendre, recommencer, choisir l'adversaire, Options, retour au titre |
+| R / P | recommencer le combat / pause rapide |
 
 La touche D sert à se déplacer, d'où le choix de G pour le debug. Une action demandée pendant une autre est
 gardée 0,25 s puis jouée, comme le tampon d'entrée des jeux Souls.
@@ -152,11 +158,25 @@ Conséquence : avec les boss fournis, **aucun boss appris n'esquive**. Le Panth�
 le bonus ne s'étant jamais déclenché, la Brute et le Gardien avaient suivi exactement la même évolution et
 obtenu le **même cerveau**. Cette égalité est elle-même la preuve que le bonus n'a rien changé.
 
-## Les cinq modes
+## L'interface
 
-| Mode | Ce qu'on voit |
+| Écran | Ce qu'on y fait |
 |---|---|
-| ⚔️ **Combattre** | Vous affrontez le champion de votre entraînement, le boss écrit à la main, ou un boss du Panthéon. |
+| **Titre** | Menu principal sur parchemin, combat de fond assombri. |
+| **Combat** | Plein écran, HUD façon Souls : vie (avec la traînée « fantôme ») et endurance en haut à gauche, fioles d'Estus dessous, morts en haut à droite, barre et nom du boss en bas. Bandeaux animés « VOUS ÊTES MORT » et « ENNEMI VAINCU ». **Échap** : menu de pause. |
+| **Laboratoire** | Les outils de recherche, en onglets : Duels, Entraîner, Comparer, Panthéon (détaillés ci-dessous). |
+| **Options** (fenêtre) | Aide, tutoriel, mode debug, les 9 scénarios et les 11 réglages avancés. |
+
+La logique de l'interface est dans des modules purs et testés : `screens.js` (écrans et fondus),
+`titleMenu.js` (menu), `tutorial.js` (cartes et mémorisation), `hudLayout.js` (disposition du HUD à toutes
+les tailles d'écran) et `banners.js` (courbes d'animation des bandeaux). Le rendu ne modifie jamais l'état du
+jeu.
+
+## Les outils
+
+| Outil | Ce qu'on voit |
+|---|---|
+| ⚔️ **Combat** | Vous affrontez le champion de votre entraînement, le boss écrit à la main, ou un boss du Panthéon (adversaire choisi dans le menu de pause). |
 | 🎬 **Démonstration et duels** | Deux combats côte à côte contre le même joueur robot, avec la même graine. Par défaut : un boss qui n'a rien appris contre le champion. Avec deux boss du Panthéon, c'est un **duel** (voir plus bas). On choisit aussi le joueur robot affronté. |
 | 🧬 **Entraîner** | On choisit une **recette d'entraînement**, puis on suit l'évolution génération par génération. Deux courbes : les victoires du champion à son examen, et la note des boss, lissée. En direct, le champion affronte le joueur robot. Le bouton « Ajouter le champion au Panthéon » le garde. |
 | 📊 **Comparer** | Les deux boss jouent les mêmes 50 combats, sur des graines jamais vues à l'entraînement. Le résultat donne le taux de victoire, la durée, les dégâts, les techniques utilisées et les fioles bues. **C'est la mesure à retenir.** |
@@ -338,11 +358,13 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `trials.js`, `doctrines.js` | Épreuves (réglages du joueur robot) et recettes d'entraînement (poids de la note et épreuve). |
 | `pantheon.js`, `tournament.js` | Panthéon (boss fournis et ajoutés, plafond, sauvegarde) et tournoi croisé boss × épreuves. |
 | `pretrainedBoss.js`, `pretrainedPantheon.js` | Données : le Gardien et les autres boss du Panthéon. |
-| `fitnessChart.js`, `debugPanel.js`, `hud.js`, `camera.js`, `menuToggle.js` | Courbes, debug, interface et effets, caméra de verrouillage, menu masquable. |
+| `fitnessChart.js`, `debugPanel.js`, `hud.js`, `camera.js`, `menuToggle.js` | Courbes, debug, HUD, bandeaux et effets, caméra de verrouillage, panneau du laboratoire masquable. |
+| `screens.js`, `titleMenu.js`, `tutorial.js`, `hudLayout.js`, `banners.js` | Interface : écrans et fondus, menu titre, tutoriel, disposition du HUD, animation des bandeaux. |
+| `libraries/fonts/` | Polices UnifrakturMaguntia et Cinzel (SIL OFL 1.1) et leurs licences. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 
-Les scripts de `index.html` portent un numéro de version (`?v=12`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=13`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -351,7 +373,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 85 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 92 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -361,6 +383,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 85 test
 | `saving.test.mjs` | Champion validé ; sauvegarde complète et reprise ; fichiers invalides, dont la version 1 ; conversion des versions 2 et 3 ; stockage bloqué ; démonstration. |
 | `obstacles.test.mjs` | Piliers (collision, fissures, effondrement, abri) ; ligne de vue et rayons ; `orbitPoint` avec `seek` ; piliers dans le combat ; coup paré ; ruée écrasée et étourdissement ; esquive, riposte et riposte qui touche ; portée de la hallebarde ; mesure d'immobilité ; abri du joueur robot ; boss à états ; anti-camping (coin, compteur, mort, note). |
 | `pantheon.test.mjs` | Épreuves et recettes (plages, valeurs) ; note qui suit la recette, changement à la génération suivante, champion réexaminé ; recette sauvegardée ; boss fournis ; ajout, plafond, retrait, stockage invalide ; règles du duel ; tournoi (mêmes combats, budget, profil, rang). |
+| `interface.test.mjs` | Écrans et fondus (changement au noir complet, dernier ordre gagnant, pas de fondu relancé), menu titre (boucle, entrées inactives, Continuer), tutoriel (cartes, mémorisation, stockage bloqué), HUD dans l'écran à toutes les tailles, bandeaux, page (menu, onglets, fenêtres, polices locales et créditées). |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

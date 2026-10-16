@@ -1,8 +1,18 @@
-// Câblage p5 : contrôles, modes, boucle de jeu et rendu. Aucune règle de comportement ici :
-// elles sont dans les modules (Player, Boss, BossBrain, Fight, Training, Comparison, Demo...).
+// Câblage p5 : écrans, contrôles, modes, boucle de jeu et rendu. Aucune règle de comportement ici :
+// elles sont dans les modules (Player, Boss, BossBrain, Fight, Training, Comparison, Demo...), et la
+// logique de l'interface dans ScreenFlow, TitleMenu, Tutorial, HudLayout et Banner.
 
 const game = {
-    mode: 'combat',          // 'combat', 'demo', 'training', 'comparison' ou 'pantheon'
+    mode: 'title',           // 'title', 'combat', 'demo', 'training', 'comparison' ou 'pantheon'
+    screens: null,           // écrans et fondus (ScreenFlow)
+    titleMenu: null,
+    labMode: 'demo',         // outil ouvert dans le laboratoire
+    titleFight: null,        // combat de fond de l'écran titre (le Gardien contre le joueur robot)
+    titleEffects: null,
+    titleAccumulator: 0,
+    fightStarted: false,     // une partie a été lancée (« Continuer » devient possible)
+    optionsFrom: null,       // 'title' ou 'pause' : où revenir en fermant les Options
+    tutorialRun: null,
     settings: null,
     arena: null,
     campfire: null,
@@ -32,8 +42,6 @@ const game = {
     resetArmed: 0,          // « Tout recommencer » demande une confirmation (deuxième clic)
     storage: null
 };
-
-const HELP_SEEN_KEY = 'gardienDuBrouillard.helpSeen';
 
 function byId(id) {
     return document.getElementById(id);
@@ -72,7 +80,7 @@ function viewSize() {
 function setup() {
     const size = viewSize();
     createCanvas(size.w, size.h).parent('canvasHolder');
-    textFont('Georgia');
+    textFont('Cinzel');
 
     game.arena = new Arena();
     game.campfire = new Campfire(game.arena.campfirePos.x, game.arena.campfirePos.y);
@@ -80,6 +88,9 @@ function setup() {
     game.human = new HumanController();
     game.effects = new Effects();
     game.demoEffects = [new Effects(), new Effects()];
+    game.titleEffects = new Effects();
+    game.screens = new ScreenFlow('title');
+    game.titleMenu = new TitleMenu();
     game.storage = safeStorage();
     game.pretrained = loadPretrained();
     game.bloodstains = Bloodstain.load(game.storage);
@@ -106,9 +117,9 @@ function setup() {
     refreshPantheon();
 
     startFight();
-    game.camera.snap(Camera.target(game.arena, width, height, true, game.fight.player, game.fight.boss));
-    showMode();
-    showHelpOnFirstVisit();
+    game.camera.snap(Camera.target(game.arena, width, height, false));
+    newTitleFight();
+    applyScreen('title');
     // Sauvegarde d'avant les piliers : le message reste dans la ligne d'état (saveInfo est réécrit à chaque sauvegarde)
     if (game.training.convertedFrom) setStatus(conversionNote(game.training).trim());
 }
@@ -144,13 +155,25 @@ function initControls() {
         settingsChanged();
     });
 
-    byId('modeSelect').addEventListener('change', () => {
-        game.mode = byId('modeSelect').value;
-        showMode();
-    });
+    // Écran titre : souris (survol = choix, clic = valider) ; le clavier passe par keyPressed
+    for (const b of document.querySelectorAll('#titleMenu button')) {
+        b.addEventListener('mouseenter', () => { if (game.titleMenu.select(b.dataset.item)) refreshTitleMenu(); });
+        b.addEventListener('click', () => { b.blur(); activateMenu(b.dataset.item); });
+    }
+    for (const b of document.querySelectorAll('#labTabs button')) {
+        b.addEventListener('click', () => { b.blur(); openLabTool(b.dataset.mode); });
+    }
+    byId('labBackBtn').addEventListener('click', () => goScreen('title'));
+    // Pause, Options, tutoriel
     byId('opponentSelect').addEventListener('change', startFight);
-    byId('restartFightBtn').addEventListener('click', startFight);
-    byId('pauseBtn').addEventListener('click', togglePause);
+    byId('restartFightBtn').addEventListener('click', () => { startFight(); closePause(); });
+    byId('resumeBtn').addEventListener('click', closePause);
+    byId('pauseOptionsBtn').addEventListener('click', () => openOptions('pause'));
+    byId('quitToTitleBtn').addEventListener('click', () => { closePause(); goScreen('title'); });
+    byId('optionsBackBtn').addEventListener('click', closeOptions);
+    byId('showTutorialBtn').addEventListener('click', () => { closeOptions(); openTutorial(); });
+    byId('tutorialNextBtn').addEventListener('click', tutorialNext);
+    byId('tutorialSkipBtn').addEventListener('click', tutorialSkip);
     byId('demoLeftSelect').addEventListener('change', startDemo);
     byId('demoRightSelect').addEventListener('change', startDemo);
     for (const t of Trials.LIST) {
@@ -243,16 +266,6 @@ function openHelp() {
         dialog.scrollTop = 0;
         setTimeout(() => { dialog.scrollTop = 0; }, 0);
     }
-}
-
-function showHelpOnFirstVisit() {
-    try {
-        if (!game.storage || game.storage.getItem(HELP_SEEN_KEY)) return;
-        game.storage.setItem(HELP_SEEN_KEY, '1');
-    } catch (e) {
-        return;
-    }
-    openHelp();
 }
 
 // --- Le boss à affronter ---
@@ -389,13 +402,9 @@ function doctrineChanged() {
 // --- Modes ---
 
 function showMode() {
-    for (const m of ['combat', 'demo', 'training', 'comparison', 'pantheon']) {
-        byId(m === 'combat' ? 'combatSection' : m + 'Section').style.display = game.mode === m ? '' : 'none';
-    }
-    if (game.mode === 'combat') {
-        setStatus("À vous de jouer ! Esquivez (Espace) quand le cône rouge se remplit.");
-        game.stateTime = 0;
-    } else if (game.mode === 'demo') {
+    for (const m of LAB_TOOLS) byId(m + 'Section').style.display = game.mode === m ? '' : 'none';
+    for (const b of document.querySelectorAll('#labTabs button')) b.classList.toggle('active', b.dataset.mode === game.mode);
+    if (game.mode === 'demo') {
         startDemo();
         setStatus("Même joueur robot des deux côtés : seul le cerveau du boss change. Choisissez deux boss du Panthéon pour un duel.");
     } else if (game.mode === 'training') {
@@ -410,7 +419,176 @@ function showMode() {
 
 function togglePause() {
     game.paused = !game.paused;
-    byId('pauseBtn').textContent = game.paused ? "Reprendre (P)" : "Pause (P)";
+}
+
+// --- Écrans (titre, combat, laboratoire) et fenêtres (pause, Options, tutoriel) ---
+
+const LAB_TOOLS = ['demo', 'training', 'comparison', 'pantheon'];
+
+function goScreen(name) {
+    game.screens.go(name);
+}
+
+/** Au noir complet du fondu : on affiche les panneaux du nouvel écran. */
+function applyScreen(name) {
+    for (const n of ScreenFlow.LIST) document.body.classList.toggle('screen-' + n, n === name);
+    closePause(true);
+    if (name === 'title') {
+        game.mode = 'title';
+        game.paused = false;
+        refreshTitleMenu();
+    } else if (name === 'combat') {
+        game.mode = 'combat';
+        game.paused = false;
+        game.accumulator = 0;
+        game.camera.snap(Camera.target(game.arena, width, height, game.fight.player.locked, game.fight.player, game.fight.boss));
+        if (Tutorial.shouldShow(game.storage)) openTutorial();
+    } else {
+        game.mode = game.labMode;
+        showMode();
+    }
+    windowResized();
+}
+
+function refreshTitleMenu() {
+    game.titleMenu.setEnabled('continue', game.fightStarted && game.state !== 'victory');
+    for (const b of document.querySelectorAll('#titleMenu button')) {
+        const item = game.titleMenu.items[game.titleMenu.find(b.dataset.item)];
+        b.disabled = !item.enabled;
+        b.classList.toggle('selected', game.titleMenu.current().id === item.id);
+    }
+}
+
+function activateMenu(id) {
+    if (!game.screens.interactive || !game.titleMenu.select(id)) return;
+    if (id === 'new') {
+        startFight();
+        game.fightStarted = true;
+        goScreen('combat');
+    } else if (id === 'continue') {
+        goScreen('combat');
+    } else if (id === 'train') {
+        openLabTool('training');
+    } else if (id === 'pantheon') {
+        openLabTool('pantheon');
+    } else if (id === 'lab') {
+        openLabTool('demo');
+    } else if (id === 'options') {
+        openOptions('title');
+    }
+}
+
+function openLabTool(mode) {
+    game.labMode = mode;
+    if (game.screens.current === 'lab' && game.screens.interactive) {
+        game.mode = mode;
+        showMode();
+    } else {
+        goScreen('lab');
+    }
+}
+
+function openPause() {
+    game.paused = true;
+    byId('pauseMenu').hidden = false;
+}
+
+/** Ferme le menu de pause ; `keepPaused` laisse le jeu figé (une autre fenêtre s'ouvre). */
+function closePause(keepPaused = false) {
+    byId('pauseMenu').hidden = true;
+    if (!keepPaused) game.paused = false;
+}
+
+function openOptions(from) {
+    game.optionsFrom = from;
+    if (from === 'pause') byId('pauseMenu').hidden = true;
+    byId('optionsScreen').hidden = false;
+}
+
+function closeOptions() {
+    byId('optionsScreen').hidden = true;
+    if (game.optionsFrom === 'pause') byId('pauseMenu').hidden = false;
+    game.optionsFrom = null;
+}
+
+function openTutorial() {
+    game.tutorialRun = new TutorialRun();
+    game.paused = true;
+    byId('tutorial').hidden = false;
+    showTutorialCard();
+}
+
+function showTutorialCard() {
+    const card = game.tutorialRun.card();
+    if (!card) return closeTutorial();
+    byId('tutorialStep').textContent = game.tutorialRun.progress();
+    byId('tutorialTitle').textContent = card.title;
+    byId('tutorialText').textContent = card.text;
+    byId('tutorialNextBtn').textContent = game.tutorialRun.index === game.tutorialRun.cards.length - 1 ? "Combattre (Entrée)" : "Suivant (Entrée)";
+}
+
+function tutorialNext() {
+    game.tutorialRun.next();
+    showTutorialCard();
+}
+
+function tutorialSkip() {
+    game.tutorialRun.skip();
+    closeTutorial();
+}
+
+function closeTutorial() {
+    byId('tutorial').hidden = true;
+    Tutorial.markSeen(game.storage);
+    game.tutorialRun = null;
+    if (byId('pauseMenu').hidden) game.paused = false;
+}
+
+// --- Écran titre : le Gardien combat le joueur robot en fond, dans le brouillard ---
+
+function newTitleFight() {
+    game.titleFight = new Fight({
+        arena: game.arena,
+        playerController: new ScriptedPlayerController(seededRandom(1 + Math.floor(Math.random() * 1e6)), game.settings),
+        bossController: new NeuralBossController(game.pretrained),
+        maxTime: 60,
+        detectRadius: game.settings.detectRadius,
+        estus: game.settings.estusCharges,
+        pillars: game.settings.pillarCount
+    });
+    game.titleFight.overTime = 0;
+    game.titleAccumulator = 0;
+}
+
+function updateTitleFight(dt) {
+    const f = game.titleFight;
+    if (f.over) {
+        f.overTime += dt;
+        if (f.overTime > 2) newTitleFight();
+        return;
+    }
+    game.titleAccumulator = Math.min(game.titleAccumulator + dt, Combat.DT * 4);
+    while (game.titleAccumulator >= Combat.DT && !f.over) {
+        headless(() => f.step());
+        game.titleAccumulator -= Combat.DT;
+        f.events.forEach(e => game.titleEffects.add(e, game.time));
+    }
+}
+
+/** Fond de l'écran titre : le combat, assombri, avec un vignettage (rendu seulement). */
+function drawTitleBackground() {
+    drawWorld(game.titleFight, false, game.titleEffects);
+    push();
+    noStroke();
+    fill(5, 6, 10, 150);
+    rect(0, 0, width, height);
+    const ctx = drawingContext;
+    const g = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.2, width / 2, height / 2, Math.max(width, height) * 0.75);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, width, height);
+    pop();
 }
 
 // --- Combat au clavier ---
@@ -865,8 +1043,15 @@ function draw() {
     game.time += dt;
     background(7, 8, 12);
     Vehicle.debug = game.debug;
+    const change = game.screens.update(dt);
+    if (change) applyScreen(change.to);
+    // Cinzel (capitales) pour le jeu ; Georgia, plus étroite, pour les tableaux et courbes du laboratoire
+    textFont(game.mode === 'title' || game.mode === 'combat' ? 'Cinzel' : 'Georgia');
 
-    if (game.mode === 'combat') {
+    if (game.mode === 'title') {
+        updateTitleFight(dt);
+        drawTitleBackground();
+    } else if (game.mode === 'combat') {
         updateCombat(dt);
         drawWorld(game.fight, game.fight.player.locked, game.effects);
         drawCombatHud(dt);
@@ -888,6 +1073,14 @@ function draw() {
     // Pendant la comparaison et l'entraînement, le combat au clavier reste figé
     game.effects.update(dt);
     game.demoEffects.forEach(e => e.update(dt));
+    game.titleEffects.update(dt);
+    // Fondu au noir entre deux écrans
+    const a = game.screens.alpha();
+    if (a > 0) {
+        noStroke();
+        fill(7, 8, 12, 255 * a);
+        rect(0, 0, width, height);
+    }
 }
 
 /** Dessine l'arène et ses entités dans le repère de la caméra principale. */
@@ -1001,20 +1194,18 @@ function drawCombatHud(dt) {
     // Barres « fantômes » qui rattrapent la vie réelle (comme dans les jeux Souls)
     game.trail.player = Math.max(f.player.hp, game.trail.player - 40 * dt);
     game.trail.boss = Math.max(f.boss.hp, game.trail.boss - 60 * dt);
-    Hud.drawPlayer(f.player, game.deaths, game.trail.player);
-    Hud.drawBoss(f.boss, game.trail.boss);
-    if (game.debug) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, 12);
+    const layout = HudLayout.compute(width, height);
+    Hud.drawPlayer(f.player, game.deaths, game.trail.player, layout);
+    Hud.drawBoss(f.boss, game.trail.boss, layout);
+    if (game.debug) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26);
     if (game.state === 'dead') {
-        Hud.banner("VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
-            color(170, 20, 20), Math.min(1, game.stateTime / 0.8));
+        Hud.banner('death', "VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
+            game.stateTime);
     } else if (game.state === 'victory') {
-        Hud.banner("ENNEMI VAINCU", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
-            "Temps " + f.time.toFixed(1) + " s · morts " + game.deaths + " · R pour recommencer",
-            color(230, 190, 90), Math.min(1, game.stateTime / 0.8));
-    } else if (game.paused) {
-        Hud.banner("PAUSE", "P pour reprendre", color(220, 220, 220), 1);
-    } else if (f.time < 6) {
-        Hud.controlsHint(Math.min(1, (6 - f.time) / 1.5));
+        Hud.banner('victory', "ENNEMI VAINCU", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
+            "Temps " + f.time.toFixed(1) + " s · morts " + game.deaths + " · R pour recommencer", game.stateTime);
+    } else if (game.paused && byId('pauseMenu').hidden && byId('tutorial').hidden && byId('optionsScreen').hidden) {
+        Hud.pauseLabel("PAUSE · P pour reprendre");
     }
 }
 
@@ -1136,11 +1327,34 @@ function typingInMenu() {
 function keyPressed() {
     if (typingInMenu()) return true;
     const k = String(key).toLowerCase();
+    // Fenêtres ouvertes d'abord : tutoriel, Options, pause
+    if (!byId('tutorial').hidden) {
+        if (k === 'enter' || k === ' ') tutorialNext();
+        else if (k === 'escape') tutorialSkip();
+        return false;
+    }
+    if (!byId('optionsScreen').hidden) {
+        if (k === 'escape') { closeOptions(); return false; }
+        return true;
+    }
     if (k === 'g') {
         game.debug = !game.debug;
         byId('debugCheckbox').checked = game.debug;
         return false;
     }
+    if (game.mode === 'title') {
+        if (!game.screens.interactive) return false;
+        if (k === 'arrowup' || k === 'z' || k === 'w') { game.titleMenu.move(-1); refreshTitleMenu(); return false; }
+        if (k === 'arrowdown' || k === 's') { game.titleMenu.move(1); refreshTitleMenu(); return false; }
+        if (k === 'enter' || k === ' ') { activateMenu(game.titleMenu.current().id); return false; }
+        return true;
+    }
+    if (game.mode === 'combat' && k === 'escape') {
+        if (byId('pauseMenu').hidden) openPause();
+        else closePause();
+        return false;
+    }
+    if (!byId('pauseMenu').hidden) return true;
     if (k === 'p') { togglePause(); return false; }
     if (game.mode === 'combat') {
         if (k === 'r') { startFight(); return false; }

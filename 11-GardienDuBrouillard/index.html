@@ -5,90 +5,84 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Le Gardien du Brouillard</title>
-    <link rel="stylesheet" type="text/css" href="style.css?v=12">
+    <link rel="stylesheet" type="text/css" href="style.css?v=13">
 
     <!-- p5.js en local (comme les autres exemples) -->
     <script src="libraries/p5.min.js"></script>
 
     <!-- Une dépendance avant ce qui l'utilise ; sketch.js en dernier -->
-    <script src="vehicle.js?v=12"></script>
-    <script src="steering.js?v=12"></script>
-    <script src="combat.js?v=12"></script>
-    <script src="arena.js?v=12"></script>
-    <script src="NeuralNetwork.js?v=12"></script>
-    <script src="campfire.js?v=12"></script>
-    <script src="mistPatch.js?v=12"></script>
-    <script src="pillar.js?v=12"></script>
-    <script src="bloodstain.js?v=12"></script>
-    <script src="player.js?v=12"></script>
-    <script src="boss.js?v=12"></script>
-    <script src="bossBrain.js?v=12"></script>
-    <script src="handBoss.js?v=12"></script>
-    <script src="scriptedPlayer.js?v=12"></script>
-    <script src="humanController.js?v=12"></script>
-    <script src="fight.js?v=12"></script>
-    <script src="fitness.js?v=12"></script>
-    <script src="genetic.js?v=12"></script>
-    <script src="training.js?v=12"></script>
-    <script src="trainingStore.js?v=12"></script>
-    <script src="comparison.js?v=12"></script>
-    <script src="demo.js?v=12"></script>
-    <script src="settings.js?v=12"></script>
-    <script src="scenarios.js?v=12"></script>
-    <script src="trials.js?v=12"></script>
-    <script src="doctrines.js?v=12"></script>
-    <script src="pretrainedBoss.js?v=12"></script>
-    <script src="pretrainedPantheon.js?v=12"></script>
-    <script src="pantheon.js?v=12"></script>
-    <script src="tournament.js?v=12"></script>
-    <script src="fitnessChart.js?v=12"></script>
-    <script src="debugPanel.js?v=12"></script>
-    <script src="hud.js?v=12"></script>
-    <script src="camera.js?v=12"></script>
-    <script src="menuToggle.js?v=12"></script>
-    <script src="sketch.js?v=12"></script>
+    <script src="vehicle.js?v=13"></script>
+    <script src="steering.js?v=13"></script>
+    <script src="combat.js?v=13"></script>
+    <script src="arena.js?v=13"></script>
+    <script src="NeuralNetwork.js?v=13"></script>
+    <script src="campfire.js?v=13"></script>
+    <script src="mistPatch.js?v=13"></script>
+    <script src="pillar.js?v=13"></script>
+    <script src="bloodstain.js?v=13"></script>
+    <script src="player.js?v=13"></script>
+    <script src="boss.js?v=13"></script>
+    <script src="bossBrain.js?v=13"></script>
+    <script src="handBoss.js?v=13"></script>
+    <script src="scriptedPlayer.js?v=13"></script>
+    <script src="humanController.js?v=13"></script>
+    <script src="fight.js?v=13"></script>
+    <script src="fitness.js?v=13"></script>
+    <script src="genetic.js?v=13"></script>
+    <script src="training.js?v=13"></script>
+    <script src="trainingStore.js?v=13"></script>
+    <script src="comparison.js?v=13"></script>
+    <script src="demo.js?v=13"></script>
+    <script src="settings.js?v=13"></script>
+    <script src="scenarios.js?v=13"></script>
+    <script src="trials.js?v=13"></script>
+    <script src="doctrines.js?v=13"></script>
+    <script src="pretrainedBoss.js?v=13"></script>
+    <script src="pretrainedPantheon.js?v=13"></script>
+    <script src="pantheon.js?v=13"></script>
+    <script src="tournament.js?v=13"></script>
+    <script src="fitnessChart.js?v=13"></script>
+    <script src="debugPanel.js?v=13"></script>
+    <script src="hud.js?v=13"></script>
+    <script src="camera.js?v=13"></script>
+    <script src="menuToggle.js?v=13"></script>
+    <script src="screens.js?v=13"></script>
+    <script src="titleMenu.js?v=13"></script>
+    <script src="tutorial.js?v=13"></script>
+    <script src="hudLayout.js?v=13"></script>
+    <script src="banners.js?v=13"></script>
+    <script src="sketch.js?v=13"></script>
 </head>
 
-<body>
-    <aside id="menu">
-        <h1>Le Gardien du Brouillard</h1>
-        <p class="hint">Un boss de jeu vidéo qui a <b>appris à se battre tout seul</b>, par sélection naturelle,
-            au lieu d'être programmé à la main.</p>
-        <button id="helpBtn" type="button" class="wide">❓ Comment ça marche ?</button>
+<body class="screen-title">
+    <!-- Écran titre : logo et menu sur parchemin (le brouillard et le combat de fond sont dessinés dans le canvas) -->
+    <div id="titleScreen" class="screen-panel">
+        <h1 class="logo">Le Gardien du Brouillard</h1>
+        <p class="tagline">Un boss qui a appris à se battre tout seul</p>
+        <nav id="titleMenu" class="parchment title-menu" aria-label="Menu principal">
+            <button id="menuNew" type="button" data-item="new">Nouvelle partie</button>
+            <button id="menuContinue" type="button" data-item="continue">Continuer</button>
+            <button id="menuTrain" type="button" data-item="train">Entraîner</button>
+            <button id="menuPantheon" type="button" data-item="pantheon">Panthéon</button>
+            <button id="menuLab" type="button" data-item="lab">Laboratoire</button>
+            <button id="menuOptions" type="button" data-item="options">Options</button>
+        </nav>
+        <p class="title-hint">↑ ↓ pour choisir · Entrée pour valider</p>
+    </div>
 
-        <section>
-            <label for="modeSelect">Que voulez-vous faire ?</label>
-            <select id="modeSelect">
-                <option value="combat" selected>⚔️ Combattre le boss</option>
-                <option value="demo">🎬 Démonstration et duels de boss</option>
-                <option value="training">🧬 Entraîner les boss</option>
-                <option value="comparison">📊 Comparer sur 50 combats</option>
-                <option value="pantheon">🏛️ Panthéon : tournoi des boss</option>
-            </select>
-            <p id="statusMsg" class="status" role="status"></p>
-        </section>
-
-        <section id="combatSection">
-            <h2>Combattre le boss</h2>
-            <p class="hint">Vous êtes le chevalier. Roulez quand le cône ou la ligne rouge se remplit, sortez des nappes de
-                brume vertes, frappez pendant que le boss récupère, et buvez vos fioles quand vous êtes à l'abri.</p>
-            <label for="opponentSelect">Adversaire</label>
-            <select id="opponentSelect">
-                <option value="champion" selected>Champion de votre entraînement</option>
-                <option value="hand">Boss écrit à la main (machine à états)</option>
-                <!-- puis les boss du Panthéon, ajoutés par sketch.js -->
-            </select>
-            <div class="buttons">
-                <button id="restartFightBtn" type="button">Recommencer (R)</button>
-                <button id="pauseBtn" type="button">Pause (P)</button>
-            </div>
-            <p class="hint keys">
-                <b>ZQSD / WASD / flèches</b> se déplacer · <b>J</b> attaque légère · <b>K</b> attaque lourde ·
-                <b>Espace</b> roulade (invulnérable 0,3 s) · <b>E</b> boire une fiole d'Estus · <b>L / Tab</b> verrouiller
-                la cible · <b>G</b> debug
-            </p>
-            <p id="bossInfo" class="hint"></p>
-        </section>
+    <!-- Laboratoire : les outils de recherche (démonstration et duels, entraînement, comparaison, Panthéon) -->
+    <aside id="menu" class="lab">
+        <div class="lab-head">
+            <h1>Laboratoire</h1>
+            <button id="labBackBtn" type="button">← Titre</button>
+        </div>
+        <nav id="labTabs" class="tabs" aria-label="Outils du laboratoire">
+            <button id="tabDemo" type="button" data-mode="demo">Duels</button>
+            <button id="tabTraining" type="button" data-mode="training">Entraîner</button>
+            <button id="tabComparison" type="button" data-mode="comparison">Comparer</button>
+            <button id="tabPantheon" type="button" data-mode="pantheon">Panthéon</button>
+        </nav>
+        <p id="statusMsg" class="status" role="status"></p>
 
         <section id="demoSection">
             <h2>Démonstration et duels</h2>
@@ -108,7 +102,7 @@
             </select>
             <label for="demoTrialSelect">Joueur robot affronté</label>
             <select id="demoTrialSelect">
-                <option value="settings" selected>Réglages avancés du menu</option>
+                <option value="settings" selected>Réglages avancés des Options</option>
             </select>
             <p id="demoInfo" class="hint"></p>
         </section>
@@ -151,62 +145,109 @@
             <button id="tournamentBtn" type="button" class="primary">▶ Lancer le tournoi</button>
             <div id="tournamentResults" class="results"></div>
         </section>
+    </aside>
+    <button id="menuToggle" type="button" aria-expanded="true" title="Masquer / afficher le laboratoire">✕</button>
+    <main id="canvasHolder"></main>
 
-        <details>
-            <summary>Réglages avancés</summary>
-            <label for="scenarioSelect">Scénario</label>
-            <select id="scenarioSelect"></select>
-            <p id="scenarioInfo" class="hint"></p>
+    <!-- Menu de pause (Échap pendant le combat) -->
+    <div id="pauseMenu" class="overlay" hidden>
+        <div class="parchment panel">
+            <h2>Pause</h2>
+            <button id="resumeBtn" type="button" class="wide primary">Reprendre</button>
+            <button id="restartFightBtn" type="button" class="wide">Recommencer le combat (R)</button>
+            <label for="opponentSelect">Adversaire</label>
+            <select id="opponentSelect">
+                <option value="champion" selected>Champion de votre entraînement</option>
+                <option value="hand">Boss écrit à la main (machine à états)</option>
+                <!-- puis les boss du Panthéon, ajoutés par sketch.js -->
+            </select>
+            <p id="bossInfo" class="hint"></p>
+            <button id="pauseOptionsBtn" type="button" class="wide">Options</button>
+            <button id="quitToTitleBtn" type="button" class="wide">Retour au titre</button>
+            <p class="hint keys">
+                <b>ZQSD / WASD / flèches</b> se déplacer · <b>J</b> attaque légère · <b>K</b> attaque lourde ·
+                <b>Espace</b> roulade · <b>E</b> fiole d'Estus · <b>L / Tab</b> verrouiller · <b>G</b> debug ·
+                <b>Échap</b> pause
+            </p>
+        </div>
+    </div>
 
-            <div class="control">
-                <label for="populationSize">Population de boss : <span id="populationSizeVal">50</span></label>
-                <input type="range" id="populationSize" min="10" max="200" step="10" value="50">
-            </div>
-            <div class="control">
-                <label for="mutationRate">Taux de mutation : <span id="mutationRateVal">0.10</span></label>
-                <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.1">
-            </div>
-            <div class="control">
-                <label for="fightsPerBoss">Combats par boss : <span id="fightsPerBossVal">2</span></label>
-                <input type="range" id="fightsPerBoss" min="1" max="4" step="1" value="2">
-            </div>
-            <div class="control">
-                <label for="elites">Élites conservées : <span id="elitesVal">1</span></label>
-                <input type="range" id="elites" min="0" max="5" step="1" value="1">
-            </div>
-            <div class="control">
-                <label for="dodgeProbability">Bonne réaction du joueur robot : <span id="dodgeProbabilityVal">0.40</span></label>
-                <input type="range" id="dodgeProbability" min="0" max="1" step="0.05" value="0.4">
-            </div>
-            <div class="control">
-                <label for="attackInterval">Intervalle d'attaque du joueur robot (s) : <span id="attackIntervalVal">0.9</span></label>
-                <input type="range" id="attackInterval" min="0.4" max="2" step="0.1" value="0.9">
-            </div>
-            <div class="control">
-                <label for="detectRadius">Rayon de détection du boss : <span id="detectRadiusVal">350</span></label>
-                <input type="range" id="detectRadius" min="150" max="600" step="10" value="350">
-            </div>
-            <div class="control">
-                <label for="estusCharges">Fioles d'Estus du chevalier : <span id="estusChargesVal">2</span></label>
-                <input type="range" id="estusCharges" min="0" max="5" step="1" value="2">
-            </div>
-            <div class="control">
-                <label for="pillarCount">Piliers dans l'arène : <span id="pillarCountVal">4</span></label>
-                <input type="range" id="pillarCount" min="0" max="6" step="1" value="4">
-            </div>
-            <div class="control">
-                <label for="maxFightTime">Durée max d'un combat (s) : <span id="maxFightTimeVal">90</span></label>
-                <input type="range" id="maxFightTime" min="20" max="120" step="5" value="90">
-            </div>
-            <div class="control">
-                <label for="trainingBudget">Vitesse de calcul (pas par image) : <span id="trainingBudgetVal">6000</span></label>
-                <input type="range" id="trainingBudget" min="500" max="30000" step="500" value="6000">
+    <!-- Options : aide, tutoriel, debug, scénarios et réglages avancés -->
+    <div id="optionsScreen" class="overlay" hidden>
+        <div class="parchment panel wide-panel">
+            <h2>Options</h2>
+            <div class="buttons">
+                <button id="helpBtn" type="button">❓ Comment ça marche ?</button>
+                <button id="showTutorialBtn" type="button">Revoir le tutoriel</button>
             </div>
             <label class="check"><input type="checkbox" id="debugCheckbox"> Mode debug : voir le « cerveau » du boss (touche G)</label>
-        </details>
-    </aside>
-    <button id="menuToggle" type="button" aria-expanded="true" title="Masquer / afficher le menu">✕</button>
-    <main id="canvasHolder"></main>
+            <details open>
+                <summary>Réglages avancés</summary>
+                <label for="scenarioSelect">Scénario</label>
+                <select id="scenarioSelect"></select>
+                <p id="scenarioInfo" class="hint"></p>
+
+                <div class="control">
+                    <label for="populationSize">Population de boss : <span id="populationSizeVal">50</span></label>
+                    <input type="range" id="populationSize" min="10" max="200" step="10" value="50">
+                </div>
+                <div class="control">
+                    <label for="mutationRate">Taux de mutation : <span id="mutationRateVal">0.10</span></label>
+                    <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.1">
+                </div>
+                <div class="control">
+                    <label for="fightsPerBoss">Combats par boss : <span id="fightsPerBossVal">2</span></label>
+                    <input type="range" id="fightsPerBoss" min="1" max="4" step="1" value="2">
+                </div>
+                <div class="control">
+                    <label for="elites">Élites conservées : <span id="elitesVal">1</span></label>
+                    <input type="range" id="elites" min="0" max="5" step="1" value="1">
+                </div>
+                <div class="control">
+                    <label for="dodgeProbability">Bonne réaction du joueur robot : <span id="dodgeProbabilityVal">0.40</span></label>
+                    <input type="range" id="dodgeProbability" min="0" max="1" step="0.05" value="0.4">
+                </div>
+                <div class="control">
+                    <label for="attackInterval">Intervalle d'attaque du joueur robot (s) : <span id="attackIntervalVal">0.9</span></label>
+                    <input type="range" id="attackInterval" min="0.4" max="2" step="0.1" value="0.9">
+                </div>
+                <div class="control">
+                    <label for="detectRadius">Rayon de détection du boss : <span id="detectRadiusVal">350</span></label>
+                    <input type="range" id="detectRadius" min="150" max="600" step="10" value="350">
+                </div>
+                <div class="control">
+                    <label for="estusCharges">Fioles d'Estus du chevalier : <span id="estusChargesVal">2</span></label>
+                    <input type="range" id="estusCharges" min="0" max="5" step="1" value="2">
+                </div>
+                <div class="control">
+                    <label for="pillarCount">Piliers dans l'arène : <span id="pillarCountVal">4</span></label>
+                    <input type="range" id="pillarCount" min="0" max="6" step="1" value="4">
+                </div>
+                <div class="control">
+                    <label for="maxFightTime">Durée max d'un combat (s) : <span id="maxFightTimeVal">90</span></label>
+                    <input type="range" id="maxFightTime" min="20" max="120" step="5" value="90">
+                </div>
+                <div class="control">
+                    <label for="trainingBudget">Vitesse de calcul (pas par image) : <span id="trainingBudgetVal">6000</span></label>
+                    <input type="range" id="trainingBudget" min="500" max="30000" step="500" value="6000">
+                </div>
+            </details>
+            <button id="optionsBackBtn" type="button" class="wide primary">Retour</button>
+        </div>
+    </div>
+
+    <!-- Tutoriel des commandes (premier combat, ou depuis les Options) -->
+    <div id="tutorial" class="overlay" hidden>
+        <div class="parchment panel">
+            <p id="tutorialStep" class="tutorial-step"></p>
+            <h2 id="tutorialTitle"></h2>
+            <p id="tutorialText"></p>
+            <div class="buttons">
+                <button id="tutorialNextBtn" type="button" class="primary">Suivant (Entrée)</button>
+                <button id="tutorialSkipBtn" type="button">Passer (Échap)</button>
+            </div>
+        </div>
+    </div>
 
     <dialog id="helpDialog">
         <h2>Comment ça marche ?</h2>
@@ -292,13 +333,16 @@
             dégâts encaissés, fioles que le chevalier a pu boire. Les boss ne se battent pas entre eux : leur cerveau a appris à lire un chevalier.
             Ils s'affrontent en <b>duel</b>, contre le même chevalier : le meilleur l'emporte. Vous pouvez aussi entraîner
             votre propre boss avec la recette de votre choix, puis l'ajouter au Panthéon.</p>
-        <h3>Les cinq modes</h3>
+        <h3>Le menu</h3>
         <ul>
-            <li><b>Combattre</b> : vous affrontez le champion, le boss écrit à la main ou un boss du Panthéon.</li>
-            <li><b>Démonstration et duels</b> : avant / après l'entraînement, ou deux boss du Panthéon, côte à côte.</li>
-            <li><b>Entraîner</b> : choisissez une recette et regardez l'évolution ; tout est sauvegardé automatiquement.</li>
-            <li><b>Comparer</b> : 50 combats identiques pour mesurer qui est le meilleur boss.</li>
-            <li><b>Panthéon</b> : le tournoi de tous les boss contre 4 joueurs robots différents.</li>
+            <li><b>Nouvelle partie</b> : le combat contre le Gardien. <b>Échap</b> ouvre la pause : choisir l'adversaire
+                (votre champion, le boss écrit à la main ou un boss du Panthéon), recommencer, les Options.</li>
+            <li><b>Continuer</b> : reprendre le combat en cours.</li>
+            <li><b>Entraîner</b>, <b>Panthéon</b>, <b>Laboratoire</b> : les outils de recherche, en onglets. Duels
+                (avant / après l'entraînement, ou deux boss du Panthéon côte à côte), Entraîner (choisir une recette et
+                regarder l'évolution, tout est sauvegardé automatiquement), Comparer (50 combats identiques pour mesurer
+                qui est le meilleur boss), Panthéon (le tournoi de tous les boss contre 4 joueurs robots).</li>
+            <li><b>Options</b> : cette aide, le tutoriel, le mode debug, les scénarios et les réglages avancés.</li>
         </ul>
         <h3>Petit lexique</h3>
         <dl>

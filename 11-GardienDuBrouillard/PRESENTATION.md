@@ -4,7 +4,9 @@
 
 1. Lancer le serveur dans ce dossier : `python -m http.server`, puis ouvrir `http://localhost:8000`.
 2. Faire **Ctrl + F5** une fois, pour être sûr d'avoir la dernière version des fichiers.
-3. Garder la fenêtre d'aide (« Comment ça marche ? ») pour la fin ou pour les questions.
+3. Garder la fenêtre d'aide (Options → « Comment ça marche ? ») pour la fin ou pour les questions.
+4. Le jeu s'ouvre sur l'écran titre. Les outils (Duels, Entraîner, Comparer, Panthéon) sont dans le
+   **Laboratoire** ; **Échap** en combat ouvre la pause.
 
 ## Déroulé conseillé
 
@@ -15,7 +17,7 @@
 6 décisions sortent (avancer ou reculer, hallebarde, esquive, ruée, souffle, tourner autour du joueur). Il a
 appris à se battre par sélection naturelle. »
 
-### 2. Jouer 1 minute (mode ⚔️ Combattre)
+### 2. Jouer 1 minute (Nouvelle partie)
 
 - Montrer le télégraphe : le cône rouge se remplit pendant 0,6 s, puis la roulade (Espace) au bon moment.
 - Frapper pendant la récupération du boss.
@@ -31,12 +33,12 @@ appris à se battre par sélection naturelle. »
   trait blanc marque le seuil de 0,6 au-delà duquel le boss attaque ou esquive. On voit aussi le cercle de
   détection (rouge quand on est dedans), les rayons vers les murs et les piliers, et la ligne de vue.
 
-### 3. Avant / après (mode 🎬 Démonstration, 2 min)
+### 3. Avant / après (Laboratoire → Duels, 2 min)
 
 « À gauche, un boss avec un cerveau au hasard. À droite, le champion. Même adversaire, même graine : seul le
 cerveau change. » Laisser tourner 2 ou 3 manches et montrer le score.
 
-### 4. Comment il apprend (mode 🧬 Entraîner, 3 min)
+### 4. Comment il apprend (Entraîner, 3 min)
 
 - Lancer l'entraînement. Expliquer : 50 boss, 2 combats chacun contre un joueur robot, une note, les meilleurs
   ont des enfants mutés.
@@ -45,7 +47,7 @@ cerveau change. » Laisser tourner 2 ou 3 manches et montrer le score.
 - Courbe du bas : la note moyenne, lissée. Elle monte en dents de scie, car le hasard des combats compte.
 - Montrer que tout est sauvegardé (message « ✔ Sauvegardé automatiquement ») et le bouton « Exporter ».
 
-### 5. Le Panthéon (mode 🏛️ Panthéon, 2 min)
+### 5. Le Panthéon (Panthéon, 2 min)
 
 « Même cerveau, même algorithme, même départ : seule la recette d'entraînement change. » Lancer le tournoi
 (une dizaine de secondes) et lire la grille :
@@ -54,10 +56,10 @@ cerveau change. » Laisser tourner 2 ou 3 manches et montrer le score.
 - les styles diffèrent : le Spectre ne charge ni ne souffle, le Chasseur charge et souffle le plus ;
 - le boss à états reste le plus solide en moyenne : les boss appris se sont spécialisés.
 
-Puis, en mode 🎬, choisir deux boss du Panthéon (par exemple le Chasseur et le Bourreau) et l'épreuve
+Puis, dans l'onglet Duels, choisir deux boss du Panthéon (par exemple le Chasseur et le Bourreau) et l'épreuve
 « Expert » : c'est un duel, le cadre de couleur montre le vainqueur de chaque manche.
 
-### 6. La preuve chiffrée (mode 📊 Comparer, 1 min)
+### 6. La preuve chiffrée (Laboratoire → Comparer, 1 min)
 
 Lancer les 50 combats (quelques secondes). Lire la phrase de conclusion et la ligne « Par combat », qui
 montre les techniques choisies par chaque boss. Résultat de référence avec les réglages par défaut
@@ -86,7 +88,7 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   - une **triche sur la récompense** : récompenser l'esquive a donné des boss qui esquivaient sans jamais
     chercher à gagner. Récompenser seulement la riposte qui touche ferme la faille… mais l'esquive n'émerge
     plus. L'évolution n'apprend que ce qui rapporte.
-- 85 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- 92 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables
