@@ -71,6 +71,16 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   et esquive) ;
 - **boss fourni** : 50 %.
 
+### 6 bis. La meute des Creux (Laboratoire → Meute, 2 min)
+
+- Montrer le joueur robot contre la meute apprise, puis appuyer sur **G** : cercle de perception de chaque Creux
+  (jaune, rouge quand un voisin y est), ses forces (pursue, flanc, evade, flocking, séparation), et le cercle
+  d'encerclement autour du chevalier, rouge quand il est encerclé.
+- Expliquer : **un seul réseau** pour cinq Creux ; il choisit les poids des comportements, il ne calcule aucune
+  force. Note collective : la meute est notée ensemble.
+- « Comparer » : 40 combats identiques. Meute apprise 93 % de victoires et chevalier encerclé 7,2 % du temps ;
+  meute écrite à la main 28 % et 0,2 %.
+
 ### 7. Ce que le projet montre (1 min)
 
 - Les **steering behaviors** de Reynolds : `arrive` pour approcher sans foncer, `seek` vers un point en avance

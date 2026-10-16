@@ -12,6 +12,12 @@ les steering behaviors de Reynolds exécutent ces choix :
 - `wander` pour errer quand le joueur est loin ;
 - un **évitement d'obstacles**, qui permet de contourner les piliers et la brume.
 
+Avant le Gardien, une **campagne** fait affronter **la meute des Creux** (niveau 1) : cinq morts-vivants qui
+partagent **un seul réseau de neurones**. Chacun l'interroge avec ce qu'il perçoit et dose ses comportements :
+`pursue`, flanc (`seek` d'un point sur un cercle autour du chevalier), `evade`, et les trois règles des boids
+(séparation, alignement, cohésion). La meute, notée collectivement, a appris à encercler le chevalier. Un feu
+de camp sépare les deux combats ; la vie et les fioles passent d'une étape à l'autre.
+
 ## Lancer
 
 Ouvrir `index.html` via un serveur local, par exemple `python -m http.server` dans ce dossier, puis aller sur
