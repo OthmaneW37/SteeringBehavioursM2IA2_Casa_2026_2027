@@ -7,7 +7,8 @@
 //     (`avoidZones`, seulement si l'intention le demande : le joueur robot l'utilise, pas l'humain) ;
 //   - locomotion : applyForce puis update(), hérités de Vehicle.
 //
-// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, avoid }.
+// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, avoid, target? }.
+// `target` (point du monde, facultatif) : le joueur va à ce point avec `arrive` au lieu de suivre `move`.
 // Verrouillé sur le boss, move.y = −1 avance vers lui, +1 recule, move.x tourne autour de lui.
 //
 // Fioles d'Estus : boire prend 1 s pendant laquelle on marche très lentement ; le soin arrive à 0,6 s.
@@ -39,6 +40,7 @@ class Player extends Vehicle {
         this.drink = null;    // gorgée en cours : { t, healed }
         this.inMist = false;  // dans une nappe de brume (réglé par le combat à chaque pas)
         this.zones = null;    // nappes de brume du combat (pour l'évitement)
+        this.pillars = null;  // piliers du combat (évitement, abri)
         this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0 };
     }
 
@@ -84,6 +86,12 @@ class Player extends Vehicle {
         return true;
     }
 
+    /** Évitement des obstacles ronds : nappes de brume et piliers debout (Steering.avoidZones). */
+    avoidObstacles() {
+        const obstacles = (this.zones || []).concat((this.pillars || []).filter(p => p.alive));
+        return Steering.avoidZones(this, obstacles);
+    }
+
     /** Direction de déplacement dans le monde ; verrouillé, elle est relative au boss. */
     moveDirection(move, boss) {
         let dir;
@@ -119,6 +127,11 @@ class Player extends Vehicle {
         } else if (this.action) {
             // On est planté pendant une attaque : `arrive` sur place freine
             this.applyForce(this.arrive(this.pos));
+        } else if (intent.target) {
+            // Point précis à rejoindre (le joueur robot va s'abriter derrière un pilier) : `arrive`
+            const t = arena.clampPoint(intent.target, this.r + 4);
+            this.applyForce(this.arrive(createVector(t.x, t.y)));
+            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
         } else {
             const dir = this.moveDirection(intent.move || { x: 0, y: 0 }, boss);
             if (dir.mag() < 0.05) {
@@ -130,8 +143,8 @@ class Player extends Vehicle {
                 if (safe.clamped) this.applyForce(this.arrive(createVector(safe.x, safe.y)));
                 else this.applyForce(this.seek(target));
             }
-            // Évitement des nappes de brume (joueur robot)
-            if (intent.avoid && this.zones) this.applyForce(Steering.avoidZones(this, this.zones).mult(1.5));
+            // Évitement des nappes de brume et des piliers (joueur robot)
+            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
         }
 
         // Orientation : vers le boss si verrouillé, sinon dans le sens de la marche
@@ -238,39 +251,62 @@ class Player extends Vehicle {
         if (this.roll) {
             noStroke();
             this.path.forEach((p, i) => {
-                fill(170, 190, 255, 20 + i * 12);
-                circle(p.x, p.y, this.r * 1.6);
+                fill(170, 190, 255, 16 + i * 10);
+                circle(p.x, p.y, this.r * 1.7);
             });
         }
         // Gorgée d'Estus : lueur dorée qui grandit jusqu'au soin
         if (this.drink) {
             noStroke();
             const k = Math.min(1, this.drink.t / Combat.PLAYER.estus.healAt);
-            fill(255, 190, 70, 40 + 80 * k);
-            circle(this.pos.x, this.pos.y, this.r * 2 + 18 * k);
+            fill(255, 190, 70, 35 + 70 * k);
+            circle(this.pos.x, this.pos.y, this.r * 2.4 + 22 * k);
         }
+        // Ombre au sol
+        noStroke();
+        fill(0, 0, 0, 90);
+        ellipse(this.pos.x + 3, this.pos.y + 5, this.r * 2.3, this.r * 1.9);
         translate(this.pos.x, this.pos.y);
         rotate(this.facing);
         const blink = this.invulnerable && Math.floor(this.roll.t * 30) % 2 === 0;
-        // Corps (armure)
-        stroke(20);
+        const hurt = this.hurtTimer > 0;
+        // Cape : flotte derrière, d'autant plus que le chevalier va vite
+        const sp = Math.min(1, this.vel.mag() / Math.max(this.maxSpeed, 1e-9));
+        const sway = Math.sin(this.pos.x * 0.05 + this.pos.y * 0.05) * 3;
+        fill(hurt ? color(150, 30, 30) : color(92, 26, 24));
+        beginShape();
+        vertex(-this.r * 0.2, -this.r * 0.85);
+        vertex(-this.r * (1.3 + 0.6 * sp), -this.r * 0.55 + sway);
+        vertex(-this.r * (1.45 + 0.8 * sp), sway * 0.5);
+        vertex(-this.r * (1.3 + 0.6 * sp), this.r * 0.55 + sway);
+        vertex(-this.r * 0.2, this.r * 0.85);
+        endShape(CLOSE);
+        // Armure : plastron et épaulières
+        stroke(16, 16, 20);
         strokeWeight(2);
-        if (this.hurtTimer > 0) fill(255, 120, 120);
-        else if (blink) fill(220, 230, 255, 120);
-        else fill(165, 170, 185);
+        fill(hurt ? color(255, 140, 140) : blink ? color(220, 230, 255, 120) : color(150, 156, 170));
         circle(0, 0, this.r * 2);
-        // Bouclier (côté gauche)
-        fill(110, 70, 40);
-        arc(2, -this.r + 2, 16, 12, Math.PI, 2 * Math.PI);
-        rect(-4, -this.r - 2, 12, 6, 2);
-        // Heaume et visière
-        fill(120, 125, 140);
-        circle(3, 0, this.r * 1.1);
-        stroke(20);
-        line(7, -3, 7, 3);
+        fill(blink ? color(220, 230, 255, 120) : color(120, 126, 142));
+        ellipse(-1, -this.r * 0.72, this.r * 0.9, this.r * 0.6);
+        ellipse(-1, this.r * 0.72, this.r * 0.9, this.r * 0.6);
+        noStroke();
+        fill(255, 255, 255, 50);
+        arc(0, 0, this.r * 1.6, this.r * 1.6, -2.4, -0.9);
+        // Bouclier (bras gauche)
+        stroke(16);
+        strokeWeight(1.5);
+        fill(96, 60, 34);
+        ellipse(3, -this.r - 1, 15, 10);
+        fill(190, 150, 70);
+        circle(3, -this.r - 1, 4);
+        // Heaume, visière lumineuse
+        fill(108, 113, 128);
+        circle(2, 0, this.r * 1.15);
+        noStroke();
+        fill(255, 220, 160, 170);
+        rect(this.r * 0.32, -this.r * 0.32, 2.5, this.r * 0.64, 1);
         // Fiole portée à la bouche pendant la gorgée
         if (this.drink) {
-            noStroke();
             fill(255, 170, 50);
             ellipse(this.r * 0.6, 4, 7, 10);
             fill(255, 230, 160);
@@ -289,21 +325,27 @@ class Player extends Vehicle {
             if (this.action.kind === 'heavy') len = 32;
         }
         rotate(swing);
-        stroke(230, 230, 240);
+        stroke(235, 238, 245);
         strokeWeight(3);
         line(this.r - 2, 0, this.r + len, 0);
-        stroke(160, 120, 50);
+        stroke(255, 255, 255, 120);
+        strokeWeight(1);
+        line(this.r + 2, -1, this.r + len - 3, -1);
+        stroke(170, 125, 50);
         strokeWeight(4);
-        line(this.r - 4, -4, this.r - 4, 4);
+        line(this.r - 4, -5, this.r - 4, 5);
         pop();
 
         // Arc de frappe pendant la fenêtre active
         if (this.action && Combat.phase(this.action.spec, this.action.t) === 'active') {
             push();
             noFill();
-            stroke(255, 255, 255, 160);
-            strokeWeight(3);
             const s = this.action.spec;
+            stroke(255, 245, 220, 70);
+            strokeWeight(9);
+            arc(this.pos.x, this.pos.y, (s.reach + 6) * 2, (s.reach + 6) * 2, this.action.facing - s.arc / 2, this.action.facing + s.arc / 2);
+            stroke(255, 255, 255, 190);
+            strokeWeight(2.5);
             arc(this.pos.x, this.pos.y, (s.reach + 8) * 2, (s.reach + 8) * 2, this.action.facing - s.arc / 2, this.action.facing + s.arc / 2);
             pop();
         }

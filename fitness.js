@@ -4,17 +4,22 @@
 // + bonus si le boss gagne
 // − pénalité par attaque dans le vide (elle évite qu'il frappe sans viser)
 // − pénalité par gorgée d'Estus réussie par le joueur (fiole commencée et non interrompue). Ce terme vaut 0
-//   dans la note de référence ; une recette du Panthéon (le Geôlier) l'utilise.
+//   dans la note de référence ; une recette du Panthéon (le Geôlier) l'utilise ;
+// + bonus par RIPOSTE QUI TOUCHE (esquive réussie, puis coup de hallebarde levé aussitôt qui touche).
+//   Sans ce bonus, l'évolution n'apprend pas à esquiver, car l'esquive casse la pression au contact (voir le
+//   README). On ne récompense pas l'esquive seule : un bonus par esquive valait plus que la victoire, et les
+//   boss avaient appris à esquiver sans arrêt sans jamais chercher à gagner (triche sur la récompense).
 // Les deux dégâts sont rapportés à 100 pour peser autant, malgré des vies maximales différentes.
 const Fitness = {
-    WEIGHTS: { dealt: 100, received: 100, win: 100, whiff: 4, drink: 0 },
+    WEIGHTS: { dealt: 100, received: 100, win: 100, whiff: 4, drink: 0, riposte: 15 },
 
     ofFight(r, w = Fitness.WEIGHTS) {
         return w.dealt * r.damageToPlayer / r.playerMaxHp
             - w.received * r.damageToBoss / r.bossMaxHp
             + (r.winner === 'boss' ? w.win : 0)
             - w.whiff * r.bossWhiffs
-            - (w.drink || 0) * ((r.drinks || 0) - (r.drinksInterrupted || 0));
+            - (w.drink || 0) * ((r.drinks || 0) - (r.drinksInterrupted || 0))
+            + (w.riposte || 0) * (r.bossRiposteHits || 0);
     },
 
     compute(results, w = Fitness.WEIGHTS) {

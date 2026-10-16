@@ -8,7 +8,7 @@
 // Une entrée : { id, name, doctrine, trial (épreuve de son entraînement, ou null), generation,
 //               winRate (examen), builtin, brain (NeuralNetwork) }
 const Pantheon = {
-    KEY: 'gardienDuBrouillard.pantheon.v1',
+    KEY: 'gardienDuBrouillard.pantheon.v1',   // les cerveaux 12-16-5 d'avant les piliers sont convertis
     MAX_SAVED: 6,
     MAX_NAME: 40,
 
@@ -18,7 +18,7 @@ const Pantheon = {
         const add = (doctrine, data, winRate) => {
             let brain;
             try {
-                brain = TrainingStore.checkBrain(data.brain);
+                brain = TrainingStore.checkBrain(data.brain, true);
             } catch (e) {
                 return;
             }
@@ -81,7 +81,7 @@ const Pantheon = {
         if (!Number.isInteger(data.generation) || data.generation < 0) throw new RangeError("Génération invalide.");
         if (data.winRate !== null && !(typeof data.winRate === 'number' && data.winRate >= 0 && data.winRate <= 1)) throw new RangeError("Examen invalide.");
         return { id: data.id, name: data.name, doctrine: data.doctrine, trial: data.trial, generation: data.generation,
-            winRate: data.winRate, builtin: false, brain: TrainingStore.checkBrain(data.brain) };
+            winRate: data.winRate, builtin: false, brain: TrainingStore.checkBrain(data.brain, true) };
     },
 
     save(storage, list) {

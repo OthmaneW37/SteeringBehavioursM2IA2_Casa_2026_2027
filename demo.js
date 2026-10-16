@@ -46,6 +46,7 @@ class Demo {
             maxTime: s.maxFightTime,
             detectRadius: s.detectRadius,
             estus: s.estusCharges,
+            pillars: s.pillarCount,
             seed: seed
         });
     }

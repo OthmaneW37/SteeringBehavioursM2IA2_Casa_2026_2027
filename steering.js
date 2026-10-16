@@ -3,12 +3,16 @@
 // - flee : fuite de Reynolds. On inverse la vitesse DÉSIRÉE (et non la force finale), puis on
 //   recalcule la force : steering = désirée − vitesse, limitée à maxForce. Ce n'est pas −seek() :
 //   inverser la force finale ajouterait 2 × vitesse (c'est ce que fait vehicle.js, qu'on ne modifie pas).
-// - evade : fuite de la position FUTURE de la cible (position + vitesse × temps de prédiction).
+// - pursue et evade : poursuite ou fuite de la position FUTURE de la cible (position + vitesse × temps de
+//   prédiction).
 // - stayInside : confinement dans l'arène (Reynolds, « containment ») : près d'un mur, la vitesse
 //   désirée pointe vers l'intérieur ; force = désirée − vitesse, limitée à maxForce. Nulle ailleurs.
 // - keepDistancePoint : point situé à `distance` de la cible, du côté de l'agent ; le boss y fait
 //   `arrive` pour garder sa distance d'attaque.
-// - avoidZones : évitement des nappes de brume (obstacle avoidance) ; distanceToSegment : outil géométrique.
+// - avoidZones : évitement d'obstacles ronds (obstacle avoidance) : nappes de brume et piliers ;
+//   distanceToSegment : outil géométrique.
+// - orbitPoint : point en avance sur un cercle centré sur une cible. Ce n'est pas un comportement : c'est une
+//   cible pour `seek` ou `arrive` (le boss tourne ainsi autour du joueur avec les comportements du cours).
 //
 // Toutes ces fonctions retournent une force ; aucune ne déplace l'entité.
 const Steering = (() => {
@@ -26,6 +30,11 @@ const Steering = (() => {
     const future = target.vel.copy();
     future.mult(seconds * 60);
     return p5.Vector.add(target.pos, future);
+  }
+
+  /** pursue : `seek` de la position FUTURE de la cible (vehicle.js en a une version qui dessine). */
+  function pursue(agent, target, seconds = 0.25) {
+    return agent.seek(predict(target, seconds));
   }
 
   function evade(agent, target, seconds = 0.25) {
@@ -82,6 +91,17 @@ const Steering = (() => {
     return force;
   }
 
+  /**
+   * Point du cercle de rayon `radius` centré sur `center`, en avance de `lead` px (longueur d'arc) sur
+   * l'agent dans le sens `side` (+1 : sens horaire à l'écran, −1 : sens inverse). Avec `lead` = 0, c'est
+   * keepDistancePoint. Le boss y fait `arrive` (approche en spirale vers sa distance d'attaque) ou `seek`
+   * (il tourne autour du joueur à la distance où il se trouve).
+   */
+  function orbitPoint(agent, center, radius, side, lead) {
+    const angle = Math.atan2(agent.pos.y - center.y, agent.pos.x - center.x) + side * lead / radius;
+    return createVector(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius);
+  }
+
   /** Distance du point p au segment [a, b] (ligne de charge du boss). */
   function distanceToSegment(p, a, b) {
     const abx = b.x - a.x, aby = b.y - a.y;
@@ -90,5 +110,5 @@ const Steering = (() => {
     return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
   }
 
-  return { flee, predict, evade, stayInside, keepDistancePoint, avoidZones, distanceToSegment };
+  return { flee, predict, pursue, evade, stayInside, keepDistancePoint, avoidZones, orbitPoint, distanceToSegment };
 })();

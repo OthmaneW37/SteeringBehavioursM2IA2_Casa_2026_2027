@@ -77,7 +77,8 @@ const FitnessChart = {
         rect(x, y, w, h);
     },
 
-    draw(history, x, y, w, h) {
+    /** `who` : ce qui est noté (« des boss » par défaut, « de la meute » pour le niveau 1). */
+    draw(history, x, y, w, h, who = "des boss") {
         const s = FitnessChart.series(history);
         const hh = (h - 40) / 2;
         push();
@@ -110,7 +111,7 @@ const FitnessChart = {
 
         // 2. Note des boss
         const y2 = y + hh + 40;
-        FitnessChart.panel("Note (fitness) des boss, lissée", x, y2, w, hh);
+        FitnessChart.panel("Note (fitness) " + who + ", lissée", x, y2, w, hh);
         push();
         translate(x, y2);
         if (s.min < 0 && s.max > 0) {

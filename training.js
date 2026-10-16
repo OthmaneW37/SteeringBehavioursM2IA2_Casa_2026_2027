@@ -61,7 +61,7 @@ class Training {
 
     /** Réglages qui changent le résultat d'un combat (le champion doit alors être remesuré). */
     fightKey(s = this.settings) {
-        return [s.dodgeProbability, s.attackInterval, s.maxFightTime, s.detectRadius, s.estusCharges, this.doctrine].join('|');
+        return [s.dodgeProbability, s.attackInterval, s.maxFightTime, s.detectRadius, s.estusCharges, s.pillarCount, this.doctrine].join('|');
     }
 
     fightSeed(k) {
@@ -79,6 +79,7 @@ class Training {
             maxTime: s.maxFightTime,
             detectRadius: s.detectRadius,
             estus: s.estusCharges,
+            pillars: s.pillarCount,
             seed: seed
         });
     }

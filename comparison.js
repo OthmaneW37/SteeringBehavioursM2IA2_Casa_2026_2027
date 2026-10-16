@@ -34,6 +34,7 @@ class Comparison {
             maxTime: s.maxFightTime,
             detectRadius: s.detectRadius,
             estus: s.estusCharges,
+            pillars: s.pillarCount,
             seed: seed
         });
     }
@@ -85,6 +86,14 @@ class Comparison {
             avgCharges: avg(r, x => x.bossCharges || 0),
             avgBreaths: avg(r, x => x.bossBreaths || 0),
             avgDrinks: avg(r, x => x.drinks || 0),
+            avgDodges: avg(r, x => x.bossDodges || 0),
+            avgRipostes: avg(r, x => x.bossRipostes || 0),
+            avgRiposteHits: avg(r, x => x.bossRiposteHits || 0),
+            avgCrashes: avg(r, x => x.bossCrashes || 0),
+            // part du combat où le boss est resté immobile alors qu'il pouvait agir
+            idleShare: avg(r, x => (x.bossIdle || 0) / Math.max(x.duration, 1e-9)),
+            // part des combats où le boss est mort dévoré dans un coin (anti-camping)
+            campShare: avg(r, x => (x.bossCamped ? 1 : 0)),
             avgMistDamage: avg(r, x => x.mistDamage || 0)
         };
     }

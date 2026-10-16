@@ -5,15 +5,19 @@
 // Chaque accès au stockage est protégé (try/catch) : un navigateur peut le bloquer. Le stockage est injecté.
 //
 // Format du fichier :
-// { format: "gardien-entrainement", version: 2, savedAt, seed, doctrine (recette, facultative), generation, validationFights, settings,
+// { format: "gardien-entrainement", version: 4, savedAt, seed, doctrine (recette, facultative), generation, validationFights, settings,
 //   population: [cerveau, ...], history: [{ generation, best, mean, winRate, championWinRate }],
 //   best: { fitness, generation, brain } | null,
 //   champion: { winRate, fitness, generation, brain } | null }
-// où « cerveau » vaut { sizes: [8, 16, 3], weights: [...], biases: [...] }.
+// où « cerveau » vaut { sizes: [16, 16, 6], weights: [...], biases: [...] }.
+//
+// Versions : 1 = cerveau 8-16-3 (refusée) ; 2 = cerveau 12-16-5, sans piliers ni déplacement latéral ;
+// 3 = cerveau 15-16-6, sans anti-camping. Les versions 2 et 3 sont converties : chaque cerveau passe par
+// BossBrain.migrate, le champion repasse l'examen. 4 = actuelle (cerveau 16-16-6).
 const TrainingStore = {
     KEY: 'gardienDuBrouillard.training.v1',
     FORMAT: 'gardien-entrainement',
-    VERSION: 2,   // version 2 : cerveau 12-16-5 (ruée, souffle, fioles) ; la version 1 avait un cerveau 8-16-3
+    VERSION: 4,   // version 4 : cerveau 16-16-6 (piliers, esquive, déplacement latéral, anti-camping)
 
     snapshot(training, now = new Date()) {
         const brain = b => (b ? JSON.parse(JSON.stringify(b.toJSON())) : null);
@@ -40,9 +44,13 @@ const TrainingStore = {
         };
     },
 
-    /** Vérifie un cerveau sauvegardé : architecture du boss obligatoire. */
-    checkBrain(data) {
+    /**
+     * Vérifie un cerveau sauvegardé : architecture du boss obligatoire. Un cerveau d'une version
+     * précédente (BossBrain.OLD_SIZES) est accepté si `convert` est vrai, et converti (BossBrain.migrate).
+     */
+    checkBrain(data, convert = false) {
         const nn = NeuralNetwork.fromJSON(data);
+        if (convert && BossBrain.isOld(nn)) return BossBrain.migrate(nn);
         if (nn.sizes.join(',') !== BossBrain.SIZES.join(',')) {
             throw new RangeError("Cerveau d'architecture [" + nn.sizes.join(', ') + "] au lieu de [" + BossBrain.SIZES.join(', ') + "].");
         }
@@ -53,18 +61,22 @@ const TrainingStore = {
     restore(data) {
         if (!data || typeof data !== 'object') throw new TypeError("Sauvegarde illisible.");
         if (data.format !== TrainingStore.FORMAT) throw new RangeError("Ce fichier n'est pas une sauvegarde d'entraînement du Gardien.");
-        if (data.version !== TrainingStore.VERSION) {
-            throw new RangeError(data.version === 1
-                ? "Sauvegarde d'une ancienne version du jeu (boss sans ruée ni souffle, cerveau 8-16-3) : elle ne peut pas être reprise."
-                : "Version de sauvegarde non prise en charge : " + data.version);
+        if (data.version === 1) {
+            throw new RangeError("Sauvegarde d'une ancienne version du jeu (boss sans ruée ni souffle, cerveau 8-16-3) : elle ne peut pas être reprise.");
         }
-        const settings = Settings.validate(data.settings || {});
+        if (data.version !== 2 && data.version !== 3 && data.version !== TrainingStore.VERSION) {
+            throw new RangeError("Version de sauvegarde non prise en charge : " + data.version);
+        }
+        const convert = data.version === 2 || data.version === 3;
+        const brainOf = d => TrainingStore.checkBrain(d, convert);
+        // Réglages absents des anciennes sauvegardes (piliers) : valeur d'origine
+        const settings = Settings.validate(Object.assign(Settings.defaults(), data.settings || {}));
         if (!Number.isInteger(data.generation) || data.generation < 0) throw new RangeError("Numéro de génération invalide.");
         if (!Number.isInteger(data.seed) || data.seed < 1) throw new RangeError("Graine invalide.");
         if (!Array.isArray(data.population) || data.population.length < 1 || data.population.length > Settings.PARAMETERS.populationSize.max) {
             throw new RangeError("Population invalide.");
         }
-        const brains = data.population.map(TrainingStore.checkBrain);
+        const brains = data.population.map(brainOf);
         if (!Array.isArray(data.history)) throw new TypeError("Historique absent.");
         for (const h of data.history) {
             for (const k of ['generation', 'best', 'mean', 'winRate']) {
@@ -78,15 +90,17 @@ const TrainingStore = {
         t.generation = data.generation;
         t.rng = seededRandom(data.seed * 7919 + data.generation);
         t.history = data.history.map(h => Object.assign({}, h));
-        if (data.best) t.best = { brain: TrainingStore.checkBrain(data.best.brain), fitness: data.best.fitness, generation: data.best.generation };
+        if (data.best) t.best = { brain: brainOf(data.best.brain), fitness: data.best.fitness, generation: data.best.generation };
         if (data.champion) {
             t.champion = {
-                brain: TrainingStore.checkBrain(data.champion.brain), winRate: data.champion.winRate,
+                brain: brainOf(data.champion.brain), winRate: data.champion.winRate,
                 fitness: data.champion.fitness, generation: data.champion.generation,
-                // Mesuré avec les réglages sauvegardés ; un examen d'une autre taille sera refait
-                key: data.validationFights === Training.VALIDATION_FIGHTS && !data.champion.stale ? t.fightKey(settings) : 'à réexaminer'
+                // Mesuré avec les réglages sauvegardés ; un examen d'une autre taille ou une sauvegarde
+                // convertie (règles du combat changées) seront réexaminés
+                key: !convert && data.validationFights === Training.VALIDATION_FIGHTS && !data.champion.stale ? t.fightKey(settings) : 'à réexaminer'
             };
         }
+        t.convertedFrom = convert ? data.version : null;
         return t;
     },
 

@@ -40,7 +40,7 @@ Bloodstain.KEY = 'gardienDuBrouillard.bloodstains.v1';
 
 /** Texte de la tache selon la cause de la mort. */
 Bloodstain.labelFor = function (cause) {
-    const causes = { hallebarde: "la hallebarde", 'ruée': "la ruée", brume: "la brume" };
+    const causes = { hallebarde: "la hallebarde", 'ruée': "la ruée", brume: "la brume", morsure: "la meute des Creux" };
     return "Ici, vaincu par " + (causes[cause] || "le Gardien");
 };
 

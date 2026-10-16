@@ -55,7 +55,8 @@ class CrossTournament {
      * autant). C'est sa « fiche de style » : combien il frappe, charge, souffle, et ce qu'il encaisse.
      */
     static profile(row) {
-        const keys = ['winRate', 'avgDuration', 'avgDamageDealt', 'avgDamageTaken', 'avgWhiffs', 'avgAttacks', 'avgCharges', 'avgBreaths', 'avgDrinks'];
+        const keys = ['winRate', 'avgDuration', 'avgDamageDealt', 'avgDamageTaken', 'avgWhiffs', 'avgAttacks', 'avgCharges', 'avgBreaths', 'avgDrinks',
+            'avgDodges', 'avgRipostes', 'avgCrashes', 'idleShare', 'campShare'];
         const out = {};
         const played = row.filter(c => c.fights > 0);
         for (const k of keys) out[k] = played.length ? played.reduce((s, c) => s + c[k], 0) / played.length : 0;

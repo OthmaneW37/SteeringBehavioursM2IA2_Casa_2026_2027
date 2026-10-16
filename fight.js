@@ -11,9 +11,19 @@
 //
 // Le combat gère les nappes de brume (MistPatch) : au plus Combat.BOSS.breath.maxZones, la plus ancienne
 // disparaît quand une nouvelle arrive. Il retient aussi la cause de la dernière blessure du joueur.
+//
+// Il crée aussi les piliers (Pillar) aux premiers emplacements de l'arène : les corps ne les traversent
+// pas, un pilier entre l'attaquant et sa cible bloque le coup, et une ruée qui en percute un étourdit
+// le boss et fissure le pilier.
+//
+// Anti-camping (Combat.BOSS.camping) : un boss qui reste trop longtemps dans un coin de l'arène est
+// dévoré par le brouillard et meurt. La défaite compte toute sa vie restante comme dégâts reçus : la note
+// de l'entraînement le punit fortement, il apprend à ne pas se terrer dans les coins.
 class Fight {
     /**
-     * options : { arena, playerController, bossController, maxTime (s), seed, estus (fioles du joueur) }
+     * options : { arena, playerController, bossController, maxTime (s), seed, estus (fioles du joueur),
+     *             pillars (nombre de piliers, 0 par défaut), antiCamping (true par défaut),
+     *             playerHp (vie de départ du chevalier, reportée par la campagne) }
      * seed fixe l'aléatoire de p5 (wander) pour un combat reproductible, quand randomSeed existe.
      */
     constructor(options) {
@@ -26,9 +36,14 @@ class Fight {
         this.boss = new Boss(this.arena.bossStart.x, this.arena.bossStart.y);
         if (options.detectRadius) this.boss.detectRadius = options.detectRadius;
         if (options.estus !== undefined) this.player.estus = options.estus;
+        if (options.playerHp !== undefined) this.player.hp = Math.max(1, Math.min(this.player.maxHp, options.playerHp));
         this.zones = [];                 // nappes de brume en jeu
         this.player.zones = this.zones;  // le joueur robot les évite
+        this.pillars = (this.arena.pillarSlots || []).slice(0, options.pillars || 0).map(p => new Pillar(p.x, p.y));
+        this.player.pillars = this.pillars;
+        this.boss.pillars = this.pillars;
         this.mistDamage = 0;
+        this.antiCamping = options.antiCamping !== false;
         this.lastCause = null;           // 'hallebarde', 'ruée' ou 'brume'
         this.time = 0;
         this.result = null;
@@ -54,9 +69,11 @@ class Fight {
 
         player.update();
         boss.update();
+        this.resolvePillars();
         arena.constrain(player);
         arena.constrain(boss);
         Fight.separateBodies(player, boss);
+        for (const p of this.pillars) { p.pushOut(player); p.pushOut(boss); }
         arena.constrain(player);
         arena.constrain(boss);
 
@@ -66,11 +83,28 @@ class Fight {
 
         player.tick(dt);
         boss.tick(dt);
+        for (const p of this.pillars) p.tick(dt);
+        this.updateCamping(dt);
         this.time += dt;
 
         if (!player.alive) this.finish('boss');
         else if (!boss.alive) this.finish('player');
         else if (this.time >= this.maxTime) this.finish('draw');
+    }
+
+    /** Anti-camping : compteur du coin, et mort du boss quand il atteint la limite. */
+    updateCamping(dt) {
+        const { boss, arena } = this;
+        if (!this.antiCamping || !boss.alive) return;
+        const C = Combat.BOSS.camping;
+        if (arena.inCorner(boss.pos, boss.r, C.margin)) boss.campTime += dt;
+        else boss.campTime = Math.max(0, boss.campTime - C.recover * dt);
+        if (boss.campTime >= C.limit) {
+            this.damageToBoss += boss.hp;
+            boss.hp = 0;
+            boss.stats.camped = true;
+            this.events.push({ type: 'camping', x: boss.pos.x, y: boss.pos.y });
+        }
     }
 
     /** Nappes de brume : brûlure du joueur qui s'y trouve, création, vieillissement, plafond. */
@@ -95,11 +129,40 @@ class Fight {
         for (let i = this.zones.length - 1; i >= 0; i--) if (!this.zones[i].alive) this.zones.splice(i, 1);
     }
 
-    /** Un coup touche au plus une fois, pendant la fenêtre de frappe, si la cible est dans le cône. */
+    /**
+     * Piliers : une ruée en pleine charge qui touche un pilier s'y écrase (boss étourdi, pilier fissuré) ;
+     * puis chaque corps est repoussé hors des piliers.
+     */
+    resolvePillars() {
+        const { player, boss } = this;
+        for (const p of this.pillars) {
+            if (!p.alive) continue;
+            const a = boss.action;
+            const touching = Math.hypot(boss.pos.x - p.pos.x, boss.pos.y - p.pos.y) < p.radius + boss.r + 1;
+            if (touching && a && a.kind === 'charge' && Combat.phase(a.spec, a.t) === 'active') {
+                const fell = p.crack();
+                boss.crash();
+                this.events.push({ type: fell ? 'crumble' : 'crash', x: p.pos.x, y: p.pos.y });
+            }
+            p.pushOut(player);
+            p.pushOut(boss);
+        }
+    }
+
+    /**
+     * Un coup touche au plus une fois, pendant la fenêtre de frappe, si la cible est dans le cône
+     * et qu'aucun pilier ne s'interpose (le pilier pare le coup, une seule fois par attaque).
+     */
     resolveHit(attacker, target, who) {
         const a = attacker.action;
-        if (!a || a.hasHit || a.spec.damage <= 0 || Combat.phase(a.spec, a.t) !== 'active') return;
+        if (!a || a.hasHit || a.blocked || a.spec.damage <= 0 || Combat.phase(a.spec, a.t) !== 'active') return;
         if (!Combat.inArc(attacker.pos, a.facing, target, a.spec.reach, a.spec.arc)) return;
+        const wall = Combat.blocker(attacker.pos, target.pos, this.pillars);
+        if (wall) {
+            a.blocked = true;
+            this.events.push({ type: 'blocked', who: who, x: wall.pos.x, y: wall.pos.y });
+            return;
+        }
         if (!target.receiveHit(a.spec.damage)) {
             this.events.push({ type: 'dodged', who: who, x: target.pos.x, y: target.pos.y });
             return;
@@ -107,6 +170,7 @@ class Fight {
         a.hasHit = true;
         attacker.stats.hits++;
         attacker.stats.damageDealt += a.spec.damage;
+        if (a.riposte) attacker.stats.riposteHits++;
         if (who === 'boss') {
             this.damageToPlayer += a.spec.damage;
             this.lastCause = a.kind === 'charge' ? 'ruée' : 'hallebarde';
@@ -140,6 +204,12 @@ class Fight {
             bossHits: this.boss.stats.hits,
             bossCharges: this.boss.stats.charges,
             bossBreaths: this.boss.stats.breaths,
+            bossDodges: this.boss.stats.dodges,
+            bossRipostes: this.boss.stats.ripostes,
+            bossRiposteHits: this.boss.stats.riposteHits,
+            bossCrashes: this.boss.stats.crashes,
+            bossIdle: this.boss.stats.idleTime,
+            bossCamped: this.boss.stats.camped,
             mistDamage: this.mistDamage,
             drinks: this.player.stats.drinks,
             drinksInterrupted: this.player.stats.drinksInterrupted,
