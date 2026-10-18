@@ -58,6 +58,8 @@ const Combat = {
         rage: { threshold: 0.3, speedMul: 1.35, cooldownMul: 0.55 },
         // Hallebarde parée : le boss est déséquilibré `stagger` s, ouvert à une riposte critique
         parry: { stagger: 1.8 },
+        // Une hallebarde sur `every` est un coup retardé (Combat.ATTACKS.bossDelayed) : la 3e, la 6e…
+        delay: { every: 3 },
         // Ruée : vise la position du joueur prédite `predict` s plus tard (comme pursue), visée figée
         // `lockBefore` s avant la fin de la préparation, puis charge en ligne droite (seek du point visé)
         charge: { cooldown: 5, predict: 0.4, lockBefore: 0.15, maxSpeed: 8, maxForce: 2.5, length: 260 },
@@ -76,6 +78,9 @@ const Combat = {
         // Parade : bouclier levé ; `arc` = ouverture couverte par le bouclier devant le chevalier
         parry: { stamina: 18, windup: 0.04, active: 0.2, recovery: 0.45, damage: 0, reach: 0, arc: Math.PI * 0.75 },
         boss: { windup: 0.6, active: 0.15, recovery: 1.0, damage: 22, reach: 95, arc: Math.PI * 0.8, parryable: true },
+        // Coup RETARDÉ (une hallebarde sur DELAY_EVERY) : même coup, préparation plus longue. Le télégraphe se remplit
+        // plus lentement ; une parade lancée au rythme habituel tombe trop tôt (la ruse des boss Souls)
+        bossDelayed: { windup: 1.0, active: 0.15, recovery: 1.0, damage: 24, reach: 95, arc: Math.PI * 0.8, parryable: true },
         // La ruée touche au contact, dans toutes les directions (arc complet), pendant la charge
         charge: { windup: 0.5, active: 0.45, recovery: 1.2, damage: 20, reach: 42, arc: Math.PI * 2 },
         // Le souffle ne frappe pas directement : il pose une nappe au début de sa phase active

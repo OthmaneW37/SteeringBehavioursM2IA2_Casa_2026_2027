@@ -17,7 +17,7 @@ const Presentation = {
         { id: 'intro', kind: 'card', duration: 9, title: "Le Gardien du Brouillard",
             lines: ["Un combat de boss façon Souls, en p5.js.",
                 "Le boss n'est pas programmé à la main : un réseau de neurones décide, les steering behaviors de Craig Reynolds exécutent."] },
-        { id: 'campaign', kind: 'campaign', duration: 150, title: "Partie complète : la campagne",
+        { id: 'campaign', kind: 'campaign', duration: 240, title: "Partie complète : la campagne",
             lines: ["Partie jouée en temps réel par un joueur automatique : il pare, riposte, roule et boit comme un joueur de Souls."] },
         { id: 'explain', kind: 'card', duration: 6, title: "Comment ça marche ?",
             lines: ["Rejouons chaque mécanique au ralenti de l'esprit : qui décide, et quelles forces font bouger les personnages."] },
@@ -74,6 +74,39 @@ const Presentation = {
                 "Décisions : réseaux de neurones entraînés par neuroévolution. Bonne chance, chevalier."] }
     ],
     KINDS: ['card', 'campaign', 'boss', 'pack', 'chart'],
+    // Partie complète : graine choisie parmi les campagnes que le joueur automatique gagne (une victoire serrée)
+    CAMPAIGN_SEED: 5,
+    fightSeed(seed, stepIndex) { return seed * 31 + stepIndex; },
+    playerSeed(seed, stepIndex) { return seed * 7 + stepIndex; },
+
+    /**
+     * Simule sans rendu la partie complète de la présentation, comme le câblage la joue : mêmes graines, un
+     * joueur automatique neuf par combat, il boit au feu de camp tant que sa vie est sous 75. Retourne
+     * { won, steps: [{ id, winner, duration, hp }] }. deps : { arena, bossBrain, packBrain, settings, packSize }.
+     */
+    showcaseCampaign(deps, seed = Presentation.CAMPAIGN_SEED) {
+        const s = deps.settings, run = new CampaignRun(), steps = [];
+        while (!run.done) {
+            const st = run.step;
+            if (st.kind === 'rest') {
+                while (run.carry.hp <= 75 && run.drink());
+                run.leaveRest();
+                continue;
+            }
+            const i = run.index;
+            const common = { arena: deps.arena, playerController: new ShowcasePlayerController(seededRandom(Presentation.playerSeed(seed, i))),
+                estus: run.carry.estus, playerHp: run.carry.hp, pillars: s.pillarCount, seed: Presentation.fightSeed(seed, i), maxTime: 240 };
+            const f = st.kind === 'pack' ? new PackFight(Object.assign(common, { packController: new NeuralPackController(deps.packBrain), size: deps.packSize }))
+                : st.kind === 'veilleur' ? new VeilleurFight(common)
+                : new Fight(Object.assign(common, { bossController: new NeuralBossController(deps.bossBrain), detectRadius: s.detectRadius,
+                    bossHp: st.options && st.options.bossHp }));
+            const r = f.run();
+            steps.push({ id: st.id, winner: r.winner, duration: r.duration, hp: f.player.hp });
+            if (r.winner !== 'player') return { won: false, steps: steps };
+            run.win(f.player);
+        }
+        return { won: true, steps: steps };
+    },
     PLAYERS: ['idle', 'approach', 'robot', 'pester', 'kite', 'parry'],
     LAYERS: ['debug', 'forces', 'formula', 'network', 'packNetwork', 'pack', 'chart'],
 

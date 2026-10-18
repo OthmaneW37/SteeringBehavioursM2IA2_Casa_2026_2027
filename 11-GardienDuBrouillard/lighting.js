@@ -23,6 +23,11 @@ const Lighting = {
         for (const c of fight.creux || []) {
             if (c.alive) out.push({ x: c.pos.x, y: c.pos.y, r: 60, power: 0.35, color: [180, 200, 255] });
         }
+        // Niveau 2 : la braise du Veilleur et chaque feu follet éclairent l'arène
+        if (fight.veilleur && fight.veilleur.alive) out.push({ x: fight.veilleur.pos.x, y: fight.veilleur.pos.y, r: 95, power: 0.45, color: [255, 130, 50] });
+        for (const w of fight.wisps || []) {
+            if (w.alive) out.push({ x: w.pos.x, y: w.pos.y, r: 70, power: 0.6, color: [255, 150, 60] });
+        }
         if (boss && boss.alive) {
             const rage = boss.enraged;
             out.push({ x: boss.pos.x, y: boss.pos.y, r: rage ? 150 : 110, power: rage ? 0.75 : 0.55, color: rage ? [255, 70, 40] : [110, 200, 255] });

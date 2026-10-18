@@ -257,27 +257,52 @@ cercle d'encerclement autour du chevalier (rouge quand il est encerclé) et le r
 
 ## La campagne
 
-« Nouvelle partie » lance la campagne (`campaign.js`) : **la meute des Creux**, puis un **feu de camp**, puis
-**le Gardien du Brouillard**. Chaque étape s'ouvre sur une carte de titre ; l'étape en cours est rappelée en haut
-de l'écran.
+« Nouvelle partie » lance la campagne (`campaign.js`), en cinq étapes : **niveau 1, la meute des Creux** → **feu de
+camp** → **niveau 2, le Veilleur des cendres** → **dernier feu de camp** → **le Gardien du Brouillard**, au sommet de
+sa force. Chaque étape s'ouvre sur une carte de titre ; l'étape en cours est rappelée en haut de l'écran.
 
-- **Report** : la vie et les fioles restantes passent d'une étape à l'autre. Rien n'est rendu entre deux
-  combats.
-- **Feu de camp** : un lieu sûr, sans ennemi. On peut y boire ses fioles sans risque (**E**), puis repartir
-  (**Entrée**). Il ne rend ni vie ni fiole (réglage `Campaign.REST`, nul par défaut).
+- **Report** : la vie et les fioles restantes passent d'une étape à l'autre.
+- **Feu de camp** : un lieu sûr, sans ennemi. Comme dans les Souls, il **ravive une fiole à l'arrivée** (la vie,
+  elle, ne revient pas) ; on peut la boire sur place (**E**, ou **X** à la manette), puis repartir (**Entrée**,
+  ou **A**). Réglage `Campaign.REST` : `{ heal: 0, estus: 1 }`.
 - **Point de reprise** : en entrant dans une étape, la vie et les fioles sont notées. Mourir fait recommencer
-  l'étape **avec ces valeurs-là**, pas avec celles de la mort : pas de cercle vicieux où chaque essai partirait
-  plus faible. **R** recommence l'étape ; à la fin, **R** relance une campagne.
-- **Combat libre** : choisir un adversaire dans le menu de pause quitte la campagne.
-- **Niveau 2** : une étape est une donnée (`{ id, kind: 'pack' | 'boss' | 'rest', label, intro, options }`).
-  Ajouter un niveau, par exemple une meute de 7 Creux, c'est ajouter une entrée à `Campaign.STEPS` (un test le
-  fait avec `options: { size: 7 }`).
+  l'étape **avec ces valeurs-là**, pas avec celles de la mort. **R** recommence l'étape ; à la fin, **R** relance
+  une campagne.
+- **Combat libre** : choisir un adversaire dans le menu de pause quitte la campagne (le Veilleur y est aussi).
+- **Ajouter un niveau** : une étape est une donnée (`{ id, kind: 'pack' | 'veilleur' | 'boss' | 'rest', label,
+  intro, options }`). Un test ajoute une meute de 7 Creux avec `options: { size: 7 }`.
 
-**Mesure avec le joueur robot** (40 essais) : il ne sort vivant de la meute apprise que 8 fois, avec 23 points
-de vie en moyenne. Avec ce report, le Gardien gagne 8 combats sur 8, contre 4 sur 8 quand le robot arrive à neuf.
-Même en buvant toutes ses fioles au feu de camp, il perd presque toujours : les fioles servent surtout pendant
-le combat. La campagne est donc **dure, comme demandé**. Si elle l'est trop, il suffit de donner une valeur à
-`Campaign.REST` (vie rendue, fioles ajoutées au feu de camp), sans toucher au code.
+### Niveau 2 : le Veilleur des cendres
+
+Un sorcier qui **garde ses distances** et lance des **feux follets** qui vous poursuivent. Deux entités, deux
+fichiers, deux sous-classes de `Vehicle` :
+
+| Entité | Steering |
+|---|---|
+| `Veilleur` (`veilleur.js`) | `arrive` vers un point à **distance de garde** du chevalier (`Steering.keepDistancePoint`, 250 px) + `seek` d'un point en avance sur le cercle (il tourne autour) ; `flee` quand le chevalier est à moins de 150 px ; **saut de cendres** (`evade` très rapide, insaisissable 0,35 s) quand on le serre de près ; évitement des piliers, confinement. |
+| `Wisp`, le feu follet (`wisp.js`) | **`pursue`** du chevalier (il vise sa position 0,3 s plus tard) + **séparation** des autres feux follets (boids). Force maximale faible : il tourne large, un pas de côté au dernier moment le fait passer à côté. |
+
+Ses décisions sont des **règles écrites à la main** (`veilleurController.js`) : fuir sous 150 px, sauter quand il
+est serré ou attaqué de près, garder ses distances et invoquer 3 feux follets (0,8 s d'incantation pendant
+laquelle il est planté et vulnérable, puis 3 s d'attente ; au plus 6 feux follets). Un feu follet explose au
+contact (12 dégâts) sauf pendant l'invulnérabilité de la roulade ; un coup d'épée le dissipe.
+
+### Le Gardien de fin : coups retardés et réserve de vie
+
+- **Coups retardés** : une hallebarde sur trois se prépare en **1 s au lieu de 0,6** (le télégraphe se remplit
+  plus lentement). C'est la ruse des boss Souls contre les parades : parer au rythme habituel tombe trop tôt.
+  Le coup reste le même (`kind 'boss'`) : la parade, l'esquive du joueur robot et le réseau le reconnaissent.
+- **Réserve de vie** : en campagne, le Gardien a **500 points de vie** (`options: { bossHp: 500 }`) au lieu de 200 ;
+  ses entrées sont en proportion de sa vie, son réseau joue donc comme avant. L'entraînement et les mesures
+  restent à 200.
+
+Avant ces changements, un joueur qui maîtrisait la parade battait le Gardien en 10 s. Maintenant, le joueur
+automatique de la vidéo (qui pare bien mais se fait piéger une fois sur deux par un coup retardé) gagne la
+campagne **21 fois sur 30**, et le combat final dure environ une minute, gagné de justesse.
+
+**Caméra contre une meute** : zoom constant centré entre le chevalier et les Creux proches
+(`Camera.groupTarget`). Avant, la caméra basculait entre le zoom de verrouillage et la vue entière chaque fois
+que le verrouillage changeait, d'où des zooms saccadés.
 
 ## L'interface
 
@@ -367,20 +392,22 @@ c'est changer un nom de fichier dans `SoundBank.SFX`.
 
 ## La présentation (vidéo de démonstration)
 
-Laboratoire → onglet **Présentation** : environ **4 minutes** en vrais combats, pour montrer au professeur le jeu
-puis comment tout fonctionne. **→** passe à la scène suivante, **Échap** arrête.
+Laboratoire → onglet **Présentation** : environ **5 minutes 30** en vrais combats, pour montrer au professeur le
+jeu puis comment tout fonctionne. **→** passe à la scène suivante, **Échap** arrête.
 
-**D'abord une partie complète** (environ 45 s) : la vraie campagne (la meute, le feu de camp, le Gardien), dans le
-vrai jeu (caméra, HUD, gel d'impact, sons, bandeaux), jouée en temps réel par un **joueur automatique « vitrine »**
-(`showcasePlayer.js`), ce que la légende dit clairement. Il joue comme un bon joueur de Souls, sans avantage caché
-(il passe par la même intention que le clavier) : contre la meute, il recule pour qu'elle s'étire, frappe le Creux
-isolé, pare une morsure seule et roule à travers plusieurs ; contre le Gardien, il reste à portée pour l'inviter à
-frapper, pare la hallebarde, riposte au coup lourd, esquive la ruée et le souffle. Il gagne la campagne sur les 40
-graines essayées. La partie du joueur en cours est mise de côté pendant la présentation, puis rendue.
+**D'abord une partie complète** (environ 2 min 30) : la vraie campagne (la meute, le feu de camp, le Veilleur des
+cendres, le dernier feu de camp, le Gardien), dans le vrai jeu (caméra, HUD, gel d'impact, sons, bandeaux), jouée en
+temps réel par un **joueur automatique « vitrine »** (`showcasePlayer.js`), ce que la légende dit clairement. Il
+joue comme un bon joueur de Souls, sans avantage caché (il passe par la même intention que le clavier) :
+- contre la meute, il recule pour qu'elle s'étire, frappe le Creux isolé, pare une morsure seule et roule à travers
+  plusieurs ;
+- contre le Veilleur, il le poursuit, coupe les feux follets qui foncent sur lui ou roule à travers ;
+- contre le Gardien, il reste à portée pour l'inviter à frapper, pare, riposte, garde une réserve d'endurance et
+  recule pour la reprendre ; comme un humain, il se fait piéger une fois sur deux par un coup retardé.
 
-**Ce que la partie montre aussi** : un joueur qui maîtrise la parade bat le Gardien en 11 à 18 s. Le réseau du
-boss n'a pas été entraîné contre la parade (le joueur robot ne pare pas) ; l'entraîner contre un joueur robot
-qui pare serait la suite logique pour le rendre plus coriace.
+Il gagne la campagne 21 fois sur 30 ; la partie de la vidéo (graine 5, `Presentation.CAMPAIGN_SEED`) est rejouée à
+l'identique : un combat final d'environ une minute, gagné de justesse. La partie du joueur en cours est mise de côté
+pendant la présentation, puis rendue ; ses taches de sang ne s'affichent pas.
 
 Puis les explications :
 
@@ -407,7 +434,7 @@ recalculer**, et un test vérifie que leur somme est exactement la force appliqu
 du canvas et son du jeu, `recorder.js`, environ 30 Mo par minute). Le format WebM se lit dans Chrome, Edge,
 Firefox et VLC ; pour un MP4, il faut le convertir. Il n'y a pas de voix off : les explications sont les légendes.
 MediaRecorder écrit la vidéo sans sa durée : `WebmDuration` l'inscrit dans l'en-tête à la fin, pour que la barre de
-progression et la recherche fonctionnent. Une vidéo déjà enregistrée (environ 4 min, 1280 × 720) est dans
+progression et la recherche fonctionnent. Une vidéo déjà enregistrée (environ 5 min 30, 1280 × 720) est dans
 `video/gardien-du-brouillard-presentation.webm`, gardée hors du dépôt Git (`video/.gitignore`).
 
 ## Les outils
@@ -607,13 +634,14 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `pretrainedPack.js` | Données : la meute fournie (`node tools/pretrain-pack.mjs 60 7`). |
 | `campaign.js` | Campagne : étapes (données), report de la vie et des fioles, feu de camp, point de reprise. |
 | `audio.js`, `libraries/audio/` | Son : volumes (PARAMETERS), sons par événement, musique par scène, mélangeur (variantes, délais, fondu), moteur Web Audio injecté ; fichiers CC0. |
+| `wisp.js`, `veilleur.js`, `veilleurController.js`, `veilleurFight.js` | Niveau 2 : feu follet (pursue, séparation), Veilleur des cendres (arrive, seek, flee, evade), ses décisions écrites à la main, son combat. |
 | `networkView.js`, `presentation.js`, `recorder.js`, `showcasePlayer.js` | Présentation : schéma du réseau en direct, scènes et marionnettes, enregistrement vidéo (.webm), joueur automatique de la partie complète. |
 | `gamepad.js` | Manette : zone morte du stick, fronts des boutons, gâchettes, disposition Souls, choix clavier ou manette. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=32`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=34`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -622,7 +650,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 153 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 159 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -640,6 +668,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 153 tes
 | `gamepad.test.mjs` | Stick (zone morte radiale continue), fronts des boutons, seuil des gâchettes, croix, stick pour les menus, manette débranchée ; disposition Souls (chaque bouton → la bonne action) ; le clavier garde la priorité ; choix « clavier seulement » respecté et gardé. |
 | `audio.test.mjs` | Fichiers présents et crédités ; réglages du son (plages, mémorisation) ; sons de chaque événement et musique de chaque scène ; volumes, coupure, délais, variantes ; un son par coup, roulade ou technique, pas réguliers ; fondu exact de la musique ; moteur Web Audio (chargement unique, déblocage, volume borné) ; **le son ne modifie pas le combat**. |
 | `presentation.test.mjs` | Scénario (partie complète d'abord, explications de 2 à 4 min) ; **le joueur vitrine finit la campagne** ; déroulé (changement de scène et de légende au bon instant) ; **chaque scène montre ce qu'elle annonce** (simulée avec les cerveaux fournis) ; marionnettes ; forces notées = force appliquée ; schéma du réseau (disposition, signaux, lecture en mots, aucun recalcul, mémoire par Creux) ; enregistrement vidéo et son. |
+| `veilleur.test.mjs` | Feu follet (pursue de la position future, séparation, durée de vie) ; Veilleur (distance de garde, fuite, saut de cendres et vitesse restaurée, incantation en secondes) ; ses décisions ; combat du niveau 2 (épée, explosion, roulade, plafond, fin) ; simulation courte reproductible ; coups retardés (un sur trois, parade au rythme habituel trop tôt) ; vie du boss de campagne. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

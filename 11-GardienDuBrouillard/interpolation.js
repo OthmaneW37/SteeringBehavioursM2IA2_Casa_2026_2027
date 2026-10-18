@@ -33,6 +33,6 @@ const Interpolation = {
 
     /** Entités dont on interpole le dessin dans un combat (chevalier, boss, Creux). */
     entitiesOf(fight) {
-        return [fight.player].concat(fight.boss ? [fight.boss] : [], fight.creux || []);
+        return [fight.player].concat(fight.boss ? [fight.boss] : [], fight.creux || [], fight.veilleur ? [fight.veilleur] : [], fight.wisps || []);
     }
 };

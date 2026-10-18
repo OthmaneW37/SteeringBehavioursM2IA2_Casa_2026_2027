@@ -26,7 +26,7 @@ const game = {
     inputDevice: 'clavier',  // dernier appareil utilisé : les aides affichent ses boutons
     padNotice: -Infinity,    // instant où une manette a été détectée (message pendant quelques secondes)
     presentation: null,      // présentation en cours : { run, fight, kind, overTime, recorder, seed, saved }
-    autoPlayer: null,        // joueur automatique de la partie complète de la présentation (sinon : le clavier)
+    autoSeed: null,          // partie complète de la présentation : graine des combats et du joueur automatique (sinon : le clavier)
     audio: null,             // sons et musique (AudioMixer, rendu seulement)
     audioBackend: null,
     audioSettings: null,
@@ -444,7 +444,7 @@ function fillBossSelect(select, fixed) {
 function refreshPantheon() {
     const champion = ['champion', "Champion de votre entraînement"], hand = ['hand', "Boss écrit à la main (machine à états)"];
     fillBossSelect(byId('opponentSelect'), [champion, hand, ['pack', "Niveau 1 : la meute des Creux (apprise)"],
-        ['packHand', "Niveau 1 : la meute écrite à la main"]]);
+        ['packHand', "Niveau 1 : la meute écrite à la main"], ['veilleur', "Niveau 2 : le Veilleur des cendres"]]);
     fillBossSelect(byId('demoLeftSelect'), [['random', "Avant entraînement (réseau au hasard)"], hand, champion]);
     fillBossSelect(byId('demoRightSelect'), [champion, hand]);
     const list = byId('pantheonList');
@@ -564,7 +564,7 @@ function applyScreen(name) {
         game.mode = 'combat';
         game.paused = false;
         game.accumulator = 0;
-        game.camera.snap(Camera.target(game.arena, width, height, game.fight.player.locked, game.fight.player, foeOf(game.fight)));
+        game.camera.snap(cameraTarget(game.fight, game.fight.player.locked));
         if (Tutorial.shouldShow(game.storage)) openTutorial();
     } else {
         game.mode = game.labMode;
@@ -732,17 +732,26 @@ function startFight() {
  * (taille de la meute, perception).
  */
 function launchFight(kind, carry = null, options = {}) {
-    const opt = { arena: game.arena, playerController: game.autoPlayer || game.human, maxTime: Infinity, estus: carry ? carry.estus : game.settings.estusCharges,
+    const opt = { arena: game.arena, playerController: game.human, maxTime: Infinity, estus: carry ? carry.estus : game.settings.estusCharges,
         pillars: game.settings.pillarCount };
     if (carry) opt.playerHp = carry.hp;
-    if (kind === 'pack' || kind === 'packHand') {
+    // Partie complète de la présentation : un joueur automatique neuf par combat, graines fixées par l'étape
+    // (la partie est reproductible : c'est celle que Presentation.showcaseCampaign simule)
+    if (game.autoSeed !== null && game.campaign) {
+        const i = game.campaign.index;
+        opt.seed = Presentation.fightSeed(game.autoSeed, i);
+        opt.playerController = new ShowcasePlayerController(seededRandom(Presentation.playerSeed(game.autoSeed, i)));
+    }
+    if (kind === 'veilleur') {
+        game.fight = new VeilleurFight(Object.assign(opt, { controller: new VeilleurController() }));
+    } else if (kind === 'pack' || kind === 'packHand') {
         game.fight = new PackFight(Object.assign(opt, {
             packController: kind === 'pack' ? new NeuralPackController(packBrain()) : new HandPackController(),
             size: options.size || game.packSettings.packSize,
             perception: options.perception || game.packSettings.packPerception
         }));
     } else {
-        game.fight = new Fight(Object.assign(opt, { bossController: bossController(kind), detectRadius: game.settings.detectRadius }));
+        game.fight = new Fight(Object.assign(opt, { bossController: bossController(kind), detectRadius: game.settings.detectRadius, bossHp: options.bossHp }));
     }
     game.state = 'fight';
     game.stateTime = 0;
@@ -752,6 +761,7 @@ function launchFight(kind, carry = null, options = {}) {
     if (game.audio) game.audio.resetCues(game.fight);
     const entry = pantheonEntry(kind);
     byId('bossInfo').textContent = game.campaign ? "Campagne · " + game.campaign.progress() + " · " + game.campaign.step.label + "."
+        : kind === 'veilleur' ? "Niveau 2 : le Veilleur des cendres garde ses distances et lance des feux follets qui vous poursuivent (pursue)."
         : kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
         : kind === 'pack' ? "Niveau 1 : " + game.fight.creux.length + " Creux qui partagent un réseau appris. " + packLabel()
         : kind === 'packHand' ? "Niveau 1 : " + game.fight.creux.length + " Creux menés par des règles écrites à la main (poursuite, recul, morsure)."
@@ -779,7 +789,7 @@ function startCampaignStep() {
         game.stateTime = 0;
         return;
     }
-    launchFight(step.kind === 'pack' ? 'pack' : 'champion', c.carry, step.options || {});
+    launchFight(step.kind === 'pack' ? 'pack' : step.kind === 'veilleur' ? 'veilleur' : 'champion', c.carry, step.options || {});
 }
 
 /** Au feu de camp, le chevalier affiché a la vie et les fioles de la campagne (affichage seulement). */
@@ -813,12 +823,14 @@ function playLevel(kind) {
 
 /** L'adversaire d'un combat : le boss, ou le Creux visé par le chevalier (le plus proche). */
 function foeOf(fight) {
-    return fight.boss || fight.focus || null;
+    return fight.boss || fight.veilleur || fight.focus || null;
 }
 
 /** Vie de l'adversaire : celle du boss, ou la somme des vies de la meute. */
 function foeHp(fight) {
-    return fight.boss ? fight.boss.hp : fight.creux.reduce((sum, c) => sum + c.hp, 0);
+    if (fight.boss) return fight.boss.hp;
+    if (fight.veilleur) return fight.veilleur.hp;
+    return fight.creux.reduce((sum, c) => sum + c.hp, 0);
 }
 
 /** Fait avancer un combat à pas fixes selon le temps réel écoulé (au plus 4 pas par image). */
@@ -1047,15 +1059,15 @@ function startPresentation(record) {
 function mountScene() {
     const P = game.presentation, scene = P.run.scene;
     P.seed++;
-    game.autoPlayer = null;
+    game.autoSeed = null;
     if (scene.kind === 'campaign') {
         // Partie complète : la vraie campagne, jouée par le joueur automatique « vitrine »
-        game.autoPlayer = new ShowcasePlayerController();
+        game.autoSeed = Presentation.CAMPAIGN_SEED;
         game.deaths = 0;
         game.effects = new Effects(Quality.get(game.quality).particles);
         game.campaign = new CampaignRun();
         startCampaignStep();
-        game.camera.snap(Camera.target(game.arena, width, height, true, game.fight.player, foeOf(game.fight)));
+        game.camera.snap(cameraTarget(game.fight, true));
         P.fight = null;
         P.kind = 'campaign';
         return;
@@ -1116,7 +1128,7 @@ function stopPresentation() {
     const P = game.presentation;
     if (!P) return;
     game.presentation = null;
-    game.autoPlayer = null;
+    game.autoSeed = null;
     Object.assign(game, { fight: P.saved.fight, campaign: P.saved.campaign, state: P.saved.state, stateTime: P.saved.stateTime,
         trail: P.saved.trail, deaths: P.saved.deaths });
     if (document.body.classList.contains('menu-hidden')) MenuToggle.toggle(document, byId('menuToggle'));
@@ -1873,10 +1885,16 @@ function draw() {
     }
 }
 
+/** Cadrage visé : la meute (zoom constant sur le groupe), sinon le verrouillage sur l'adversaire. */
+function cameraTarget(fight, locked) {
+    if (fight.creux) return Camera.groupTarget(game.arena, width, height, fight.player, fight.creux);
+    return Camera.target(game.arena, width, height, locked, fight.player, foeOf(fight));
+}
+
 /** Dessine l'arène et ses entités dans le repère de la caméra principale. */
 function drawWorld(fight, locked, effects, dimmed = false) {
     const player = fight.player, foe = foeOf(fight);
-    game.camera.follow(Camera.target(game.arena, width, height, locked, player, foe), Math.min(deltaTime / 1000, 0.1));
+    game.camera.follow(cameraTarget(fight, locked), Math.min(deltaTime / 1000, 0.1));
     push();
     const s = game.mode === 'combat' ? game.feel.shake(game.time) : { x: 0, y: 0 };
     translate(s.x, s.y);
@@ -1888,7 +1906,8 @@ function drawWorld(fight, locked, effects, dimmed = false) {
         cv.style.transform = 'translate(' + (canvasEl.offsetLeft + width / 2 - c.cx * c.scale + s.x) + 'px,' +
             (canvasEl.offsetTop + height / 2 - c.cy * c.scale + s.y) + 'px) scale(' + c.scale + ')';
     }
-    drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null, game.floorInDom);
+    // Taches de sang du joueur : pas pendant la présentation (elles viennent de ses propres parties)
+    drawEntities(fight, effects, fight === game.fight && !game.presentation ? game.bloodstains : null, game.floorInDom);
     if (locked && foe && foe.alive) Hud.lockMark(foe, game.time);
     pop();
     if (dimmed) {
@@ -1922,6 +1941,8 @@ function drawEntities(fight, effects, stains = null, floorInDom = false) {
     at(player, () => player.show());
     if (boss) at(boss, () => boss.show());
     for (const c of fight.creux || []) at(c, () => c.show());
+    if (fight.veilleur) at(fight.veilleur, () => fight.veilleur.show());
+    for (const w of fight.wisps || []) at(w, () => w.show());
     effects.showParticles(q.glow);
     game.light.draw(Lighting.sources(fight, game.arena.campfirePos, game.time), q, Lighting.DARKNESS, game.fogLayer.update(game.time, q));
     // Au-dessus de l'obscurité : ce qui doit toujours rester lisible
@@ -1930,9 +1951,14 @@ function drawEntities(fight, effects, stains = null, floorInDom = false) {
         at(boss, () => boss.showTelegraph());
     }
     for (const c of fight.creux || []) at(c, () => c.showTelegraph());
+    if (fight.veilleur) at(fight.veilleur, () => fight.veilleur.showTelegraph());
     if (game.debug) {
         if (boss) DebugPanel.drawWorld(boss, player, game.arena);
-        else DebugPanel.drawPackWorld(fight);
+        else if (fight.creux) DebugPanel.drawPackWorld(fight);
+        else if (fight.veilleur) {
+            drawForces(fight.veilleur);
+            for (const w of fight.wisps) drawForces(w);
+        }
     }
     effects.show();
     if (boss) Hud.techniqueLabel(boss);
@@ -2021,6 +2047,7 @@ function drawCombatHud(dt) {
     // Au feu de camp, aucun ennemi : pas de barre d'adversaire
     if (game.state !== 'rest') {
         if (f.boss) Hud.drawBoss(f.boss, game.trail.boss, layout);
+        else if (f.veilleur) Hud.drawFoe(Hud.VEILLEUR_NAME, f.veilleur.hp, f.veilleur.maxHp, game.trail.boss, layout);
         else Hud.drawPack(f.creux, game.trail.boss, layout);
     }
     if (game.feel.flash > 0) {
@@ -2033,7 +2060,7 @@ function drawCombatHud(dt) {
     }
     if (game.debug) {
         if (f.boss) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
-        else DebugPanel.drawPack(f.packController, f, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
+        else if (f.creux) DebugPanel.drawPack(f.packController, f, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
     }
     const c = game.campaign;
     if (c && !c.done) {
@@ -2048,7 +2075,7 @@ function drawCombatHud(dt) {
         Hud.banner('death', "VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
             game.stateTime);
     } else if (game.state === 'victory') {
-        Hud.banner('victory', f.boss ? "ENNEMI VAINCU" : "MEUTE ANÉANTIE", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
+        Hud.banner('victory', f.creux ? "MEUTE ANÉANTIE" : "ENNEMI VAINCU", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
             "Temps " + f.time.toFixed(1) + " s · " + (c ? "vie " + Math.ceil(f.player.hp) + " et " + f.player.estus + " fiole(s) gardées pour la suite…" :
                 "morts " + game.deaths + " · R pour recommencer"), game.stateTime);
     } else if (game.paused && byId('pauseMenu').hidden && byId('tutorial').hidden && byId('optionsScreen').hidden) {

@@ -123,6 +123,20 @@ const Hud = {
         pop();
     },
 
+    /** Barre de vie d'un adversaire nommé (le Veilleur), en bas au centre, comme celle du boss. */
+    drawFoe(name, hp, maxHp, trailHp, L = HudLayout.compute(width, height)) {
+        push();
+        textFont('Cinzel');
+        textSize(L.fontSize);
+        textAlign(LEFT, BOTTOM);
+        fill(0, 0, 0, 170);
+        text(name, L.bossName.x + 1, L.bossName.y + 1);
+        fill(235, 225, 200);
+        text(name, L.bossName.x, L.bossName.y);
+        Hud.bar(L.boss.x, L.boss.y, L.boss.w, L.boss.h, hp, maxHp, color(170, 80, 30), trailHp);
+        pop();
+    },
+
     /** Barre de vie de la meute (somme des vies des Creux), en bas au centre, avec le nombre de Creux debout. */
     drawPack(pack, trailHp, L = HudLayout.compute(width, height)) {
         const hp = pack.reduce((s, c) => s + c.hp, 0), max = pack.reduce((s, c) => s + c.maxHp, 0);
@@ -303,6 +317,7 @@ const Hud = {
 Hud.RIPOSTE_LABEL = 0.8;   // secondes d'affichage de « Riposte ! »
 Hud.BOSS_NAME = "Gardien du Brouillard";
 Hud.PACK_NAME = "La meute des Creux";
+Hud.VEILLEUR_NAME = "Le Veilleur des cendres";
 Hud.CARD = 2.5;            // secondes de la carte de début d'étape
 Hud.CAMP_WARNING = 1;      // secondes dans un coin avant l'avertissement
 

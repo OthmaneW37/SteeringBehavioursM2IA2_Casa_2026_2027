@@ -3,27 +3,33 @@
 //
 // Étapes (Campaign.STEPS) : { id, kind, label, intro, options? }
 //   kind 'pack' : un combat contre une meute (options : size, perception) ;
-//   kind 'boss' : un combat contre un boss ;
+//   kind 'veilleur' : le Veilleur des cendres et ses feux follets (niveau 2) ;
+//   kind 'boss' : un combat contre un boss (options : bossHp, sa réserve de vie) ;
 //   kind 'rest' : un feu de camp, lieu sûr sans ennemi, où l'on peut boire ses fioles sans risque.
 // Ajouter un niveau = ajouter une entrée (par exemple une meute de 7 Creux avant le Gardien).
 //
-// Report : la vie et les fioles restantes passent à l'étape suivante (rien n'est rendu entre deux combats,
-// sauf le repos du feu de camp, Campaign.REST, nul par défaut).
+// Report : la vie et les fioles restantes passent à l'étape suivante. Seul le feu de camp rend quelque chose
+// (Campaign.REST, à l'ARRIVÉE, pour pouvoir en profiter sur place) : une fiole, comme dans les Souls ; la vie,
+// elle, ne revient pas.
 // Point de reprise : en entrant dans une étape, on note la vie et les fioles. Mourir fait recommencer
 // l'étape avec ces valeurs-là (pas avec celles de la mort) : aucun cercle vicieux où chaque essai partirait
 // plus faible que le précédent.
 const Campaign = {
-    KINDS: ['pack', 'boss', 'rest'],
+    KINDS: ['pack', 'veilleur', 'boss', 'rest'],
     STEPS: [
         { id: 'meute', kind: 'pack', label: "Niveau 1 · La meute des Creux",
             intro: "Cinq Creux chassent en meute. Ne vous laissez pas encercler." },
         { id: 'feu', kind: 'rest', label: "Feu de camp",
-            intro: "Un répit. Votre vie et vos fioles ne reviennent pas : buvez maintenant, à l'abri, si vous le voulez." },
-        { id: 'gardien', kind: 'boss', label: "Le Gardien du Brouillard",
-            intro: "Le gardien du sanctuaire vous attend dans la brume." }
+            intro: "Un répit. Le feu ravive une fiole ; votre vie ne revient pas : buvez maintenant, à l'abri." },
+        { id: 'veilleur', kind: 'veilleur', label: "Niveau 2 · Le Veilleur des cendres",
+            intro: "Un sorcier qui garde ses distances. Ses feux follets vous poursuivent : coupez-les, ou roulez." },
+        { id: 'feu2', kind: 'rest', label: "Dernier feu de camp",
+            intro: "Le brouillard s'épaissit. Une fiole de plus, puis le sanctuaire." },
+        { id: 'gardien', kind: 'boss', label: "Le Gardien du Brouillard", options: { bossHp: 500 },
+            intro: "Le gardien du sanctuaire, au sommet de sa force. Méfiez-vous de ses coups retardés." }
     ],
-    // Repos au feu de camp : vie rendue et fioles ajoutées en repartant (0 : tout est conservé tel quel)
-    REST: { heal: 0, estus: 0 },
+    // Feu de camp : vie rendue et fioles ravivées à l'ARRIVÉE (comme dans les Souls : une fiole, pas la vie)
+    REST: { heal: 0, estus: 1 },
     START: { hp: Combat.PLAYER.maxHp, estus: Combat.PLAYER.estus.charges },
 
     /** Vérifie une liste d'étapes : non vide, identifiants uniques, types connus, finit par un combat. */
@@ -62,10 +68,14 @@ class CampaignRun {
         return "Étape " + Math.min(this.index + 1, this.steps.length) + " / " + this.steps.length;
     }
 
-    /** Étape suivante : le point de reprise est noté à l'entrée. */
+    /** Étape suivante : un feu de camp ravive à l'arrivée (REST) ; le point de reprise est noté à l'entrée. */
     advance() {
         this.index++;
         if (this.index >= this.steps.length) this.done = true;
+        else if (this.step.kind === 'rest') {
+            this.carry.hp = Math.min(this.maxHp, this.carry.hp + this.rest.heal);
+            this.carry.estus += this.rest.estus;
+        }
         this.checkpoint = Object.assign({}, this.carry);
     }
 
@@ -91,11 +101,9 @@ class CampaignRun {
         return true;
     }
 
-    /** Quitter le feu de camp : repos (Campaign.REST), puis étape suivante. */
+    /** Quitter le feu de camp : étape suivante (le repos a été donné à l'arrivée). */
     leaveRest() {
         if (this.done || this.step.kind !== 'rest') throw new RangeError("Pas de feu de camp ici.");
-        this.carry.hp = Math.min(this.maxHp, this.carry.hp + this.rest.heal);
-        this.carry.estus += this.rest.estus;
         this.advance();
     }
 }

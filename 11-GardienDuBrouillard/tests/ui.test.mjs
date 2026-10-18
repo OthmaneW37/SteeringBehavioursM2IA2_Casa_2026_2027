@@ -127,6 +127,18 @@ test('caméra : arène entière sans verrouillage, rapprochée et bornée à l\'
   assert.ok(t.cx - halfW >= -1e-9 && t.cy - halfH >= -1e-9, 'la vue ne sort pas de l\'arène');
   const mid = Camera.target(arena, 1000, 700, true, new Player(480, 340), new Boss(520, 360));
   assert.ok(close(mid.cx, 500) && close(mid.cy, 350));
+  // Contre la meute : zoom constant, que le chevalier soit verrouillé ou non, centré vers le groupe proche
+  const Creux = get('Creux');
+  const pl = new Player(500, 350);
+  const pack = [new Creux(600, 350), new Creux(600, 450), new Creux(950, 650)];
+  const gt = Camera.groupTarget(arena, 1000, 700, pl, pack);
+  assert.ok(close(gt.scale, Camera.GROUP_ZOOM));
+  assert.ok(close(gt.cx, 0.6 * 500 + 0.4 * 600) && close(gt.cy, 0.6 * 350 + 0.4 * 400), 'le Creux lointain ne compte pas');
+  pack[0].hp = 0;
+  assert.ok(close(Camera.groupTarget(arena, 1000, 700, pl, pack).cy, 0.6 * 350 + 0.4 * 450), 'un mort ne compte pas');
+  assert.ok(close(Camera.groupTarget(arena, 1000, 700, pl, []).cx, 500), 'seul : centré sur lui');
+  const corner = Camera.groupTarget(arena, 1000, 700, new Player(30, 30), []);
+  assert.ok(corner.cx >= 1000 / gt.scale / 2 - 1e-9, "sans sortir de l'arène");
   const cam = new Camera();
   cam.snap(free);
   cam.follow(t, 10);

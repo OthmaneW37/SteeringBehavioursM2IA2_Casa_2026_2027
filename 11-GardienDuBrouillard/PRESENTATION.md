@@ -109,7 +109,8 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   gagne 93 % de ses combats contre le joueur robot (meute écrite à la main : 28 %) et l'encercle 7,2 % du
   temps (0,2 %). Leçon : un champion qui gagnait 100 % de ses 20 combats de test n'en gagnait que 40 % sur des
   combats neufs.
-- Campagne : la meute, un feu de camp, le Gardien. La vie et les fioles passent d'une étape à l'autre ; une
+- Campagne : la meute, un feu de camp, le Veilleur des cendres (feux follets qui poursuivent : `pursue`), un feu
+  de camp, le Gardien renforcé (coups retardés contre les parades). La vie passe d'une étape à l'autre ; une
   mort fait recommencer l'étape avec les valeurs qu'on avait en y entrant. Les étapes sont des données : un
   niveau 2 s'ajoute sans code.
 - Jouable à la **manette** (disposition des Souls : RB / RT attaques, LT parade, B roulade, X fiole, R3
@@ -118,7 +119,7 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
 - **Vidéo de démonstration** : Laboratoire → Présentation (une partie complète jouée par un joueur automatique,
   puis 3 min d'explications : réseau en direct, chaque comportement dessiné),
   ou le fichier `gardien-du-brouillard-presentation.webm`.
-- 153 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- 159 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

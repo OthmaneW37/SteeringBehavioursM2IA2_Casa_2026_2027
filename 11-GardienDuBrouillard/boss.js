@@ -251,6 +251,11 @@ class Boss extends Vehicle {
         const B = Combat.BOSS;
         if (kind === 'attack') {
             this.action = Combat.newAttack('boss', this.facing);
+            // Une hallebarde sur B.delay.every est retardée : même coup (kind 'boss'), préparation plus longue
+            if ((this.stats.attacks + 1) % B.delay.every === 0) {
+                this.action.spec = Combat.ATTACKS.bossDelayed;
+                this.action.delayed = true;
+            }
             // Coup levé juste après une riposte : s'il touche, c'est une riposte qui touche
             this.action.riposte = this.riposteTime >= 0 && this.time - this.riposteTime <= B.dodge.riposteWindow;
             this.cooldown = this.attackCooldown();

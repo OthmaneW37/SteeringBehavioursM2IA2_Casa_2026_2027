@@ -271,24 +271,17 @@ test('durée inscrite dans la vidéo WebM : ajoutée, ou remplacée, et taille d
   assert.equal(W.fix(junk, 10), junk);
 });
 
-test('partie complète : le joueur automatique « vitrine » finit la campagne (meute, feu de camp, Gardien)', () => {
-  const ShowcasePlayerController = g('ShowcasePlayerController'), CampaignRun = g('CampaignRun'), PackFight = g('PackFight'), Fight = g('Fight'),
-    NeuralPackController = g('NeuralPackController'), NeuralBossController = g('NeuralBossController'), Settings = g('Settings');
-  const d = deps(), s = Settings.defaults();
-  const run = new CampaignRun();
-  const pf = new PackFight({ arena: d.arena, playerController: new ShowcasePlayerController(), packController: new NeuralPackController(d.packBrain),
-    size: PackFight.SIZE, maxTime: 120, estus: run.carry.estus, playerHp: run.carry.hp, pillars: s.pillarCount, seed: 7 });
-  assert.equal(pf.run().winner, 'player', 'la meute est vaincue');
-  assert.ok(pf.player.stats.parries >= 1, 'il pare des morsures');
-  run.win(pf.player);
-  while (run.carry.hp <= 75 && run.drink());
-  run.leaveRest();
-  const bf = new Fight({ arena: d.arena, playerController: new ShowcasePlayerController(), bossController: new NeuralBossController(d.bossBrain),
-    maxTime: 180, detectRadius: s.detectRadius, estus: run.carry.estus, playerHp: run.carry.hp, pillars: s.pillarCount, seed: 1007 });
-  const r = bf.run();
-  assert.equal(r.winner, 'player', 'le Gardien est vaincu');
-  assert.ok(bf.player.stats.parries >= 1 && bf.player.stats.criticals >= 1, 'par des parades et des ripostes critiques');
-  run.win(bf.player);
-  assert.equal(run.done, true, 'campagne finie');
-  assert.ok(pf.result.duration + r.duration < 90, 'assez courte pour la vidéo');
+test('partie complète : le joueur automatique « vitrine » finit la campagne (meute, feu, Veilleur, feu, Gardien renforcé)', () => {
+  const Settings = g('Settings'), PackFight = g('PackFight');
+  const d = Object.assign(deps(), { settings: Settings.defaults(), packSize: PackFight.SIZE });
+  const r = Presentation.showcaseCampaign(d);
+  assert.equal(r.won, true, 'la graine de la vidéo donne une victoire');
+  assert.deepEqual(plain(r.steps.map(x => x.id)), ['meute', 'veilleur', 'gardien']);
+  const total = r.steps.reduce((t, x) => t + x.duration, 0);
+  assert.ok(total > 60 && total < 200, 'partie complète de ' + total.toFixed(0) + ' s');
+  assert.ok(r.steps.at(-1).duration > 30, 'le Gardien renforcé résiste (plus de 30 s)');
+  assert.ok(r.steps.at(-1).hp < 50, 'victoire serrée');
+  // Le joueur automatique n'est pas invincible : sur quelques graines, le Gardien gagne parfois
+  const results = [1, 2, 3, 4, 6, 7].map(seed => Presentation.showcaseCampaign(d, seed).won);
+  assert.ok(results.some(w => !w) && results.some(w => w), 'des victoires et des défaites selon la graine');
 });

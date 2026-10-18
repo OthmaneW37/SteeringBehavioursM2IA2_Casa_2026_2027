@@ -113,6 +113,8 @@ const SoundBank = {
             case 'dodged': return ['roll'];
             case 'crash': case 'crumble': return ['crash'];
             case 'creuxDeath': return ['creuxDeath'];
+            case 'wispBurst': return ['creuxBite'];
+            case 'wispCast': return ['bossTechnique'];
             default: return [];
         }
     },

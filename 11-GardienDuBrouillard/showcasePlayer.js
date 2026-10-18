@@ -1,11 +1,14 @@
 // Joueur automatique « vitrine » : il joue la campagne comme un bon joueur de Souls, pour la partie complète de la
 // vidéo de démonstration (le joueur robot de l'entraînement, lui, est volontairement moyen). Il n'a aucun
 // avantage caché : il passe par la même intention que le clavier (Player.control), avec les mêmes règles
-// (endurance, fenêtres de parade, invulnérabilité de la roulade). Temps en secondes, aucun aléatoire.
+// (endurance, fenêtres de parade, invulnérabilité de la roulade). Temps en secondes ; aléatoire injecté (graine).
+// Comme un humain, il lit le télégraphe : face à un coup retardé, il se fait piéger avec la probabilité FOOLED.
 //
 // Contre le Gardien (combat de boss) :
 //   1. ruée qui arrive : pas de côté, puis roulade au contact ; souffle visé sur lui : il s'écarte ;
-//   2. hallebarde qui va frapper à portée : parade PARRY_LEAD s avant la frappe (sinon roulade) ;
+//   2. hallebarde : parade PARRY_LEAD s avant la frappe, une seule fois par coup. Il lit le remplissage du
+//      télégraphe ; mais face à un coup retardé, avec la probabilité FOOLED, il pare au rythme habituel (0,6 s) et
+//      tombe trop tôt ;
 //   3. boss déséquilibré : riposte critique (coup lourd s'il a l'endurance) ;
 //   4. vie basse : il boit quand le boss est loin, déséquilibré ou en longue récupération ;
 //   5. boss en récupération : il punit d'un coup léger ;
@@ -17,24 +20,74 @@
 //   4. le plus proche est à portée et les autres sont loin : il frappe, en gardant une réserve d'endurance ;
 //   5. sinon il recule face à la meute, qui s'étire : les Creux arrivent un par un.
 class ShowcasePlayerController {
-    constructor() {
+    constructor(rng = seededRandom(1)) {
+        this.rng = rng;
+        this.fooled = new Map();    // coup retardé → se laisse-t-il piéger (tiré une fois par coup) ?
         this.t = 0;
         this.attackClock = 0;
         this.escapeClock = 0;
         this.side = 1;
+        this.parried = new Set();   // coups déjà parés (une parade par coup : il ne réessaie pas)
     }
 
     static base(focus = null) {
         return { move: { x: 0, y: 0 }, lock: true, light: false, heavy: false, roll: false, drink: false, parry: false, avoid: true, focus: focus };
     }
 
-    intent(player, foe, arena, dt) {
+    intent(player, foe, arena, dt, wisps = null) {
         this.t += dt;
         this.attackClock -= dt;
         this.escapeClock -= dt;
         this.side = Math.floor(this.t / ShowcasePlayerController.STRAFE_SWITCH) % 2 === 0 ? 1 : -1;
         if (!player.alive) return ShowcasePlayerController.base();
-        return Array.isArray(foe) ? this.packIntent(player, foe, arena) : this.bossIntent(player, foe, arena);
+        if (Array.isArray(foe)) return this.packIntent(player, foe, arena);
+        if (foe instanceof Veilleur) return this.veilleurIntent(player, foe, wisps || [], arena);
+        return this.bossIntent(player, foe, arena);
+    }
+
+    /**
+     * Contre le Veilleur : il coupe le feu follet qui fonce sur lui (ou roule à travers s'il est trop tard), boit à
+     * l'abri des feux follets, et sinon poursuit le Veilleur pour le frapper (coup lourd s'il garde de quoi rouler).
+     */
+    veilleurIntent(player, v, wisps, arena) {
+        const S = ShowcasePlayerController;
+        const intent = S.base(v);
+        if (!v.alive) return intent;
+        const distTo = e => Math.hypot(e.pos.x - player.pos.x, e.pos.y - player.pos.y);
+        // Feux follets qui arrivent sur lui (vitesse tournée vers lui)
+        const incoming = wisps.filter(w => w.alive && distTo(w) < S.WISP_ALERT &&
+            (w.vel.x * (player.pos.x - w.pos.x) + w.vel.y * (player.pos.y - w.pos.y)) > 0).sort((a, b) => distTo(a) - distTo(b));
+        if (incoming.length) {
+            const w = incoming[0];
+            const cut = Combat.ATTACKS.light.reach + w.r;
+            if (distTo(w) <= cut && player.canAct() && player.stamina >= Combat.ATTACKS.light.stamina) {
+                intent.focus = w;
+                intent.light = true;
+                return intent;
+            }
+            if (distTo(w) < S.WISP_ROLL && player.stamina >= Combat.PLAYER.roll.stamina) {
+                intent.roll = true;
+                intent.focus = w;
+                return intent;
+            }
+            if (distTo(w) < cut + 25) {
+                intent.focus = w;
+                intent.move.y = -0.3;   // il s'avance un peu pour le couper
+                return intent;
+            }
+        }
+        if (player.hp <= S.DRINK_HP && player.estus > 0 && !wisps.some(w => w.alive && distTo(w) < 220)) {
+            intent.drink = true;
+            return intent;
+        }
+        const d = distTo(v);
+        const reach = Combat.ATTACKS.heavy.reach + v.r - 6;
+        intent.move.y = d > reach - 8 ? -1 : 0;
+        if (d <= reach && player.canAct()) {
+            if (player.stamina >= Combat.ATTACKS.heavy.stamina + Combat.PLAYER.roll.stamina) intent.heavy = true;
+            else if (player.stamina >= Combat.ATTACKS.light.stamina + Combat.PLAYER.roll.stamina) intent.light = true;
+        }
+        return intent;
     }
 
     bossIntent(player, boss, arena) {
@@ -61,19 +114,23 @@ class ShowcasePlayerController {
                 return intent;
             }
         }
-        // 2. Hallebarde : parade au bon moment
-        if (a && a.kind === 'boss' && ph === 'windup' && a.spec.windup - a.t <= S.PARRY_LEAD &&
-            dist <= a.spec.reach + player.r + 20) {
+        // 2. Hallebarde : parade au RYTHME HABITUEL (0,6 s de préparation), comme un humain qui a appris la cadence :
+        //    il ne lit pas le temps exact, un coup retardé le prend donc à contre-temps
+        if (a && a.kind === 'boss' && a.delayed && !this.fooled.has(a)) this.fooled.set(a, this.rng() < S.FOOLED);
+        const expected = a && a.delayed && this.fooled.get(a) ? Combat.ATTACKS.boss.windup : a ? a.spec.windup : 0;
+        if (a && a.kind === 'boss' && ph === 'windup' && expected - a.t <= S.PARRY_LEAD &&
+            dist <= a.spec.reach + player.r + 20 && !this.parried.has(a)) {
+            this.parried.add(a);
             if (player.stamina >= Combat.ATTACKS.parry.stamina) intent.parry = true;
             else intent.roll = true;
             return intent;
         }
-        // 3. Riposte critique
+        // 3. Riposte critique (coup lourd seulement s'il lui reste ensuite de quoi parer)
         if (boss.stun && boss.stun.riposte) {
             const reach = Combat.ATTACKS.heavy.reach + boss.r - 6;
             if (dist > reach) intent.move.y = -1;
-            else if (player.stamina >= Combat.ATTACKS.heavy.stamina) intent.heavy = true;
-            else intent.light = true;
+            else if (player.stamina >= Combat.ATTACKS.heavy.stamina + Combat.ATTACKS.parry.stamina) intent.heavy = true;
+            else if (player.stamina >= Combat.ATTACKS.light.stamina) intent.light = true;
             return intent;
         }
         // 4. Fiole, à l'abri
@@ -91,13 +148,20 @@ class ShowcasePlayerController {
         if (a && ph === 'recovery') {
             const remaining = Combat.duration(a.spec) - a.t;
             if (dist > Combat.ATTACKS.light.reach + boss.r - 6) intent.move.y = -1;
-            else if (ScriptedPlayerController.safeToCommit('light', remaining) && this.attackClock <= 0) {
+            else if (ScriptedPlayerController.safeToCommit('light', remaining) && this.attackClock <= 0 &&
+                player.stamina >= Combat.ATTACKS.light.stamina + Combat.ATTACKS.parry.stamina + 10) {
                 intent.light = true;
                 this.attackClock = 0.5;
             }
             return intent;
         }
-        // 6. À portée de hallebarde, il tourne autour du boss
+        // 6. À court d'endurance : il recule hors de portée pour récupérer ; sinon, à portée de hallebarde, il tourne
+        //    autour du boss pour l'inviter à frapper
+        if (player.stamina < S.REST_BELOW) {
+            intent.move.y = dist < S.REST_RANGE ? 1 : 0;
+            intent.move.x = this.side * 0.6;
+            return intent;
+        }
         intent.move.y = dist > S.BAIT_RANGE ? -1 : dist < S.BAIT_RANGE - 25 ? 0.6 : 0;
         intent.move.x = this.side * 0.5;
         return intent;
@@ -168,10 +232,15 @@ class ShowcasePlayerController {
     }
 }
 
-ShowcasePlayerController.PARRY_LEAD = 0.1;       // garde levée 0,1 s avant la frappe (fenêtre de 0,2 s après 0,04 s)
+ShowcasePlayerController.PARRY_LEAD = 0.1;
+ShowcasePlayerController.FOOLED = 0.5;           // probabilité de se faire piéger par un coup retardé       // garde levée 0,1 s avant la frappe (fenêtre de 0,2 s après 0,04 s)
 ShowcasePlayerController.CHARGE_ROLL = 95;
 ShowcasePlayerController.DRINK_HP = 50;
 ShowcasePlayerController.DRINK_DISTANCE = 230;
+ShowcasePlayerController.WISP_ALERT = 90;        // feux follets surveillés à moins de 90 px
+ShowcasePlayerController.WISP_ROLL = 34;         // trop tard pour le couper : roulade
+ShowcasePlayerController.REST_BELOW = 40;        // sous cette endurance, il recule pour récupérer
+ShowcasePlayerController.REST_RANGE = 180;       // ... hors de portée de la hallebarde
 ShowcasePlayerController.BAIT_RANGE = 100;       // distance gardée contre le Gardien (dans sa portée : il frappe)
 ShowcasePlayerController.PACK_RANGE = 120;       // contre la meute : il attend à cette distance
 ShowcasePlayerController.CROWD = 90;             // il ne frappe que si aucun autre Creux n'est à moins de 90 px
