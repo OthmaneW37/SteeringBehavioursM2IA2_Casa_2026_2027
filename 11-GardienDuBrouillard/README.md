@@ -367,8 +367,22 @@ c'est changer un nom de fichier dans `SoundBank.SFX`.
 
 ## La présentation (vidéo de démonstration)
 
-Laboratoire → onglet **Présentation** : environ **3 minutes** en vrais combats, avec des légendes, pour montrer
-au professeur comment tout fonctionne. **→** passe à la scène suivante, **Échap** arrête.
+Laboratoire → onglet **Présentation** : environ **4 minutes** en vrais combats, pour montrer au professeur le jeu
+puis comment tout fonctionne. **→** passe à la scène suivante, **Échap** arrête.
+
+**D'abord une partie complète** (environ 45 s) : la vraie campagne (la meute, le feu de camp, le Gardien), dans le
+vrai jeu (caméra, HUD, gel d'impact, sons, bandeaux), jouée en temps réel par un **joueur automatique « vitrine »**
+(`showcasePlayer.js`), ce que la légende dit clairement. Il joue comme un bon joueur de Souls, sans avantage caché
+(il passe par la même intention que le clavier) : contre la meute, il recule pour qu'elle s'étire, frappe le Creux
+isolé, pare une morsure seule et roule à travers plusieurs ; contre le Gardien, il reste à portée pour l'inviter à
+frapper, pare la hallebarde, riposte au coup lourd, esquive la ruée et le souffle. Il gagne la campagne sur les 40
+graines essayées. La partie du joueur en cours est mise de côté pendant la présentation, puis rendue.
+
+**Ce que la partie montre aussi** : un joueur qui maîtrise la parade bat le Gardien en 11 à 18 s. Le réseau du
+boss n'a pas été entraîné contre la parade (le joueur robot ne pare pas) ; l'entraîner contre un joueur robot
+qui pare serait la suite logique pour le rendre plus coriace.
+
+Puis les explications :
 
 | Scène | Ce qu'on voit |
 |---|---|
@@ -393,7 +407,7 @@ recalculer**, et un test vérifie que leur somme est exactement la force appliqu
 du canvas et son du jeu, `recorder.js`, environ 30 Mo par minute). Le format WebM se lit dans Chrome, Edge,
 Firefox et VLC ; pour un MP4, il faut le convertir. Il n'y a pas de voix off : les explications sont les légendes.
 MediaRecorder écrit la vidéo sans sa durée : `WebmDuration` l'inscrit dans l'en-tête à la fin, pour que la barre de
-progression et la recherche fonctionnent. Une vidéo déjà enregistrée (3 min 06, 1280 × 720, 56 Mo) est dans
+progression et la recherche fonctionnent. Une vidéo déjà enregistrée (environ 4 min, 1280 × 720) est dans
 `video/gardien-du-brouillard-presentation.webm`, gardée hors du dépôt Git (`video/.gitignore`).
 
 ## Les outils
@@ -593,13 +607,13 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `pretrainedPack.js` | Données : la meute fournie (`node tools/pretrain-pack.mjs 60 7`). |
 | `campaign.js` | Campagne : étapes (données), report de la vie et des fioles, feu de camp, point de reprise. |
 | `audio.js`, `libraries/audio/` | Son : volumes (PARAMETERS), sons par événement, musique par scène, mélangeur (variantes, délais, fondu), moteur Web Audio injecté ; fichiers CC0. |
-| `networkView.js`, `presentation.js`, `recorder.js` | Présentation : schéma du réseau en direct, scènes et marionnettes, enregistrement vidéo (.webm). |
+| `networkView.js`, `presentation.js`, `recorder.js`, `showcasePlayer.js` | Présentation : schéma du réseau en direct, scènes et marionnettes, enregistrement vidéo (.webm), joueur automatique de la partie complète. |
 | `gamepad.js` | Manette : zone morte du stick, fronts des boutons, gâchettes, disposition Souls, choix clavier ou manette. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=30`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=32`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -608,7 +622,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 152 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 153 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -625,7 +639,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 152 tes
 | `parry.test.mjs` | Parade (attaque parable, fenêtre active, arc du bouclier et son bord, ruée non parable) ; boss et Creux déséquilibrés exactement le temps prévu ; parade ratée et vulnérabilité ; riposte critique × 3 une seule fois ; endurance ; touches U et Maj ; la parade n'est pas un coup pour le boss ; retours visuels. |
 | `gamepad.test.mjs` | Stick (zone morte radiale continue), fronts des boutons, seuil des gâchettes, croix, stick pour les menus, manette débranchée ; disposition Souls (chaque bouton → la bonne action) ; le clavier garde la priorité ; choix « clavier seulement » respecté et gardé. |
 | `audio.test.mjs` | Fichiers présents et crédités ; réglages du son (plages, mémorisation) ; sons de chaque événement et musique de chaque scène ; volumes, coupure, délais, variantes ; un son par coup, roulade ou technique, pas réguliers ; fondu exact de la musique ; moteur Web Audio (chargement unique, déblocage, volume borné) ; **le son ne modifie pas le combat**. |
-| `presentation.test.mjs` | Scénario (scènes complètes, 2 à 4 min) ; déroulé (changement de scène et de légende au bon instant) ; **chaque scène montre ce qu'elle annonce** (simulée avec les cerveaux fournis) ; marionnettes ; forces notées = force appliquée ; schéma du réseau (disposition, signaux, lecture en mots, aucun recalcul, mémoire par Creux) ; enregistrement vidéo et son. |
+| `presentation.test.mjs` | Scénario (partie complète d'abord, explications de 2 à 4 min) ; **le joueur vitrine finit la campagne** ; déroulé (changement de scène et de légende au bon instant) ; **chaque scène montre ce qu'elle annonce** (simulée avec les cerveaux fournis) ; marionnettes ; forces notées = force appliquée ; schéma du réseau (disposition, signaux, lecture en mots, aucun recalcul, mémoire par Creux) ; enregistrement vidéo et son. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

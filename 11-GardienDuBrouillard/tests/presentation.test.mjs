@@ -43,8 +43,10 @@ const scene = id => Presentation.SCENES.find(s => s.id === id);
 
 test('scénario : scènes complètes, 2 à 4 minutes, couches et marionnettes connues, refus des scènes invalides', () => {
   assert.equal(Presentation.check(Presentation.SCENES), Presentation.SCENES);
-  const total = Presentation.totalDuration();
-  assert.ok(total >= 120 && total <= 240, 'durée totale ' + total + ' s');
+  const explain = Presentation.totalDuration(Presentation.SCENES.filter(s => s.kind !== 'campaign'));
+  assert.ok(explain >= 120 && explain <= 240, 'explications : ' + explain + ' s');
+  assert.equal(Presentation.SCENES[1].kind, 'campaign', 'la partie complète vient juste après le titre, avant les explications');
+  assert.ok(Presentation.SCENES[1].duration >= 60, 'assez de temps pour finir la campagne');
   assert.equal(Presentation.SCENES[0].kind, 'card');
   assert.equal(Presentation.SCENES.at(-1).kind, 'card');
   for (const id of ['wander', 'brain', 'forces', 'evade', 'charge', 'avoid', 'parry', 'pack', 'evolution']) assert.ok(scene(id), id);
@@ -267,4 +269,26 @@ test('durée inscrite dans la vidéo WebM : ajoutée, ou remplacée, et taille d
   // Fichier illisible : rendu tel quel
   const junk = Uint8Array.from([1, 2, 3, 4]);
   assert.equal(W.fix(junk, 10), junk);
+});
+
+test('partie complète : le joueur automatique « vitrine » finit la campagne (meute, feu de camp, Gardien)', () => {
+  const ShowcasePlayerController = g('ShowcasePlayerController'), CampaignRun = g('CampaignRun'), PackFight = g('PackFight'), Fight = g('Fight'),
+    NeuralPackController = g('NeuralPackController'), NeuralBossController = g('NeuralBossController'), Settings = g('Settings');
+  const d = deps(), s = Settings.defaults();
+  const run = new CampaignRun();
+  const pf = new PackFight({ arena: d.arena, playerController: new ShowcasePlayerController(), packController: new NeuralPackController(d.packBrain),
+    size: PackFight.SIZE, maxTime: 120, estus: run.carry.estus, playerHp: run.carry.hp, pillars: s.pillarCount, seed: 7 });
+  assert.equal(pf.run().winner, 'player', 'la meute est vaincue');
+  assert.ok(pf.player.stats.parries >= 1, 'il pare des morsures');
+  run.win(pf.player);
+  while (run.carry.hp <= 75 && run.drink());
+  run.leaveRest();
+  const bf = new Fight({ arena: d.arena, playerController: new ShowcasePlayerController(), bossController: new NeuralBossController(d.bossBrain),
+    maxTime: 180, detectRadius: s.detectRadius, estus: run.carry.estus, playerHp: run.carry.hp, pillars: s.pillarCount, seed: 1007 });
+  const r = bf.run();
+  assert.equal(r.winner, 'player', 'le Gardien est vaincu');
+  assert.ok(bf.player.stats.parries >= 1 && bf.player.stats.criticals >= 1, 'par des parades et des ripostes critiques');
+  run.win(bf.player);
+  assert.equal(run.done, true, 'campagne finie');
+  assert.ok(pf.result.duration + r.duration < 90, 'assez courte pour la vidéo');
 });

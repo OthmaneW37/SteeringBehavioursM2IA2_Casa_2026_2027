@@ -1,5 +1,6 @@
-// Présentation (vidéo de démonstration) : une suite de scènes scriptées, jouées dans de VRAIS combats, avec des
-// légendes. Les scènes sont des données (Presentation.SCENES) ; PresentationRun fait avancer le temps (secondes) ;
+// Présentation (vidéo de démonstration) : d'abord une PARTIE COMPLÈTE (la campagne, jouée dans le vrai jeu par le
+// joueur automatique « vitrine », ShowcasePlayerController), puis une suite de scènes scriptées, jouées dans de
+// VRAIS combats, avec des légendes. Une scène 'campaign' dure jusqu'à la fin de la campagne (au plus `duration` s). Les scènes sont des données (Presentation.SCENES) ; PresentationRun fait avancer le temps (secondes) ;
 // Presentation.build() monte le combat d'une scène ; les « marionnettes » (PuppetController) jouent le chevalier
 // pour provoquer ce que la scène montre (s'approcher, attaquer, parer…). Rien ici ne dessine : le câblage
 // (sketch.js) dessine le combat et les couches demandées par la scène (`show`).
@@ -16,6 +17,10 @@ const Presentation = {
         { id: 'intro', kind: 'card', duration: 9, title: "Le Gardien du Brouillard",
             lines: ["Un combat de boss façon Souls, en p5.js.",
                 "Le boss n'est pas programmé à la main : un réseau de neurones décide, les steering behaviors de Craig Reynolds exécutent."] },
+        { id: 'campaign', kind: 'campaign', duration: 150, title: "Partie complète : la campagne",
+            lines: ["Partie jouée en temps réel par un joueur automatique : il pare, riposte, roule et boit comme un joueur de Souls."] },
+        { id: 'explain', kind: 'card', duration: 6, title: "Comment ça marche ?",
+            lines: ["Rejouons chaque mécanique au ralenti de l'esprit : qui décide, et quelles forces font bouger les personnages."] },
         { id: 'wander', kind: 'boss', duration: 15, title: "1. wander : errer sans but",
             boss: 'learned', player: 'idle', playerPos: { x: 70, y: 640 }, bossPos: { x: 700, y: 220 }, pillars: 4, show: ['debug', 'forces'],
             lines: ["Le chevalier est loin, hors du cercle de détection : le Gardien erre (wander).",
@@ -68,7 +73,7 @@ const Presentation = {
             lines: ["Steering behaviors : seek, arrive, flee, evade, pursue, wander, obstacle avoidance, boids.",
                 "Décisions : réseaux de neurones entraînés par neuroévolution. Bonne chance, chevalier."] }
     ],
-    KINDS: ['card', 'boss', 'pack', 'chart'],
+    KINDS: ['card', 'campaign', 'boss', 'pack', 'chart'],
     PLAYERS: ['idle', 'approach', 'robot', 'pester', 'kite', 'parry'],
     LAYERS: ['debug', 'forces', 'formula', 'network', 'packNetwork', 'pack', 'chart'],
 
@@ -96,7 +101,7 @@ const Presentation = {
      * nul pour une carte ou des courbes). Les positions de départ de la scène remplacent celles de l'arène.
      */
     build(scene, deps) {
-        if (scene.kind === 'card' || scene.kind === 'chart') return { fight: null, kind: scene.kind };
+        if (scene.kind === 'card' || scene.kind === 'chart' || scene.kind === 'campaign') return { fight: null, kind: scene.kind };
         const seed = deps.seed || 1;
         const playerController = scene.player === 'robot'
             ? (scene.kind === 'pack' ? new PackPlayerController(seededRandom(seed)) : new ScriptedPlayerController(seededRandom(seed), Settings.defaults()))

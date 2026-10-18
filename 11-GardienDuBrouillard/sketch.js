@@ -25,7 +25,8 @@ const game = {
     controls: 'auto',        // 'auto' (clavier et manette) ou 'clavier' (choix du joueur, Options)
     inputDevice: 'clavier',  // dernier appareil utilisé : les aides affichent ses boutons
     padNotice: -Infinity,    // instant où une manette a été détectée (message pendant quelques secondes)
-    presentation: null,      // présentation en cours : { run, fight, kind, overTime, recorder, seed }
+    presentation: null,      // présentation en cours : { run, fight, kind, overTime, recorder, seed, saved }
+    autoPlayer: null,        // joueur automatique de la partie complète de la présentation (sinon : le clavier)
     audio: null,             // sons et musique (AudioMixer, rendu seulement)
     audioBackend: null,
     audioSettings: null,
@@ -731,7 +732,7 @@ function startFight() {
  * (taille de la meute, perception).
  */
 function launchFight(kind, carry = null, options = {}) {
-    const opt = { arena: game.arena, playerController: game.human, maxTime: Infinity, estus: carry ? carry.estus : game.settings.estusCharges,
+    const opt = { arena: game.arena, playerController: game.autoPlayer || game.human, maxTime: Infinity, estus: carry ? carry.estus : game.settings.estusCharges,
         pillars: game.settings.pillarCount };
     if (carry) opt.playerHp = carry.hp;
     if (kind === 'pack' || kind === 'packHand') {
@@ -1024,7 +1025,9 @@ function startPresentation(record) {
     if (game.presentation) return;
     if (!document.body.classList.contains('menu-hidden')) MenuToggle.toggle(document, byId('menuToggle'));
     windowResized();
-    game.presentation = { run: new PresentationRun(), fight: null, kind: null, overTime: 0, recorder: null, seed: 1 + Math.floor(Math.random() * 1e6) };
+    // La partie complète utilise le vrai combat : on met de côté la partie du joueur, rendue à la fin
+    game.presentation = { run: new PresentationRun(), fight: null, kind: null, overTime: 0, recorder: null, seed: 1 + Math.floor(Math.random() * 1e6),
+        saved: { fight: game.fight, campaign: game.campaign, state: game.state, stateTime: game.stateTime, trail: game.trail, deaths: game.deaths } };
     mountScene();
     game.audioBackend.unlock();
     if (record) {
@@ -1044,6 +1047,19 @@ function startPresentation(record) {
 function mountScene() {
     const P = game.presentation, scene = P.run.scene;
     P.seed++;
+    game.autoPlayer = null;
+    if (scene.kind === 'campaign') {
+        // Partie complète : la vraie campagne, jouée par le joueur automatique « vitrine »
+        game.autoPlayer = new ShowcasePlayerController();
+        game.deaths = 0;
+        game.effects = new Effects(Quality.get(game.quality).particles);
+        game.campaign = new CampaignRun();
+        startCampaignStep();
+        game.camera.snap(Camera.target(game.arena, width, height, true, game.fight.player, foeOf(game.fight)));
+        P.fight = null;
+        P.kind = 'campaign';
+        return;
+    }
     const built = Presentation.build(scene, { arena: game.arena, bossBrain: game.pretrained, packBrain: game.packPretrained, seed: P.seed });
     P.fight = built.fight;
     P.kind = built.kind;
@@ -1055,8 +1071,17 @@ function mountScene() {
 function updatePresentation(dt) {
     const P = game.presentation;
     if (!P) return;
+    if (P.kind === 'campaign') {
+        updateShowcase(dt);
+        // Fin de la campagne : on laisse le bandeau final 5 s, puis les explications
+        if (game.state === 'complete' && game.stateTime > 5) {
+            if (P.run.next()) mountScene();
+            else return stopPresentation();
+        }
+    }
     if (P.run.update(dt)) mountScene();
     if (P.run.done) return stopPresentation();
+    if (P.kind === 'campaign') return;
     const f = P.fight;
     if (!f) return;
     if (f.over) {
@@ -1072,11 +1097,28 @@ function updatePresentation(dt) {
     game.audio.cues(f, game.time, dt);
 }
 
-/** Fin (ou arrêt) : la vidéo enregistrée est téléchargée. */
+/**
+ * Partie complète : le vrai combat (updateCombat : pas fixes, gel d'impact, sons, victoire, campagne) avec le
+ * joueur automatique ; au feu de camp, il boit s'il en a besoin puis repart.
+ */
+function updateShowcase(dt) {
+    if (game.state === 'rest') {
+        game.stateTime += dt;
+        if (game.stateTime > 1.5 && game.campaign.carry.hp <= 75 && game.campaign.carry.estus > 0 && game.stateTime % 1 < dt) restDrink();
+        if (game.stateTime > 4) leaveRest();
+        return;
+    }
+    updateCombat(dt);
+}
+
+/** Fin (ou arrêt) : la vidéo enregistrée est téléchargée, la partie du joueur est rendue. */
 function stopPresentation() {
     const P = game.presentation;
     if (!P) return;
     game.presentation = null;
+    game.autoPlayer = null;
+    Object.assign(game, { fight: P.saved.fight, campaign: P.saved.campaign, state: P.saved.state, stateTime: P.saved.stateTime,
+        trail: P.saved.trail, deaths: P.saved.deaths });
     if (document.body.classList.contains('menu-hidden')) MenuToggle.toggle(document, byId('menuToggle'));
     windowResized();
     if (P.recorder) {
@@ -1260,6 +1302,30 @@ function drawCaption(P, bandH) {
     pop();
 }
 
+/** Légende de la partie complète : une ligne discrète sous l'étiquette d'étape, et l'avancement en bas. */
+function drawCampaignCaption(P) {
+    push();
+    const text0 = P.run.scene.lines[0];
+    textFont('Georgia');
+    textSize(Math.min(15, width / 70));
+    const w = Math.min(width - 40, textWidth(text0) + 30);
+    const L = HudLayout.compute(width, height);
+    const y = L.flasks.y + L.flasks.size + 12;   // sous les fioles : ne cache aucune barre
+    noStroke();
+    fill(6, 7, 11, 190);
+    rect((width - w) / 2, y, w, 26, 6);
+    fill(235, 228, 210);
+    textAlign(CENTER, CENTER);
+    text(text0, width / 2, y + 13);
+    fill(232, 190, 90);
+    rect(0, height - 3, width * P.run.progress(), 3);
+    if (P.recorder) {
+        fill(255, 60, 50);
+        circle(width - 24, height - 24, 12);
+    }
+    pop();
+}
+
 /** Carte de titre (début et fin). */
 function drawCard(scene, t, bandH) {
     push();
@@ -1319,6 +1385,13 @@ function drawPresentation() {
     if (!scene) return;
     const bandH = Math.max(96, Math.min(130, height * 0.16));
     background(7, 8, 12);
+    if (scene.kind === 'campaign') {
+        // Le jeu tel qu'on le joue : caméra, HUD, bandeaux ; légende discrète en haut
+        drawWorld(game.fight, game.fight.player.locked, game.effects);
+        drawCombatHud(Math.min(deltaTime / 1000, 0.1));
+        drawCampaignCaption(P);
+        return;
+    }
     if (scene.kind === 'card') drawCard(scene, P.run.sceneTime, bandH);
     else if (scene.kind === 'chart') drawEvolution(bandH);
     else {
@@ -2113,6 +2186,11 @@ function toggleMute() {
 function updateMusic(dt) {
     let kind = game.fight && game.fight.boss ? 'boss' : 'pack';
     if (game.mode === 'presentation') kind = game.presentation && game.presentation.run.scene ? game.presentation.kind : null;
+    if (kind === 'campaign') {
+        game.audio.setTrack(SoundBank.musicFor('combat', game.fight && game.fight.boss ? 'boss' : 'pack', game.state));
+        game.audio.update(dt);
+        return;
+    }
     game.audio.setTrack(SoundBank.musicFor(game.mode, kind, game.state));
     game.audio.update(dt);
 }
