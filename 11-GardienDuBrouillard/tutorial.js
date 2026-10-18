@@ -7,6 +7,7 @@ const Tutorial = {
     CARDS: [
         { title: "Se déplacer", text: "ZQSD, WASD ou les flèches. L ou Tab verrouille la caméra sur le boss : vous tournez alors autour de lui." },
         { title: "Rouler au bon moment", text: "Quand le cône ou la ligne rouge se remplit, roulez avec Espace : vous êtes invulnérable 0,3 s." },
+        { title: "Parer, puis riposter", text: "U ou Maj lève le bouclier. Parez la hallebarde (ou une morsure) au moment où elle frappe : l'ennemi est déséquilibré, et votre coup suivant est une riposte critique (× 3). La ruée ne se pare pas. Une parade ratée vous laisse vulnérable." },
         { title: "Frapper pendant sa récupération", text: "Après chaque technique, le boss reste vulnérable un instant. J : attaque légère, K : attaque lourde. Attention : attaquer fatigue." },
         { title: "Boire à l'abri", text: "E boit une fiole d'Estus (25 PV, 1 s presque immobile). Cachez-vous derrière un pilier : un coup reçu avant le soin fait perdre la fiole." },
         { title: "Piliers et coins", text: "Les piliers parent les coups, et une ruée qui en percute un étourdit le boss. S'il se terre dans un coin, le brouillard le dévore. G : voir son « cerveau »." }

@@ -28,7 +28,7 @@ Le jeu s'ouvre sur l'**écran titre** : le Gardien combat le joueur robot en fon
 menu sur parchemin propose **Nouvelle partie** (la campagne : la meute, un feu de camp, le Gardien),
 **Continuer** (si un combat est en cours), **La meute des Creux** (le niveau 1 seul), **Entraîner**,
 **Panthéon**, **Laboratoire** et **Options**. Navigation à la souris ou au clavier (↑ ↓ et Entrée), avec
-des fondus au noir entre les écrans. Au premier combat, un **tutoriel** de 5 cartes présente les commandes ;
+des fondus au noir entre les écrans. Au premier combat, un **tutoriel** de 6 cartes présente les commandes ;
 on peut le revoir depuis les Options, où se trouve aussi la **fenêtre d'aide** (« Comment ça marche ? »).
 
 | Touche | Action |
@@ -36,6 +36,7 @@ on peut le revoir depuis les Options, où se trouve aussi la **fenêtre d'aide**
 | ZQSD, WASD ou flèches | se déplacer (verrouillé : avancer vers le boss, reculer, tourner autour de lui) |
 | J / K | attaque légère / attaque lourde (plus lente, plus forte, plus fatigante) |
 | Espace | roulade : `evade` loin du boss, 0,3 s d'invulnérabilité |
+| U ou Maj | parade : bouclier levé ; parer la hallebarde ou une morsure au moment de la frappe déséquilibre l'ennemi, et le coup suivant est une riposte critique (× 3) |
 | E | boire une fiole d'Estus (soin de 25 PV, 1 s presque immobile) |
 | L ou Tab | verrouiller la caméra sur le boss (lock-on) |
 | G | mode debug (aussi par la case des Options) |
@@ -55,6 +56,21 @@ gardée 0,25 s puis jouée, comme le tampon d'entrée des jeux Souls.
 | Roulade | `evade` loin du boss pendant 0,4 s, dont **0,3 s d'invulnérabilité**. |
 | **Fioles d'Estus** | 2 fioles par défaut (curseur de 0 à 5). Boire prend **1 s**, pendant laquelle on avance à peine. Le soin de 25 PV arrive à 0,6 s : **un coup reçu avant interrompt la gorgée et la fiole est perdue**. On les récupère au feu de camp. |
 | **Taches de sang** | À chaque mort, une tache marque l'endroit et la cause (« vaincu par la ruée »). Elles sont gardées d'une session à l'autre (8 au plus). |
+
+### Parade et riposte critique
+
+Comme dans les Souls, **U** ou **Maj** lève le bouclier (18 d'endurance) : 0,04 s de mise en garde, une
+**fenêtre de parade de 0,2 s**, puis 0,45 s de récupération pendant laquelle le chevalier est vulnérable.
+
+- Un coup **parable** (la hallebarde du Gardien, la morsure d'un Creux) qui frappe pendant la fenêtre, et qui
+  arrive **de face** (dans l'arc de 135° du bouclier), ne fait aucun dégât. La **ruée ne se pare pas**.
+- L'attaquant est **déséquilibré** : 1,8 s pour le boss, 1,4 s pour un Creux (étoiles dorées, « Déséquilibré :
+  RIPOSTE ! »). Le premier coup qui le touche est une **riposte critique : dégâts × 3** (42 avec un coup léger,
+  90 avec un lourd), avec des étincelles et un gel d'impact plus long.
+- La parade n'est pas un coup : le boss ne l'esquive pas. En revanche, il voit le chevalier **vulnérable** après
+  une parade ratée (entrée « joueur vulnérable » de son réseau) et peut le punir.
+- Le réseau du boss **n'a pas été réentraîné** et le joueur robot ne pare pas : les entraînements, le Panthéon et
+  les mesures restent valables. La parade est une arme du joueur humain.
 
 ### Le boss : trois techniques
 
@@ -520,7 +536,7 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=19`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=20`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -529,7 +545,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 124 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 130 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -543,6 +559,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 124 tes
 | `graphics.test.mjs` | Qualité graphique (bornes, ordre, mémorisation) ; effets d'impact (gel exact, trauma plafonné et amorti, tremblement borné, ralenti des animations seulement) ; gel jamais hors du combat au clavier ; particules (plafond, recyclage, durée de vie, réactions, braises) ; sources de lumière ; brouillard (continu, borné, qui dérive) ; **le rendu ne modifie jamais l'état du combat**. |
 | `pack.test.mjs` | Boids (voisins, séparation, alignement, cohésion, limites) ; pursue et evade ; Creux (poids, somme limitée, flanc du côté libre, perception, morsure à portée, attente en secondes, interruption, mort) ; cerveau partagé (entrées, seuil strict) ; meute à la main ; encerclement (seuils, 180° pile, morts, rayon) ; combat (coup qui touche toute la meute une fois, pilier, roulade, corps, fin) ; simulation courte reproductible ; note collective ; joueur robot (roulade, acculé) ; entraînement et champion validé ; réglages ; le rendu de la meute ne modifie pas l'état. |
 | `campaign.test.mjs` | Étapes vérifiées ; report de la vie et des fioles ; feu de camp (gorgée exacte, plafond, sans fiole, seulement au feu, repos réglable) ; mort et point de reprise ; niveau 2 ajouté par des données ; vie de départ des combats bornée ; campagne simulée avec le joueur robot. |
+| `parry.test.mjs` | Parade (attaque parable, fenêtre active, arc du bouclier et son bord, ruée non parable) ; boss et Creux déséquilibrés exactement le temps prévu ; parade ratée et vulnérabilité ; riposte critique × 3 une seule fois ; endurance ; touches U et Maj ; la parade n'est pas un coup pour le boss ; retours visuels. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

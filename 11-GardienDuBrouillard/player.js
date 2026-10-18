@@ -7,7 +7,8 @@
 //     (`avoidZones`, seulement si l'intention le demande : le joueur robot l'utilise, pas l'humain) ;
 //   - locomotion : applyForce puis update(), hérités de Vehicle.
 //
-// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, avoid, target? }.
+// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, parry, avoid, target? }.
+// Parade ('parry') : bouclier levé vers le boss (verrouillé) ou dans le sens de la marche (voir combat.js).
 // `target` (point du monde, facultatif) : le joueur va à ce point avec `arrive` au lieu de suivre `move`.
 // Verrouillé sur le boss, move.y = −1 avance vers lui, +1 recule, move.x tourne autour de lui.
 //
@@ -41,7 +42,7 @@ class Player extends Vehicle {
         this.inMist = false;  // dans une nappe de brume (réglé par le combat à chaque pas)
         this.zones = null;    // nappes de brume du combat (pour l'évitement)
         this.pillars = null;  // piliers du combat (évitement, abri)
-        this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0 };
+        this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0, parries: 0, criticals: 0 };
     }
 
     // Fuite et évitement de Reynolds (steering.js) à la place des versions de vehicle.js
@@ -62,8 +63,9 @@ class Player extends Vehicle {
         return this.roll !== null && this.roll.t < Combat.PLAYER.roll.iframes;
     }
 
+    /** Un coup en préparation ou en frappe (une parade n'est pas un coup : le boss ne l'esquive pas). */
     isAttacking() {
-        if (!this.action) return false;
+        if (!this.action || this.action.kind === 'parry') return false;
         const ph = Combat.phase(this.action.spec, this.action.t);
         return ph === 'windup' || ph === 'active';
     }
@@ -157,6 +159,8 @@ class Player extends Vehicle {
             this.maxSpeed = Combat.PLAYER.roll.maxSpeed;
             this.maxForce = Combat.PLAYER.roll.maxForce;
             this.stats.rolls++;
+        } else if (intent.parry && this.spend(Combat.ATTACKS.parry.stamina)) {
+            this.startAttack('parry', boss);
         } else if (intent.drink && this.estus > 0) {
             this.estus--;
             this.drink = { t: 0, healed: false };
@@ -292,13 +296,27 @@ class Player extends Vehicle {
         noStroke();
         fill(255, 255, 255, 50);
         arc(0, 0, this.r * 1.6, this.r * 1.6, -2.4, -0.9);
-        // Bouclier (bras gauche)
+        // Bouclier (bras gauche) ; levé devant lui pendant la parade, lumineux dans la fenêtre active
         stroke(16);
         strokeWeight(1.5);
-        fill(96, 60, 34);
-        ellipse(3, -this.r - 1, 15, 10);
-        fill(190, 150, 70);
-        circle(3, -this.r - 1, 4);
+        const parry = this.action && this.action.kind === 'parry' ? Combat.phase(this.action.spec, this.action.t) : null;
+        if (parry === 'windup' || parry === 'active') {
+            if (parry === 'active') {
+                noStroke();
+                fill(255, 225, 140, 90);
+                ellipse(this.r + 6, 0, 18, 34);
+                stroke(16);
+            }
+            fill(110, 70, 40);
+            ellipse(this.r + 3, 0, 11, 26);
+            fill(parry === 'active' ? color(255, 220, 120) : color(190, 150, 70));
+            circle(this.r + 3, 0, 5);
+        } else {
+            fill(96, 60, 34);
+            ellipse(3, -this.r - 1, 15, 10);
+            fill(190, 150, 70);
+            circle(3, -this.r - 1, 4);
+        }
         // Heaume, visière lumineuse
         fill(108, 113, 128);
         circle(2, 0, this.r * 1.15);

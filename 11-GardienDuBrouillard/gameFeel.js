@@ -27,8 +27,12 @@ class GameFeel {
                 this.flash = 1;
                 this.hitStop = Math.max(this.hitStop, F.HITSTOP.heavy);
             } else if (e.type === 'hit' && e.who === 'player') {
-                this.addTrauma(e.kind === 'heavy' ? F.TRAUMA.heavy : F.TRAUMA.light);
-                this.hitStop = Math.max(this.hitStop, e.kind === 'heavy' ? F.HITSTOP.heavy : F.HITSTOP.light);
+                const k = e.critical ? 'critical' : e.kind === 'heavy' ? 'heavy' : 'light';
+                this.addTrauma(F.TRAUMA[k]);
+                this.hitStop = Math.max(this.hitStop, F.HITSTOP[k]);
+            } else if (e.type === 'parry') {
+                this.addTrauma(F.TRAUMA.parry);
+                this.hitStop = Math.max(this.hitStop, F.HITSTOP.parry);
             } else if (e.type === 'crash') {
                 this.addTrauma(F.TRAUMA.crash);
             } else if (e.type === 'crumble') {
@@ -73,8 +77,8 @@ class GameFeel {
     }
 }
 
-GameFeel.TRAUMA = { light: 0.18, heavy: 0.32, playerHit: 0.55, crash: 0.6, crumble: 0.85 };
-GameFeel.HITSTOP = { light: 0.06, heavy: 0.09 };   // secondes (repères courants : 50 à 100 ms)
+GameFeel.TRAUMA = { light: 0.18, heavy: 0.32, playerHit: 0.55, crash: 0.6, crumble: 0.85, parry: 0.3, critical: 0.7 };
+GameFeel.HITSTOP = { light: 0.06, heavy: 0.09, parry: 0.12, critical: 0.16 };   // secondes (repères courants : 50 à 100 ms)
 GameFeel.DECAY = 1.6;          // trauma perdu par seconde
 GameFeel.FLASH_DECAY = 3;      // le flash disparaît en 1/3 s
 GameFeel.MAX_SHAKE = 14;       // pixels

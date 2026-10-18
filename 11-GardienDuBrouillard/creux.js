@@ -27,6 +27,7 @@ class Creux extends Vehicle {
         this.hp = C.hp;
         this.facing = Math.PI;
         this.action = null;        // morsure en cours
+        this.stun = null;          // déséquilibré après une morsure parée : { t, duration, riposte }
         this.biteCooldown = 0;
         this.hurtTimer = 0;
         this.deadTime = 0;         // secondes depuis la mort (effet visuel)
@@ -89,8 +90,8 @@ class Creux extends Vehicle {
      */
     control(decision, player, arena) {
         this.decision = decision;
-        if (!this.alive || this.action) {
-            // Mort, ou planté pendant la morsure : `arrive` sur place freine
+        if (!this.alive || this.action || this.stun) {
+            // Mort, planté pendant la morsure, ou déséquilibré par une parade : `arrive` sur place freine
             this.applyForce(this.arrive(this.pos));
             this.forces = null;
             return;
@@ -135,6 +136,12 @@ class Creux extends Vehicle {
         this.stats.bites++;
     }
 
+    /** Morsure parée : le Creux est déséquilibré Creux.PARRY_STAGGER s, ouvert à une riposte critique. */
+    parried() {
+        this.action = null;
+        this.stun = { t: 0, duration: Creux.PARRY_STAGGER, riposte: true };
+    }
+
     /** Coup reçu : une morsure encore en préparation est interrompue. Retourne true (toujours touché). */
     receiveHit(damage) {
         if (!this.alive) return false;
@@ -153,6 +160,10 @@ class Creux extends Vehicle {
         }
         if (this.hurtTimer > 0) this.hurtTimer = Math.max(0, this.hurtTimer - dt);
         if (this.biteCooldown > 0) this.biteCooldown = Math.max(0, this.biteCooldown - dt);
+        if (this.stun) {
+            this.stun.t += dt;
+            if (this.stun.t >= this.stun.duration - 1e-9) this.stun = null;
+        }
         if (this.action) {
             this.action.t += dt;
             if (Combat.phase(this.action.spec, this.action.t) === 'done') {
@@ -201,6 +212,17 @@ class Creux extends Vehicle {
         circle(this.r * 0.6, -this.r * 0.22, 3);
         circle(this.r * 0.6, this.r * 0.22, 3);
         pop();
+        // Déséquilibré par une parade : étoiles dorées au-dessus de lui (riposte critique possible)
+        if (this.alive && this.stun) {
+            push();
+            noStroke();
+            fill(255, 215, 90);
+            for (let i = 0; i < 3; i++) {
+                const a = this.stun.t * 7 + i * 2.1;
+                circle(this.pos.x + Math.cos(a) * this.r * 0.8, this.pos.y - this.r - 5 + Math.sin(a) * 4, 5);
+            }
+            pop();
+        }
     }
 
     /**
@@ -246,7 +268,8 @@ class Creux extends Vehicle {
 // Caractéristiques : plus lent que le chevalier (3,2) qui peut toujours fuir ; cinq coups légers ou deux
 // lourds. Réglées pour que la meute écrite à la main gagne environ un combat sur cinq contre le joueur robot
 Creux.STATS = { hp: 60, r: 12, maxSpeed: 2.8, maxForce: 0.16 };
-Creux.BITE = { windup: 0.4, active: 0.1, recovery: 0.55, damage: 15, reach: 22, arc: Math.PI * 0.9 };
+Creux.BITE = { windup: 0.4, active: 0.1, recovery: 0.55, damage: 15, reach: 22, arc: Math.PI * 0.9, parryable: true };
+Creux.PARRY_STAGGER = 1.4;      // secondes de déséquilibre après une morsure parée
 Creux.BITE_COOLDOWN = 1.2;       // secondes entre deux morsures d'un même Creux
 Creux.BITE_MARGIN = 6;           // la morsure se lance à portée + 6 px (le chevalier bouge pendant la préparation)
 Creux.PREDICT = 0.3;             // pursue et evade visent la position du chevalier 0,3 s plus tard

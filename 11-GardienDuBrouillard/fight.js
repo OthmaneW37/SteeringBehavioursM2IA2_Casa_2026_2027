@@ -163,21 +163,35 @@ class Fight {
             this.events.push({ type: 'blocked', who: who, x: wall.pos.x, y: wall.pos.y });
             return;
         }
-        if (!target.receiveHit(a.spec.damage)) {
+        // Parade : le coup s'arrête sur le bouclier, l'attaquant est déséquilibré
+        if (Combat.parries(target, attacker, a)) {
+            a.blocked = true;
+            attacker.parried();
+            target.stats.parries++;
+            this.events.push({ type: 'parry', who: who, x: (attacker.pos.x + target.pos.x) / 2, y: (attacker.pos.y + target.pos.y) / 2 });
+            return;
+        }
+        const critical = !!(target.stun && target.stun.riposte);
+        const damage = Combat.damageAgainst(a.spec, target);
+        if (!target.receiveHit(damage)) {
             this.events.push({ type: 'dodged', who: who, x: target.pos.x, y: target.pos.y });
             return;
         }
         a.hasHit = true;
         attacker.stats.hits++;
-        attacker.stats.damageDealt += a.spec.damage;
+        attacker.stats.damageDealt += damage;
         if (a.riposte) attacker.stats.riposteHits++;
+        if (critical) {
+            target.stun.riposte = false;   // une seule riposte critique par parade
+            attacker.stats.criticals = (attacker.stats.criticals || 0) + 1;
+        }
         if (who === 'boss') {
-            this.damageToPlayer += a.spec.damage;
+            this.damageToPlayer += damage;
             this.lastCause = a.kind === 'charge' ? 'ruée' : 'hallebarde';
         } else {
-            this.damageToBoss += a.spec.damage;
+            this.damageToBoss += damage;
         }
-        this.events.push({ type: 'hit', who: who, kind: a.kind, damage: a.spec.damage, x: target.pos.x, y: target.pos.y });
+        this.events.push({ type: 'hit', who: who, kind: a.kind, damage: damage, critical: critical, x: target.pos.x, y: target.pos.y });
     }
 
     /** Deux corps ne se traversent pas : on les écarte chacun de la moitié du chevauchement. */

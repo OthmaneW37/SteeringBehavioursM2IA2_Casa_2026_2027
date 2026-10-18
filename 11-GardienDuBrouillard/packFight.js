@@ -148,12 +148,18 @@ class PackFight {
                 this.events.push({ type: 'blocked', who: 'player', x: wall.pos.x, y: wall.pos.y });
                 continue;
             }
-            c.receiveHit(a.spec.damage);
+            const critical = !!(c.stun && c.stun.riposte);
+            const damage = Combat.damageAgainst(a.spec, c);
+            c.receiveHit(damage);
+            if (critical) {
+                c.stun.riposte = false;
+                player.stats.criticals++;
+            }
             a.hasHit = true;
             player.stats.hits++;
-            player.stats.damageDealt += a.spec.damage;
-            this.damageToPack += a.spec.damage;
-            this.events.push({ type: 'hit', who: 'player', kind: a.kind, damage: a.spec.damage, x: c.pos.x, y: c.pos.y });
+            player.stats.damageDealt += damage;
+            this.damageToPack += damage;
+            this.events.push({ type: 'hit', who: 'player', kind: a.kind, damage: damage, critical: critical, x: c.pos.x, y: c.pos.y });
             if (!c.alive) this.events.push({ type: 'creuxDeath', x: c.pos.x, y: c.pos.y });
         }
     }
@@ -168,6 +174,13 @@ class PackFight {
         if (wall) {
             a.blocked = true;
             this.events.push({ type: 'blocked', who: 'creux', x: wall.pos.x, y: wall.pos.y });
+            return;
+        }
+        if (Combat.parries(player, c, a)) {
+            a.blocked = true;
+            c.parried();
+            player.stats.parries++;
+            this.events.push({ type: 'parry', who: 'creux', x: (c.pos.x + player.pos.x) / 2, y: (c.pos.y + player.pos.y) / 2 });
             return;
         }
         if (!player.receiveHit(a.spec.damage)) {

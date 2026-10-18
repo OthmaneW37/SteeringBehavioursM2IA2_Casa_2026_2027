@@ -50,7 +50,7 @@ class Boss extends Vehicle {
         this.pendingZone = null;  // nappe de brume à créer (lue et vidée par le combat)
         this.action = null;       // attaque en cours
         this.dodge = null;        // esquive en cours : { t, hit }
-        this.stun = null;         // étourdi après une ruée contre un pilier : { t }
+        this.stun = null;         // étourdi : { t, duration, riposte } (ruée contre un pilier, ou hallebarde parée)
         this.prowlSide = 1;       // sens dans lequel il rôde (+1 ou −1)
         this.pillars = null;      // piliers du combat (évitement, rayons du réseau)
         this.riposteTime = -1;    // instant de la dernière riposte (effet visuel, riposte qui touche)
@@ -61,7 +61,7 @@ class Boss extends Vehicle {
         this.rageTime = -1;       // instant (s) du passage en phase enragée, pour l'effet visuel
         this.time = 0;
         // idleTime : secondes passées immobile alors qu'il décide (joueur dans son rayon) et qu'il est libre
-        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0, ripostes: 0, riposteHits: 0, charges: 0, breaths: 0, crashes: 0, idleTime: 0, camped: false };
+        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0, ripostes: 0, riposteHits: 0, charges: 0, breaths: 0, crashes: 0, idleTime: 0, camped: false, parried: 0 };
     }
 
     flee(target) {
@@ -142,11 +142,24 @@ class Boss extends Vehicle {
     /** Ruée écrasée contre un pilier : la charge s'arrête net, le boss est étourdi. */
     crash() {
         this.action = null;
-        this.stun = { t: 0 };
+        this.stun = { t: 0, duration: Combat.BOSS.stun, riposte: false };
         this.vel.set(0, 0);
         this.maxSpeed = this.baseSpeed;
         this.maxForce = this.baseForce;
         this.stats.crashes++;
+    }
+
+    /**
+     * Hallebarde parée : le coup s'arrête, le boss est déséquilibré Combat.BOSS.parry.stagger s et ouvert à une
+     * riposte critique (le premier coup qui le touche fait × Combat.CRITICAL).
+     */
+    parried() {
+        this.action = null;
+        this.dodge = null;
+        this.stun = { t: 0, duration: Combat.BOSS.parry.stagger, riposte: true };
+        this.maxSpeed = this.baseSpeed;
+        this.maxForce = this.baseForce;
+        this.stats.parried++;
     }
 
     /** Applique une décision du contrôleur (sélection de l'action → steering). */
@@ -348,7 +361,7 @@ class Boss extends Vehicle {
         }
         if (this.stun) {
             this.stun.t += dt;
-            if (this.stun.t >= Combat.BOSS.stun) this.stun = null;
+            if (this.stun.t >= this.stun.duration - 1e-9) this.stun = null;   // tolérance : somme de pas de 1/60 s
         }
     }
 

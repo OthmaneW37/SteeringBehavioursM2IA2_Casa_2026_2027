@@ -108,7 +108,8 @@ Particles.KINDS = {
 
 // Événement du combat → gerbe
 Particles.REACTIONS = {
-    hit: e => (e.who === 'boss' ? { kind: 'blood', n: 22 } : { kind: 'spark', n: e.kind === 'heavy' ? 18 : 10 }),
+    hit: e => (e.who === 'boss' ? { kind: 'blood', n: 22 } : { kind: 'spark', n: e.critical ? 34 : e.kind === 'heavy' ? 18 : 10 }),
+    parry: { kind: 'spark', n: 26 },
     blocked: { kind: 'spark', n: 8 },
     dodged: { kind: 'dust', n: 5 },
     crash: { kind: 'dust', n: 22 },

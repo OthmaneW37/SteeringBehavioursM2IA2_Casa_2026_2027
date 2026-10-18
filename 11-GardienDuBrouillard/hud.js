@@ -74,10 +74,10 @@ const Hud = {
         pop();
     },
 
-    /** Nom de la technique que prépare le boss, au-dessus de lui (aide à lire le combat). */
-    /** Texte au-dessus du boss : technique en préparation, étourdi, ou riposte. */
+    /** Texte au-dessus du boss : technique en préparation, déséquilibré (parade), étourdi, ou riposte. */
     bossLabel(boss) {
         const a = boss.action;
+        if (boss.stun && boss.stun.riposte) return { text: "Déséquilibré : RIPOSTE !", c: [255, 215, 90] };
         if (boss.stun) return { text: "Étourdi !", c: [255, 230, 120] };
         // Anti-camping : avertissement dès 1 s passée dans un coin, avec le temps restant
         if (boss.campTime >= Hud.CAMP_WARNING && boss.alive) {
@@ -311,6 +311,7 @@ Hud.CONTROLS = [
     ["J  /  K", "attaque légère / lourde"],
     ["E", "boire une fiole d'Estus (soin, 1 s planté)"],
     ["Espace", "roulade : esquive le coup du boss"],
+    ["U / Maj", "parade au moment de la frappe, puis riposte (× 3)"],
     ["L / Tab", "verrouiller la caméra sur le boss"],
     ["Astuce", "roulez quand le cône ou la ligne rouge se remplit"],
     ["Piliers", "ils bloquent les coups ; attirez la ruée dedans"]
@@ -330,8 +331,11 @@ class Effects {
     add(event, timeSeconds) {
         this.particles.fromEvent(event);
         if (event.type === 'hit') {
-            const c = event.who === 'boss' ? [255, 80, 60] : [255, 230, 150];
-            this.items.push({ kind: 'text', x: event.x, y: event.y - 20, text: "-" + event.damage, life: 0.8, age: 0, c: c });
+            const c = event.who === 'boss' ? [255, 80, 60] : event.critical ? [255, 210, 70] : [255, 230, 150];
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 20, text: "-" + event.damage + (event.critical ? " CRITIQUE" : ""),
+                life: event.critical ? 1.3 : 0.8, age: 0, c: c });
+        } else if (event.type === 'parry') {
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 30, text: "PARADE !", life: 1, age: 0, c: [255, 225, 120] });
         } else if (event.type === 'dodged' && timeSeconds - this.lastDodge > 0.5) {
             this.lastDodge = timeSeconds;
             this.items.push({ kind: 'text', x: event.x, y: event.y - 24, text: "esquivé !", life: 0.8, age: 0, c: [170, 200, 255] });

@@ -31,7 +31,9 @@ l'adversaire « Champion de votre entraînement » dans le menu de pause.
   - le **souffle** : une nappe de brume verte qui brûle et ralentit ;
   - une **fiole d'Estus** (E) : elle soigne, mais pendant 1 s on est une cible facile ;
   - les **piliers** : ils parent les coups, et une ruée qui en percute un étourdit le boss 1,6 s ;
-  - la **tache de sang** laissée à l'endroit d'une mort, avec sa cause.
+  - la **tache de sang** laissée à l'endroit d'une mort, avec sa cause ;
+  - la **parade** (U ou Maj) au moment où la hallebarde frappe : le boss est déséquilibré, et le coup suivant
+    est une riposte critique (× 3).
 - Appuyer sur **G** : on voit le « cerveau » en direct. Les barres d'entrées et de sorties bougent, et le
   trait blanc marque le seuil de 0,6 au-delà duquel le boss attaque ou esquive. On voit aussi le cercle de
   détection (rouge quand on est dedans), les rayons vers les murs et les piliers, et la ligne de vue.
@@ -110,7 +112,7 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
 - Campagne : la meute, un feu de camp, le Gardien. La vie et les fioles passent d'une étape à l'autre ; une
   mort fait recommencer l'étape avec les valeurs qu'on avait en y entrant. Les étapes sont des données : un
   niveau 2 s'ajoute sans code.
-- 122 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- 130 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables
