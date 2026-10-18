@@ -27,6 +27,7 @@ test('qualité graphique : 3 niveaux dans leurs bornes, du moins cher au plus be
   assert.ok(b.lightScale <= m.lightScale && m.lightScale <= h.lightScale);
   assert.ok(b.fogEvery >= m.fogEvery && m.fogEvery >= h.fogEvery);
   assert.equal(b.glow, false);
+  assert.ok(b.renderScale < m.renderScale && m.renderScale <= h.renderScale && h.renderScale <= 1, "jamais plus d'un pixel par pixel CSS");
   assert.equal(Quality.DEFAULT, 'moyen');
   assert.throws(() => Quality.get('ultra'), { name: 'RangeError' });
   const mem = memoryStorage();
@@ -244,4 +245,33 @@ test('le rendu ne modifie jamais l\'état du combat', () => {
     bossController: new HandBossController(), maxTime: 60, seed: 7, pillars: 4 });
   for (let i = 0; i < 400 && !twin.over; i++) twin.step();
   assert.deepEqual(plain(twin.player.pos), plain(f.player.pos));
+});
+
+test('interpolation du rendu : décalage exact, nul sans état précédent ou après une téléportation, sans toucher l\'état', () => {
+  const Interpolation = g('Interpolation'), Player = g('Player');
+  const p = new Player(100, 100);
+  const prev = Interpolation.snapshot([p, null]);
+  assert.equal(prev.size, 1);
+  p.pos.set(110, 96);   // un pas plus tard
+  assert.deepEqual(plain(Interpolation.offset(p, prev, 0)), { x: -10, y: 4 }, 'alpha 0 : dessiné à la position précédente');
+  assert.deepEqual(plain(Interpolation.offset(p, prev, 1)), { x: 0, y: 0 }, 'alpha 1 : à la position actuelle');
+  const half = Interpolation.offset(p, prev, 0.5);
+  assert.ok(close(half.x, -5) && close(half.y, 2), 'à mi-chemin');
+  assert.deepEqual(plain(p.pos), { x: 110, y: 96 }, "l'état n'est pas modifié");
+  assert.deepEqual(plain(Interpolation.offset(new Player(0, 0), prev, 0)), { x: 0, y: 0 }, 'entité inconnue');
+  assert.deepEqual(plain(Interpolation.offset(p, null, 0)), { x: 0, y: 0 });
+  p.pos.set(500, 500);
+  assert.deepEqual(plain(Interpolation.offset(p, prev, 0)), { x: 0, y: 0 }, 'téléportation : pas de traînée');
+  assert.equal(Interpolation.alpha(Combat.DT / 4, Combat.DT), 0.25);
+  assert.equal(Interpolation.alpha(-1, Combat.DT), 0);
+  assert.equal(Interpolation.alpha(1, Combat.DT), 1);
+  const f = new Fight({ arena: new Arena(), playerController: new ScriptedPlayerController(seededRandom(1), Settings.defaults()), bossController: new HandBossController() });
+  assert.deepEqual(Interpolation.entitiesOf(f).length, 2);
+});
+
+test('brouillard : calculé une image sur fogEvery, composé dans le calque de lumière (sketch.js)', () => {
+  const src = read('sketch.js');
+  assert.ok(src.includes('game.fogLayer.update(game.time, q)'), 'la grille est passée au calque de lumière');
+  assert.ok(!/game\.fogLayer\.draw\(/.test(src), "jamais étirée seule sur l'écran dans la vue principale");
+  assert.ok(/pixelDensity\(Quality\.get\(/.test(src), 'densité de pixels réglée par la qualité');
 });

@@ -50,8 +50,12 @@ class LightLayer {
         this.g.pixelDensity(1);
     }
 
-    /** Dessine l'obscurité percée par les sources, puis la pose sur la scène (repère de l'arène). */
-    draw(sources, quality, darkness = Lighting.DARKNESS) {
+    /**
+     * Dessine l'obscurité percée par les sources, puis la pose sur la scène (repère de l'arène).
+     * `fog` (facultatif) : calque du brouillard (FogLayer.update), composé DERRIÈRE l'obscurité dans ce même petit
+     * calque (comme s'il était dessiné avant elle) : un seul grand dessin sur l'écran au lieu de deux.
+     */
+    draw(sources, quality, darkness = Lighting.DARKNESS, fog = null) {
         this.ensure(quality.lightScale);
         const g = this.g, k = this.scale, ctx = g.drawingContext;
         g.clear();
@@ -69,6 +73,10 @@ class LightLayer {
             ctx.beginPath();
             ctx.arc(s.x * k, s.y * k, r, 0, Math.PI * 2);
             ctx.fill();
+        }
+        if (fog) {
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.drawImage(fog.elt || fog.canvas || fog, 0, 0, g.width, g.height);
         }
         ctx.globalCompositeOperation = 'source-over';
         image(g, 0, 0, this.arena.width, this.arena.height);

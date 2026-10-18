@@ -18,6 +18,9 @@ const game = {
     quality: 'moyen',
     light: null,             // calque d'éclairage (rendu)
     fogLayer: null,          // calque de brouillard (rendu)
+    floorEl: null,           // sol de l'arène affiché derrière le canvas (élément DOM placé par la caméra)
+    floorInDom: false,       // la vue principale utilise ce sol (sinon il est dessiné dans le canvas)
+    interp: new WeakMap(),   // interpolation du rendu : combat → positions avant le dernier pas
     settings: null,
     arena: null,
     campfire: null,
@@ -95,6 +98,8 @@ function setup() {
     const size = viewSize();
     createCanvas(size.w, size.h).parent('canvasHolder');
     textFont('Cinzel');
+    // Un pixel du canvas par pixel CSS (ou moins en qualité Basse), même sur un écran réglé à 125 % ou 150 %
+    pixelDensity(Quality.get(Quality.load(safeStorage())).renderScale);
 
     game.arena = new Arena();
     game.campfire = new Campfire(game.arena.campfirePos.x, game.arena.campfirePos.y);
@@ -109,6 +114,14 @@ function setup() {
     game.feel = new GameFeel();
     game.light = new LightLayer(game.arena);
     game.fogLayer = new FogLayer(game.arena);
+    // Sol : le calque mis en cache par l'arène est affiché derrière le canvas, placé par une transformation CSS
+    const floor = game.arena.floorLayer();
+    game.floorEl = floor.elt;
+    game.floorEl.className = 'floor-layer';
+    game.floorEl.style.display = 'block';
+    game.floorEl.style.width = game.arena.width + 'px';
+    game.floorEl.style.height = game.arena.height + 'px';
+    byId('canvasHolder').prepend(game.floorEl);
     game.screens = new ScreenFlow('title');
     game.titleMenu = new TitleMenu();
     game.pretrained = loadPretrained();
@@ -258,8 +271,9 @@ function initControls() {
     byId('qualitySelect').addEventListener('change', () => {
         game.quality = byId('qualitySelect').value;
         Quality.save(game.storage, game.quality);
-        const cap = Quality.get(game.quality).particles;
-        for (const e of [game.effects, game.titleEffects].concat(game.demoEffects)) e.particles.setCap(cap);
+        const q = Quality.get(game.quality);
+        for (const e of [game.effects, game.titleEffects].concat(game.demoEffects)) e.particles.setCap(q.particles);
+        pixelDensity(q.renderScale);
     });
     byId('menuToggle').addEventListener('click', () => {
         MenuToggle.toggle(document, byId('menuToggle'));
@@ -629,6 +643,7 @@ function updateTitleFight(dt) {
     }
     game.titleAccumulator = Math.min(game.titleAccumulator + dt, Combat.DT * 4);
     while (game.titleAccumulator >= Combat.DT && !f.over) {
+        game.interp.set(f, { prev: Interpolation.snapshot(Interpolation.entitiesOf(f)), acc: () => game.titleAccumulator });
         headless(() => f.step());
         game.titleAccumulator -= Combat.DT;
         f.events.forEach(e => game.titleEffects.add(e, game.time));
@@ -758,8 +773,10 @@ function foeHp(fight) {
 function advance(fight, dt, onEvents) {
     game.accumulator = Math.min(game.accumulator + dt, Combat.DT * 4);
     while (game.accumulator >= Combat.DT && !fight.over) {
+        const prev = Interpolation.snapshot(Interpolation.entitiesOf(fight));
         headless(() => fight.step());
         game.accumulator -= Combat.DT;
+        game.interp.set(fight, { prev: prev, acc: () => game.accumulator });
         if (onEvents) onEvents(fight.events);
     }
 }
@@ -1339,7 +1356,10 @@ function drawPantheonOverlay() {
 function draw() {
     const dt = Math.min(deltaTime / 1000, 0.1);
     game.time += dt;
-    background(7, 8, 12);
+    // Vue principale : canvas transparent au-dessus du sol (élément DOM) ; sinon fond plein
+    game.floorInDom = ['title', 'combat', 'training', 'pack', 'comparison'].includes(game.mode);
+    if (game.floorInDom) clear();
+    else background(7, 8, 12);
     Vehicle.debug = game.debug;
     const change = game.screens.update(dt);
     if (change) applyScreen(change.to);
@@ -1377,6 +1397,7 @@ function draw() {
     game.effects.update(game.mode === 'combat' && !game.paused ? dt * game.feel.visualScale() : (game.mode === 'combat' ? 0 : dt), fire);
     game.demoEffects.forEach(e => e.update(dt, fire));
     game.titleEffects.update(dt, fire);
+    game.floorEl.style.visibility = game.floorInDom ? 'visible' : 'hidden';
     // Fondu au noir entre deux écrans
     const a = game.screens.alpha();
     if (a > 0) {
@@ -1391,12 +1412,15 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     const player = fight.player, foe = foeOf(fight);
     game.camera.follow(Camera.target(game.arena, width, height, locked, player, foe), Math.min(deltaTime / 1000, 0.1));
     push();
-    if (game.mode === 'combat') {
-        const s = game.feel.shake(game.time);
-        translate(s.x, s.y);
-    }
+    const s = game.mode === 'combat' ? game.feel.shake(game.time) : { x: 0, y: 0 };
+    translate(s.x, s.y);
     game.camera.apply(width, height);
-    drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null);
+    // Le sol (derrière le canvas) suit exactement la même caméra
+    const c = game.camera, cv = game.floorEl;
+    const canvasEl = drawingContext.canvas;
+    cv.style.transform = 'translate(' + (canvasEl.offsetLeft + width / 2 - c.cx * c.scale + s.x) + 'px,' +
+        (canvasEl.offsetTop + height / 2 - c.cy * c.scale + s.y) + 'px) scale(' + c.scale + ')';
+    drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null, true);
     if (locked && foe && foe.alive) Hud.lockMark(foe, game.time);
     pop();
     if (dimmed) {
@@ -1406,26 +1430,38 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     }
 }
 
-function drawEntities(fight, effects, stains = null) {
+/**
+ * Entités d'un combat. `floorInDom` : le sol est déjà affiché derrière le canvas. Chevalier, boss et Creux sont
+ * dessinés à leur position interpolée (décalage autour de leur dessin, l'état n'est pas modifié).
+ */
+function drawEntities(fight, effects, stains = null, floorInDom = false) {
     const { player, boss } = fight;
     const q = Quality.get(game.quality);
-    game.arena.showFloor();
+    if (!floorInDom) game.arena.showFloor();
+    const it = game.interp.get(fight);
+    const alpha = it ? Interpolation.alpha(it.acc(), Combat.DT) : 1;
+    const at = (e, drawIt) => {
+        const o = Interpolation.offset(e, it && it.prev, alpha);
+        push();
+        translate(o.x, o.y);
+        drawIt();
+        pop();
+    };
     if (stains) for (const b of stains) b.show(game.time, Math.hypot(player.pos.x - b.pos.x, player.pos.y - b.pos.y) < 45);
     game.campfire.show(game.time);
     for (const z of fight.zones || []) z.show(game.time);
     for (const p of fight.pillars) p.show(game.arena.campfirePos);
-    player.show();
-    if (boss) boss.show();
-    for (const c of fight.creux || []) c.show();
+    at(player, () => player.show());
+    if (boss) at(boss, () => boss.show());
+    for (const c of fight.creux || []) at(c, () => c.show());
     effects.showParticles(q.glow);
-    game.fogLayer.draw(game.time, q);
-    game.light.draw(Lighting.sources(fight, game.arena.campfirePos, game.time), q);
+    game.light.draw(Lighting.sources(fight, game.arena.campfirePos, game.time), q, Lighting.DARKNESS, game.fogLayer.update(game.time, q));
     // Au-dessus de l'obscurité : ce qui doit toujours rester lisible
     if (boss) {
         game.arena.showCorners(boss.r, Combat.BOSS.camping.margin, boss.campTime / Combat.BOSS.camping.limit, game.time);
-        boss.showTelegraph();
+        at(boss, () => boss.showTelegraph());
     }
-    for (const c of fight.creux || []) c.showTelegraph();
+    for (const c of fight.creux || []) at(c, () => c.showTelegraph());
     if (game.debug) {
         if (boss) DebugPanel.drawWorld(boss, player, game.arena);
         else DebugPanel.drawPackWorld(fight);

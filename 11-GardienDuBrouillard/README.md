@@ -296,6 +296,20 @@ combat est alors déjà terminé.
 plafond de particules, la fréquence et la finesse du brouillard, et les lueurs. Le **debug (G)** affiche les
 images par seconde, pour vérifier le jeu sur sa machine.
 
+**Fluidité.** Trois réglages rendent le jeu fluide, même sur une carte graphique intégrée :
+- **densité de pixels** : le canvas dessine un pixel par pixel CSS, même sur un écran réglé à 125 % ou 150 %
+  (sinon 1,5 à 2,25 fois plus de pixels) ; en qualité Basse, l'image est calculée à 75 % puis agrandie ;
+- **moins de grands dessins** : le sol, dessiné une seule fois, est affiché derrière le canvas et suit la caméra
+  par une transformation CSS ; le brouillard est composé dans le petit calque de lumière au lieu d'être étiré
+  sur tout l'écran. Il ne reste qu'un grand calque (l'obscurité) par image ;
+- **interpolation** (`interpolation.js`) : la simulation reste à pas fixe de 1/60 s, mais chaque entité est
+  dessinée entre sa position précédente et l'actuelle, au prorata du temps écoulé. Plus d'à-coups sur un écran
+  à 75, 120 ou 144 Hz. Rien n'est modifié dans l'état du jeu (un test le vérifie).
+
+Mesuré sur une carte Intel UHD à 1920 × 1080, en forçant la synchronisation de la carte graphique à chaque image
+(les valeurs absolues sont pessimistes, la comparaison est juste) : 59 ms par image avant, 24 ms après
+(16 ms en qualité Basse). Le debug (touche G) affiche les images par seconde réelles.
+
 Temps de calcul par image mesuré à 1366 × 768 (vrai p5.js 1.7.0). Une partie du travail du canevas est faite
 par la carte graphique et n'est pas comptée ici :
 
@@ -496,7 +510,7 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `fitnessChart.js`, `debugPanel.js`, `hud.js`, `camera.js`, `menuToggle.js` | Courbes, debug, HUD, bandeaux et effets, caméra de verrouillage, panneau du laboratoire masquable. |
 | `screens.js`, `titleMenu.js`, `tutorial.js`, `hudLayout.js`, `banners.js` | Interface : écrans et fondus, menu titre, tutoriel, disposition du HUD, animation des bandeaux. |
 | `libraries/fonts/` | Polices UnifrakturMaguntia et Cinzel (SIL OFL 1.1) et leurs licences. |
-| `quality.js`, `gameFeel.js`, `particles.js`, `lighting.js`, `fog.js` | Rendu : qualité graphique, effets d'impact, particules, éclairage, brouillard. |
+| `quality.js`, `gameFeel.js`, `particles.js`, `lighting.js`, `fog.js`, `interpolation.js` | Rendu : qualité graphique, effets d'impact, particules, éclairage, brouillard, interpolation entre deux pas. |
 | `flocking.js`, `creux.js` | Boids (séparation, alignement, cohésion) ; le Creux, sous-classe de `Vehicle`. |
 | `packBrain.js`, `handPack.js`, `packPlayer.js` | Cerveau partagé de la meute ; meute écrite à la main ; joueur robot face à la meute. |
 | `packFight.js`, `packFitness.js`, `packSettings.js`, `packTraining.js`, `packComparison.js` | Niveau 1 : combat et encerclement, note collective, réglages, neuroévolution, comparaison. |
@@ -506,7 +520,7 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=18`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=19`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -515,7 +529,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 122 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 124 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|

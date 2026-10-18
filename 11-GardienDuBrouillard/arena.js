@@ -99,14 +99,23 @@ class Arena {
         return { slabs: slabs };
     }
 
-    /** Sol et murs : décor fixe, dessiné une fois dans un calque puis recopié (moins coûteux). */
-    showFloor() {
+    /** Calque du sol, dessiné une seule fois (null sans createGraphics). */
+    floorLayer() {
         if (!this.floorCache && typeof createGraphics === 'function') {
             this.floorCache = createGraphics(this.width, this.height);
             this.floorCache.pixelDensity(1);
             this.drawFloor(this.floorCache);
         }
-        if (this.floorCache) image(this.floorCache, 0, 0, this.width, this.height);
+        return this.floorCache || null;
+    }
+
+    /**
+     * Sol et murs dans le canvas (duels côte à côte). La vue principale ne l'appelle pas : le même calque y est
+     * affiché derrière le canvas et placé par une transformation CSS (voir sketch.js), ce qui ne coûte presque rien.
+     */
+    showFloor() {
+        const g = this.floorLayer();
+        if (g) image(g, 0, 0, this.width, this.height);
         else this.drawFloor(window);
     }
 
