@@ -112,7 +112,9 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
 - Campagne : la meute, un feu de camp, le Gardien. La vie et les fioles passent d'une étape à l'autre ; une
   mort fait recommencer l'étape avec les valeurs qu'on avait en y entrant. Les étapes sont des données : un
   niveau 2 s'ajoute sans code.
-- 130 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- Jouable à la **manette** (disposition des Souls : RB / RT attaques, LT parade, B roulade, X fiole, R3
+  verrouillage), au choix du joueur dans les Options.
+- 135 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

@@ -43,6 +43,12 @@ on peut le revoir depuis les Options, où se trouve aussi la **fenêtre d'aide**
 | Échap | menu de pause : reprendre, recommencer, choisir l'adversaire, Options, retour au titre |
 | R / P | recommencer le combat / pause rapide |
 
+**Manette** (API Gamepad du navigateur, manette Xbox ou compatible, disposition des Souls) : stick gauche (ou
+croix) se déplacer · **RB / RT** attaque légère / lourde · **LT** parade · **B** roulade · **X** fiole · **R3** ou
+**Y** verrouiller · **Start** pause · **Select** recommencer · dans les menus **A** valider, **B** retour, croix ou
+stick pour choisir. Au feu de camp : **X** boire, **A** repartir. Le joueur choisit dans les Options : « Clavier et
+manette » (par défaut) ou « Clavier seulement ». Le tutoriel affiche les boutons du dernier appareil utilisé.
+
 La touche D sert à se déplacer, d'où le choix de G pour le debug. Une action demandée pendant une autre est
 gardée 0,25 s puis jouée, comme le tampon d'entrée des jeux Souls.
 
@@ -532,11 +538,12 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `packFight.js`, `packFitness.js`, `packSettings.js`, `packTraining.js`, `packComparison.js` | Niveau 1 : combat et encerclement, note collective, réglages, neuroévolution, comparaison. |
 | `pretrainedPack.js` | Données : la meute fournie (`node tools/pretrain-pack.mjs 60 7`). |
 | `campaign.js` | Campagne : étapes (données), report de la vie et des fioles, feu de camp, point de reprise. |
+| `gamepad.js` | Manette : zone morte du stick, fronts des boutons, gâchettes, disposition Souls, choix clavier ou manette. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=20`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=21`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -545,7 +552,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 130 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 135 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -560,6 +567,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 130 tes
 | `pack.test.mjs` | Boids (voisins, séparation, alignement, cohésion, limites) ; pursue et evade ; Creux (poids, somme limitée, flanc du côté libre, perception, morsure à portée, attente en secondes, interruption, mort) ; cerveau partagé (entrées, seuil strict) ; meute à la main ; encerclement (seuils, 180° pile, morts, rayon) ; combat (coup qui touche toute la meute une fois, pilier, roulade, corps, fin) ; simulation courte reproductible ; note collective ; joueur robot (roulade, acculé) ; entraînement et champion validé ; réglages ; le rendu de la meute ne modifie pas l'état. |
 | `campaign.test.mjs` | Étapes vérifiées ; report de la vie et des fioles ; feu de camp (gorgée exacte, plafond, sans fiole, seulement au feu, repos réglable) ; mort et point de reprise ; niveau 2 ajouté par des données ; vie de départ des combats bornée ; campagne simulée avec le joueur robot. |
 | `parry.test.mjs` | Parade (attaque parable, fenêtre active, arc du bouclier et son bord, ruée non parable) ; boss et Creux déséquilibrés exactement le temps prévu ; parade ratée et vulnérabilité ; riposte critique × 3 une seule fois ; endurance ; touches U et Maj ; la parade n'est pas un coup pour le boss ; retours visuels. |
+| `gamepad.test.mjs` | Stick (zone morte radiale continue), fronts des boutons, seuil des gâchettes, croix, stick pour les menus, manette débranchée ; disposition Souls (chaque bouton → la bonne action) ; le clavier garde la priorité ; choix « clavier seulement » respecté et gardé. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

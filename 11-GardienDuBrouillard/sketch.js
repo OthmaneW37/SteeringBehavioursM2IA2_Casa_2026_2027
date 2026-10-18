@@ -21,6 +21,10 @@ const game = {
     floorEl: null,           // sol de l'arène affiché derrière le canvas (élément DOM placé par la caméra)
     floorInDom: false,       // la vue principale utilise ce sol (sinon il est dessiné dans le canvas)
     interp: new WeakMap(),   // interpolation du rendu : combat → positions avant le dernier pas
+    pad: null,               // manette (GamepadInput)
+    controls: 'auto',        // 'auto' (clavier et manette) ou 'clavier' (choix du joueur, Options)
+    inputDevice: 'clavier',  // dernier appareil utilisé : les aides affichent ses boutons
+    padNotice: -Infinity,    // instant où une manette a été détectée (message pendant quelques secondes)
     settings: null,
     arena: null,
     campfire: null,
@@ -105,8 +109,10 @@ function setup() {
     game.campfire = new Campfire(game.arena.campfirePos.x, game.arena.campfirePos.y);
     game.camera = new Camera();
     game.human = new HumanController();
+    game.pad = new GamepadInput();
     game.storage = safeStorage();
     game.quality = Quality.load(game.storage);
+    game.controls = Controls.load(game.storage);
     const q = Quality.get(game.quality);
     game.effects = new Effects(q.particles);
     game.demoEffects = [new Effects(q.particles), new Effects(q.particles)];
@@ -268,6 +274,21 @@ function initControls() {
         byId('qualitySelect').appendChild(o);
     }
     byId('qualitySelect').value = game.quality;
+    for (const id in Controls.MODES) {
+        const o = document.createElement('option');
+        o.value = id;
+        o.textContent = Controls.MODES[id];
+        byId('controlsSelect').appendChild(o);
+    }
+    byId('controlsSelect').value = game.controls;
+    byId('controlsSelect').addEventListener('change', () => {
+        game.controls = byId('controlsSelect').value;
+        Controls.save(game.storage, game.controls);
+        if (game.controls === 'clavier') {
+            game.human.setPadMove(null);
+            game.inputDevice = 'clavier';
+        }
+    });
     byId('qualitySelect').addEventListener('change', () => {
         game.quality = byId('qualitySelect').value;
         Quality.save(game.storage, game.quality);
@@ -597,7 +618,7 @@ function showTutorialCard() {
     if (!card) return closeTutorial();
     byId('tutorialStep').textContent = game.tutorialRun.progress();
     byId('tutorialTitle').textContent = card.title;
-    byId('tutorialText').textContent = card.text;
+    byId('tutorialText').textContent = game.inputDevice === 'manette' && card.pad ? card.pad : card.text;
     byId('tutorialNextBtn').textContent = game.tutorialRun.index === game.tutorialRun.cards.length - 1 ? "Combattre (Entrée)" : "Suivant (Entrée)";
 }
 
@@ -1363,6 +1384,7 @@ function draw() {
     Vehicle.debug = game.debug;
     const change = game.screens.update(dt);
     if (change) applyScreen(change.to);
+    pollPad();
     // Cinzel (capitales) pour le jeu ; Georgia, plus étroite, pour les tableaux et courbes du laboratoire
     textFont(game.mode === 'title' || game.mode === 'combat' ? 'Cinzel' : 'Georgia');
 
@@ -1398,6 +1420,8 @@ function draw() {
     game.demoEffects.forEach(e => e.update(dt, fire));
     game.titleEffects.update(dt, fire);
     game.floorEl.style.visibility = game.floorInDom ? 'visible' : 'hidden';
+    // Manette tout juste branchée : un message pendant quelques secondes
+    if (game.time - game.padNotice < 3 && game.pad.id) Hud.pauseLabel("Manette détectée · " + game.pad.id.split('(')[0].trim().slice(0, 40));
     // Fondu au noir entre deux écrans
     const a = game.screens.alpha();
     if (a > 0) {
@@ -1695,6 +1719,69 @@ function drawComparisonOverlay() {
     pop();
 }
 
+// --- Manette ---
+
+/** Lit la manette (si le joueur l'autorise), puis traduit ses boutons comme les touches du clavier. */
+function pollPad() {
+    if (game.controls === 'clavier' || !navigator.getGamepads) return;
+    const wasConnected = game.pad.id !== null;
+    const r = game.pad.update(GamepadInput.first(navigator.getGamepads()));
+    if (!r.connected) {
+        game.human.setPadMove(null);
+        return;
+    }
+    if (!wasConnected) game.padNotice = game.time;
+    if (r.move || r.pressed.length) {
+        if (game.inputDevice !== 'manette' && !byId('tutorial').hidden) {
+            game.inputDevice = 'manette';
+            showTutorialCard();
+        }
+        game.inputDevice = 'manette';
+    }
+    game.human.setPadMove(game.mode === 'combat' && !game.paused ? r.move : null);
+    for (const b of r.pressed) padButton(b);
+}
+
+/** Un bouton de manette vient d'être enfoncé : même effet que la touche correspondante. */
+function padButton(b) {
+    const up = b === 'up' || b === 'stickUp', down = b === 'down' || b === 'stickDown';
+    if (!byId('tutorial').hidden) {
+        if (b === 'a' || b === 'start') tutorialNext();
+        else if (b === 'b') tutorialSkip();
+        return;
+    }
+    if (!byId('optionsScreen').hidden) {
+        if (b === 'b') closeOptions();
+        return;
+    }
+    if (game.mode === 'title') {
+        if (!game.screens.interactive) return;
+        if (up) { game.titleMenu.move(-1); refreshTitleMenu(); }
+        else if (down) { game.titleMenu.move(1); refreshTitleMenu(); }
+        else if (b === 'a' || b === 'start') activateMenu(game.titleMenu.current().id);
+        return;
+    }
+    if (game.mode !== 'combat') {
+        if (b === 'b') goScreen('title');
+        return;
+    }
+    // Combat : Start ouvre ou ferme la pause ; dans la pause, A reprend, B aussi
+    if (!byId('pauseMenu').hidden) {
+        if (b === 'start' || b === 'a' || b === 'b') closePause();
+        return;
+    }
+    if (b === 'start') { openPause(); return; }
+    if (b === 'select') { startFight(); return; }
+    if (game.state === 'rest') {
+        if (b === 'x') restDrink();
+        else if (b === 'a') leaveRest();
+        return;
+    }
+    if (game.state === 'complete' && b === 'a') { startFight(); return; }
+    const action = Pad.ACTIONS[b];
+    if (action) game.human.trigger(action);
+}
+
 // --- Clavier ---
 
 function typingInMenu() {
@@ -1706,6 +1793,7 @@ function typingInMenu() {
 function keyPressed() {
     if (typingInMenu()) return true;
     const k = String(key).toLowerCase();
+    game.inputDevice = 'clavier';
     // Fenêtres ouvertes d'abord : tutoriel, Options, pause
     if (!byId('tutorial').hidden) {
         if (k === 'enter' || k === ' ') tutorialNext();
