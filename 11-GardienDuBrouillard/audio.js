@@ -120,10 +120,12 @@ const SoundBank = {
     /**
      * Musique d'une scène : 'ambient', 'boss' ou null (silence).
      * Ambiance sur l'écran titre, au feu de camp et contre la meute ; musique de boss contre le Gardien ; silence
-     * à la mort, après une victoire et dans les outils du laboratoire.
+     * à la mort, après une victoire et dans les outils du laboratoire. Présentation : musique de boss pendant les
+     * scènes du Gardien, ambiance ailleurs (fightKind 'card' ou 'pack'), silence quand elle ne joue pas.
      */
     musicFor(mode, fightKind, state) {
         if (mode === 'title') return 'ambient';
+        if (mode === 'presentation') return fightKind === 'boss' ? 'boss' : fightKind ? 'ambient' : null;
         if (mode !== 'combat') return null;
         if (state === 'rest') return 'ambient';
         if (state !== 'fight') return null;
@@ -281,9 +283,34 @@ class WebAudioBackend {
         const g = this.ctx.createGain();
         g.gain.value = gain;
         src.connect(g);
-        g.connect(this.ctx.destination);
+        g.connect(this.output());
         src.start();
         return true;
+    }
+
+    /** Sortie des effets : les haut-parleurs, ou le bus qui alimente aussi l'enregistrement vidéo. */
+    output() {
+        return this.bus || this.ctx.destination;
+    }
+
+    /**
+     * Flux du son du jeu pour l'enregistrement vidéo (effets et musique), ou null sans Web Audio. Au premier appel,
+     * un bus est créé : il envoie le son aux haut-parleurs ET à l'enregistrement ; la musique y est raccordée.
+     */
+    captureStream() {
+        if (!this.ctx || typeof this.ctx.createMediaStreamDestination !== 'function') return null;
+        if (!this.bus) {
+            this.bus = this.ctx.createGain();
+            this.bus.connect(this.ctx.destination);
+            this.streamDest = this.ctx.createMediaStreamDestination();
+            this.bus.connect(this.streamDest);
+            if (this.music && typeof this.ctx.createMediaElementSource === 'function') {
+                try {
+                    this.ctx.createMediaElementSource(this.music).connect(this.bus);
+                } catch (e) { /* déjà raccordée */ }
+            }
+        }
+        return this.streamDest.stream;
     }
 
     setMusic(file) {

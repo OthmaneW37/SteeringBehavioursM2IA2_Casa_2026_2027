@@ -115,7 +115,9 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
 - Jouable à la **manette** (disposition des Souls : RB / RT attaques, LT parade, B roulade, X fiole, R3
   verrouillage), au choix du joueur dans les Options.
 - **Son** : effets et musiques CC0 (épée, parade, cloche de la riposte, musique de boss), volumes dans les Options.
-- 143 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- **Vidéo de démonstration** : Laboratoire → Présentation (3 min, réseau en direct, chaque comportement dessiné),
+  ou le fichier `gardien-du-brouillard-presentation.webm`.
+- 151 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

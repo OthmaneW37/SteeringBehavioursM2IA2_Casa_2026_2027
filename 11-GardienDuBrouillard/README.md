@@ -365,6 +365,37 @@ combat avec le son et vérifie qu'il est identique au même combat joué en sile
 Je n'ai pas pu écouter les fichiers : les sons ont été choisis d'après leurs noms dans les packs. Changer un son,
 c'est changer un nom de fichier dans `SoundBank.SFX`.
 
+## La présentation (vidéo de démonstration)
+
+Laboratoire → onglet **Présentation** : environ **3 minutes** en vrais combats, avec des légendes, pour montrer
+au professeur comment tout fonctionne. **→** passe à la scène suivante, **Échap** arrête.
+
+| Scène | Ce qu'on voit |
+|---|---|
+| 1. wander | Le chevalier est hors du cercle de détection : le Gardien erre ; le cercle et le point vert du `wander` de `vehicle.js`, la force qui y mène. |
+| 2. Le réseau décide | Le chevalier avance vers le boss : à droite, le **réseau 16-16-6 en direct**. L'entrée « Distance » baisse, le signal traverse les neurones cachés (liaisons qui s'allument selon poids × activation), les sorties au-dessus de leur seuil passent en or, et la décision est traduite en mots (« Déplacement 0,73 > 0,5 : arrive »). |
+| 3. seek et arrive | Le **triangle de Reynolds** : vitesse actuelle, vitesse désirée vers la cible, et la force = désirée − actuelle. |
+| 4. evade | Le boss à états esquive les coups : il fuit la position future du chevalier. |
+| 5. La ruée | Il vise la position future du chevalier (comme `pursue`), puis fonce (`seek`). |
+| 6. Évitement et confinement | Forces `avoid` (piliers) et `stayInside` (murs). |
+| 7. Parade | Bouclier au moment de la frappe, boss déséquilibré, riposte critique. |
+| 8. La meute | Perception de chaque Creux, séparation, alignement + cohésion, pursue et flanc, cercle d'encerclement, et le **réseau partagé vu par le Creux le plus proche**. |
+| 9. Neuroévolution | Les courbes de l'entraînement du Gardien et les résultats chiffrés. |
+
+Les scènes sont des données (`presentation.js`) jouées dans de vrais combats ; des « marionnettes » jouent le
+chevalier (s'approcher, attaquer, parer…). Un test simule chaque scène et vérifie qu'elle montre bien ce que dit
+sa légende (le boss erre, il esquive, il charge, la parade réussit, la meute encercle…). Le boss et le chevalier
+gardent chaque force appliquée avec son nom et sa cible (`steer`) : la présentation dessine ces forces **sans les
+recalculer**, et un test vérifie que leur somme est exactement la force appliquée. Le schéma du réseau
+(`networkView.js`) lit les activations gardées par le réseau : il ne le rappelle jamais.
+
+**« Enregistrer en vidéo »** joue la présentation et télécharge `gardien-du-brouillard-presentation.webm` (image
+du canvas et son du jeu, `recorder.js`, environ 30 Mo par minute). Le format WebM se lit dans Chrome, Edge,
+Firefox et VLC ; pour un MP4, il faut le convertir. Il n'y a pas de voix off : les explications sont les légendes.
+MediaRecorder écrit la vidéo sans sa durée : `WebmDuration` l'inscrit dans l'en-tête à la fin, pour que la barre de
+progression et la recherche fonctionnent. Une vidéo déjà enregistrée (3 min 06, 1280 × 720, 56 Mo) est dans
+`video/gardien-du-brouillard-presentation.webm`, gardée hors du dépôt Git (`video/.gitignore`).
+
 ## Les outils
 
 | Outil | Ce qu'on voit |
@@ -562,12 +593,13 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `pretrainedPack.js` | Données : la meute fournie (`node tools/pretrain-pack.mjs 60 7`). |
 | `campaign.js` | Campagne : étapes (données), report de la vie et des fioles, feu de camp, point de reprise. |
 | `audio.js`, `libraries/audio/` | Son : volumes (PARAMETERS), sons par événement, musique par scène, mélangeur (variantes, délais, fondu), moteur Web Audio injecté ; fichiers CC0. |
+| `networkView.js`, `presentation.js`, `recorder.js` | Présentation : schéma du réseau en direct, scènes et marionnettes, enregistrement vidéo (.webm). |
 | `gamepad.js` | Manette : zone morte du stick, fronts des boutons, gâchettes, disposition Souls, choix clavier ou manette. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=22`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=30`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -576,7 +608,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 143 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 152 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -593,6 +625,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 143 tes
 | `parry.test.mjs` | Parade (attaque parable, fenêtre active, arc du bouclier et son bord, ruée non parable) ; boss et Creux déséquilibrés exactement le temps prévu ; parade ratée et vulnérabilité ; riposte critique × 3 une seule fois ; endurance ; touches U et Maj ; la parade n'est pas un coup pour le boss ; retours visuels. |
 | `gamepad.test.mjs` | Stick (zone morte radiale continue), fronts des boutons, seuil des gâchettes, croix, stick pour les menus, manette débranchée ; disposition Souls (chaque bouton → la bonne action) ; le clavier garde la priorité ; choix « clavier seulement » respecté et gardé. |
 | `audio.test.mjs` | Fichiers présents et crédités ; réglages du son (plages, mémorisation) ; sons de chaque événement et musique de chaque scène ; volumes, coupure, délais, variantes ; un son par coup, roulade ou technique, pas réguliers ; fondu exact de la musique ; moteur Web Audio (chargement unique, déblocage, volume borné) ; **le son ne modifie pas le combat**. |
+| `presentation.test.mjs` | Scénario (scènes complètes, 2 à 4 min) ; déroulé (changement de scène et de légende au bon instant) ; **chaque scène montre ce qu'elle annonce** (simulée avec les cerveaux fournis) ; marionnettes ; forces notées = force appliquée ; schéma du réseau (disposition, signaux, lecture en mots, aucun recalcul, mémoire par Creux) ; enregistrement vidéo et son. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

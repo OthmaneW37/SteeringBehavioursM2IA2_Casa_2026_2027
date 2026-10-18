@@ -172,7 +172,7 @@ test('page : menu titre, onglets du laboratoire et fenêtres présents ; polices
   const items = [...html.matchAll(/data-item="([^"]+)"/g)].map(m => m[1]);
   assert.deepEqual(items, plain(TitleMenu.ITEMS.map(i => i.id)), 'un bouton par entrée du menu, dans l\'ordre');
   const tabs = [...html.matchAll(/data-mode="([^"]+)"/g)].map(m => m[1]);
-  assert.deepEqual(tabs, ['demo', 'training', 'comparison', 'pantheon', 'pack']);
+  assert.deepEqual(tabs, ['demo', 'training', 'comparison', 'pantheon', 'pack', 'presentation']);
   for (const t of tabs) assert.ok(html.includes(`id="${t}Section"`), 'section ' + t);
   for (const id of ['titleScreen', 'pauseMenu', 'optionsScreen', 'tutorial', 'helpDialog']) assert.ok(html.includes(`id="${id}"`), id);
   for (const id of ['pauseMenu', 'optionsScreen', 'tutorial']) assert.match(html, new RegExp(`id="${id}" class="overlay" hidden`), id + ' caché au départ');

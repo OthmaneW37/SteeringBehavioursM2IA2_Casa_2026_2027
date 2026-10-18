@@ -25,6 +25,7 @@ const game = {
     controls: 'auto',        // 'auto' (clavier et manette) ou 'clavier' (choix du joueur, Options)
     inputDevice: 'clavier',  // dernier appareil utilisé : les aides affichent ses boutons
     padNotice: -Infinity,    // instant où une manette a été détectée (message pendant quelques secondes)
+    presentation: null,      // présentation en cours : { run, fight, kind, overTime, recorder, seed }
     audio: null,             // sons et musique (AudioMixer, rendu seulement)
     audioBackend: null,
     audioSettings: null,
@@ -257,6 +258,8 @@ function initControls() {
         input.value = '';
     });
     byId('compareBtn').addEventListener('click', startComparison);
+    byId('presentationBtn').addEventListener('click', () => startPresentation(false));
+    byId('recordBtn').addEventListener('click', () => startPresentation(true));
     // Onglet Meute
     for (const name in PackSettings.PARAMETERS) {
         byId(name).addEventListener('input', () => {
@@ -525,6 +528,8 @@ function showMode() {
         setStatus(game.trainingRunning ? "Entraînement en cours." : "Choisissez une recette, puis cliquez sur « Lancer l'entraînement ».");
     } else if (game.mode === 'pantheon') {
         setStatus("Cliquez sur « Lancer le tournoi » : chaque boss affronte 4 joueurs robots différents.");
+    } else if (game.mode === 'presentation') {
+        setStatus("Lancez la présentation, ou enregistrez-la en vidéo (.webm).");
     } else if (game.mode === 'pack') {
         game.packView = null;
         setStatus("Le joueur robot contre la meute. « Comparer » mesure la meute apprise et la meute écrite à la main sur les mêmes combats.");
@@ -540,7 +545,7 @@ function togglePause() {
 
 // --- Écrans (titre, combat, laboratoire) et fenêtres (pause, Options, tutoriel) ---
 
-const LAB_TOOLS = ['demo', 'training', 'comparison', 'pantheon', 'pack'];
+const LAB_TOOLS = ['demo', 'training', 'comparison', 'pantheon', 'pack', 'presentation'];
 
 function goScreen(name) {
     game.screens.go(name);
@@ -1012,6 +1017,337 @@ function drawPackOverlay() {
     if (game.debug) DebugPanel.drawPack(f.packController, f, 14, py + ph + 12);
 }
 
+// --- Présentation (vidéo de démonstration) ---
+
+/** Lance la présentation ; `record` : l'enregistre en vidéo (.webm téléchargé à la fin). */
+function startPresentation(record) {
+    if (game.presentation) return;
+    if (!document.body.classList.contains('menu-hidden')) MenuToggle.toggle(document, byId('menuToggle'));
+    windowResized();
+    game.presentation = { run: new PresentationRun(), fight: null, kind: null, overTime: 0, recorder: null, seed: 1 + Math.floor(Math.random() * 1e6) };
+    mountScene();
+    game.audioBackend.unlock();
+    if (record) {
+        const canvas = drawingContext.canvas;
+        if (!VideoRecorder.available(window.MediaRecorder, canvas)) {
+            setStatus("L'enregistrement vidéo n'est pas disponible dans ce navigateur (essayez Chrome, Edge ou Firefox).", true);
+        } else {
+            const r = new VideoRecorder({ MediaRecorder: window.MediaRecorder, MediaStream: window.MediaStream,
+                videoStream: canvas.captureStream(60), audioStream: game.audioBackend.captureStream() });
+            r.start();
+            game.presentation.recorder = r;
+        }
+    }
+}
+
+/** Monte le combat de la scène en cours (nouvelle graine à chaque fois). */
+function mountScene() {
+    const P = game.presentation, scene = P.run.scene;
+    P.seed++;
+    const built = Presentation.build(scene, { arena: game.arena, bossBrain: game.pretrained, packBrain: game.packPretrained, seed: P.seed });
+    P.fight = built.fight;
+    P.kind = built.kind;
+    P.overTime = 0;
+    game.accumulator = 0;
+    if (P.fight) game.audio.resetCues(P.fight);
+}
+
+function updatePresentation(dt) {
+    const P = game.presentation;
+    if (!P) return;
+    if (P.run.update(dt)) mountScene();
+    if (P.run.done) return stopPresentation();
+    const f = P.fight;
+    if (!f) return;
+    if (f.over) {
+        // Combat fini avant la fin de la scène : on le rejoue au bout de 2 s (la vidéo ne reste pas figée)
+        P.overTime += dt;
+        if (P.overTime > 2 && P.run.scene.duration - P.run.sceneTime > 3) mountScene();
+        return;
+    }
+    advance(f, dt, events => {
+        events.forEach(e => game.effects.add(e, game.time));
+        game.audio.onEvents(events, game.time);
+    });
+    game.audio.cues(f, game.time, dt);
+}
+
+/** Fin (ou arrêt) : la vidéo enregistrée est téléchargée. */
+function stopPresentation() {
+    const P = game.presentation;
+    if (!P) return;
+    game.presentation = null;
+    if (document.body.classList.contains('menu-hidden')) MenuToggle.toggle(document, byId('menuToggle'));
+    windowResized();
+    if (P.recorder) {
+        P.recorder.stop().then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = VideoRecorder.FILENAME;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            setStatus("Vidéo enregistrée : " + VideoRecorder.FILENAME + " (" + (blob.size / 1e6).toFixed(1) + " Mo).");
+        });
+    }
+}
+
+const FORCE_COLORS = { seek: [255, 140, 60], arrive: [255, 205, 80], flee: [200, 130, 255], evade: [255, 255, 255], wander: [90, 230, 120],
+    avoid: [255, 90, 90], stayInside: [120, 170, 255], pursue: [255, 90, 80], flank: [90, 200, 255], flock: [120, 255, 120], separation: [255, 200, 60] };
+
+/** Flèche de (x, y) vers (x + dx, y + dy), avec une étiquette au bout. */
+function arrow(x, y, dx, dy, c, label, dashed = false, labelDy = 0) {
+    const len = Math.hypot(dx, dy);
+    if (len < 2) return;
+    push();
+    stroke(c[0], c[1], c[2], 230);
+    strokeWeight(2.5);
+    if (dashed) drawingContext.setLineDash([6, 5]);
+    line(x, y, x + dx, y + dy);
+    drawingContext.setLineDash([]);
+    const a = Math.atan2(dy, dx);
+    fill(c[0], c[1], c[2], 230);
+    noStroke();
+    triangle(x + dx, y + dy, x + dx - 9 * Math.cos(a - 0.4), y + dy - 9 * Math.sin(a - 0.4), x + dx - 9 * Math.cos(a + 0.4), y + dy - 9 * Math.sin(a + 0.4));
+    if (label) {
+        textSize(12);
+        textAlign(LEFT, CENTER);
+        fill(0, 0, 0, 170);
+        text(label, x + dx + 6, y + dy + 1 + labelDy);
+        fill(c[0], c[1], c[2]);
+        text(label, x + dx + 5, y + dy + labelDy);
+    }
+    pop();
+}
+
+/** Forces de pilotage d'une entité (lues dans .forces, sans recalcul), sa vitesse, et les cibles visées. */
+function drawForces(e) {
+    if (!e || !e.forces || !e.alive) return;
+    const K = 260, MAX = 130;
+    for (const f of e.forces) {
+        const m = f.force.mag();
+        if (m < 1e-4) continue;
+        const c = FORCE_COLORS[f.name] || [220, 220, 220];
+        const len = Math.min(MAX, m * K);
+        arrow(e.pos.x, e.pos.y, f.force.x / m * len, f.force.y / m * len, c, f.name);
+        if (f.target && Math.hypot(f.target.x - e.pos.x, f.target.y - e.pos.y) > 6) {
+            push();
+            stroke(c[0], c[1], c[2], 120);
+            strokeWeight(1);
+            drawingContext.setLineDash([3, 5]);
+            line(e.pos.x, e.pos.y, f.target.x, f.target.y);
+            drawingContext.setLineDash([]);
+            noFill();
+            stroke(c[0], c[1], c[2], 220);
+            circle(f.target.x, f.target.y, 10);
+            pop();
+        }
+    }
+    arrow(e.pos.x, e.pos.y, e.vel.x * 18, e.vel.y * 18, [0, 230, 255], "vitesse");
+}
+
+/** Force principale d'une entité qui vise une vraie cible (à plus de 20 px), ou null. */
+function mainForce(e) {
+    if (!e || !e.forces || !e.alive) return null;
+    return e.forces.filter(f => f.target && ['seek', 'arrive', 'flee', 'evade', 'wander'].includes(f.name) &&
+        Math.hypot(f.target.x - e.pos.x, f.target.y - e.pos.y) > 20).sort((a, b) => b.force.mag() - a.force.mag())[0] || null;
+}
+
+/**
+ * Triangle de Reynolds pour la force principale du boss (ou du chevalier quand le boss frappe sur place) :
+ * vitesse actuelle (cyan), vitesse désirée vers la cible à vitesse maximale (or, pointillés), et la force de
+ * pilotage qui va de l'une à l'autre (rouge).
+ */
+function drawFormula(boss, player) {
+    let e = boss, main = mainForce(boss);
+    if (!main) { e = player; main = mainForce(player); }
+    if (!main) return;
+    const away = main.name === 'flee' || main.name === 'evade';
+    let dx = main.target.x - e.pos.x, dy = main.target.y - e.pos.y;
+    if (away) { dx = -dx; dy = -dy; }
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-6) return;
+    const K = 60;
+    const desired = { x: dx / d * e.maxSpeed * K, y: dy / d * e.maxSpeed * K };
+    const vel = { x: e.vel.x * K, y: e.vel.y * K };
+    arrow(e.pos.x, e.pos.y, vel.x, vel.y, [0, 230, 255], "vitesse actuelle", false, 12);
+    arrow(e.pos.x, e.pos.y, desired.x, desired.y, [255, 215, 90], "vitesse désirée (" + main.name + ")", true, -12);
+    arrow(e.pos.x + vel.x, e.pos.y + vel.y, desired.x - vel.x, desired.y - vel.y, [255, 80, 70], null);
+    // Étiquette de la force au milieu de sa flèche, décalée sur le côté (lisible)
+    push();
+    const mx = e.pos.x + (vel.x + desired.x) / 2, my = e.pos.y + (vel.y + desired.y) / 2;
+    textSize(11);
+    textAlign(CENTER, CENTER);
+    fill(0, 0, 0, 180);
+    text("force = désirée − actuelle", mx + 1, my + 25);
+    fill(255, 110, 100);
+    text("force = désirée − actuelle", mx, my + 24);
+    pop();
+}
+
+/**
+ * Le combat d'une scène dans un rectangle de l'écran, avec les couches demandées. `zoom` > 1 : vue grossie,
+ * centrée entre le chevalier et son adversaire (sans sortir de l'arène).
+ */
+function drawSceneWorld(fight, show, x, y, w, h, zoom = 1) {
+    const A = game.arena;
+    const s = Math.min(w / A.width, h / A.height) * zoom;
+    const foe = foeOf(fight);
+    let cx = A.width / 2, cy = A.height / 2;
+    if (zoom > 1 && foe) {
+        const hw = w / s / 2, hh = h / s / 2;
+        cx = Math.min(A.width - hw, Math.max(hw, (fight.player.pos.x + foe.pos.x) / 2));
+        cy = Math.min(A.height - hh, Math.max(hh, (fight.player.pos.y + foe.pos.y) / 2));
+    }
+    push();
+    drawingContext.save();
+    drawingContext.beginPath();
+    drawingContext.rect(x, y, w, h);
+    drawingContext.clip();
+    translate(x + w / 2, y + h / 2);
+    scale(s);
+    translate(-cx, -cy);
+    drawEntities(fight, game.effects, null, false);
+    if (show.includes('debug') && fight.boss) DebugPanel.drawWorld(fight.boss, fight.player, A);
+    if (show.includes('pack')) DebugPanel.drawPackWorld(fight);
+    if (show.includes('forces')) {
+        drawForces(fight.boss);
+        drawForces(fight.player);
+    }
+    if (show.includes('formula')) drawFormula(fight.boss, fight.player);
+    drawingContext.restore();
+    pop();
+}
+
+/** Bandeau de légende : titre de la scène, phrase en cours (en fondu), avancement, enregistrement. */
+function drawCaption(P, bandH) {
+    const run = P.run, scene = run.scene;
+    const y = height - bandH;
+    push();
+    noStroke();
+    fill(6, 7, 11, 235);
+    rect(0, y, width, bandH);
+    fill(232, 196, 110);
+    textFont('Cinzel');
+    textAlign(LEFT, TOP);
+    textSize(Math.min(22, width / 45));
+    text(scene.title, 24, y + 12);
+    const per = scene.duration / scene.lines.length;
+    const k = run.lineIndex();
+    const tIn = run.sceneTime - k * per;
+    fill(240, 236, 225, 255 * Math.min(1, tIn / 0.4));
+    textFont('Georgia');
+    textSize(Math.min(17, width / 60));
+    text(scene.lines[k], 24, y + 46, width - 48);
+    fill(40);
+    rect(0, height - 4, width, 4);
+    fill(232, 190, 90);
+    rect(0, height - 4, width * run.progress(), 4);
+    fill(150);
+    textSize(11);
+    textAlign(RIGHT, TOP);
+    text("scène " + (run.index + 1) + " / " + run.scenes.length + " · → suivante · Échap arrêter", width - 20, y + 14);
+    if (P.recorder) {
+        fill(255, 60, 50);
+        circle(width - 24, 24, 14);
+        fill(255);
+        textAlign(RIGHT, CENTER);
+        textSize(13);
+        text("REC", width - 36, 24);
+    }
+    pop();
+}
+
+/** Carte de titre (début et fin). */
+function drawCard(scene, t, bandH) {
+    push();
+    background(7, 8, 12);
+    const ctx = drawingContext;
+    const g = ctx.createRadialGradient(width / 2, height * 0.42, 10, width / 2, height * 0.42, Math.max(width, height) * 0.6);
+    g.addColorStop(0, 'rgba(60,50,40,0.55)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, width, height);
+    const a = Math.min(1, t / 1.2);
+    textAlign(CENTER, CENTER);
+    textFont('UnifrakturMaguntia');
+    fill(232, 196, 110, 255 * a);
+    textSize(Math.min(72, width / 12));
+    text(scene.title, width / 2, (height - bandH) * 0.42);
+    pop();
+}
+
+/** Courbes de l'entraînement du Gardien fourni et résultats chiffrés. */
+function drawEvolution(bandH) {
+    background(7, 8, 12);
+    const w = Math.min(560, width * 0.5), x = width * 0.08, y = 70;
+    FitnessChart.draw(PRETRAINED_BOSS.history, x, y, w, Math.min(300, height - bandH - 150), "des boss");
+    push();
+    textFont('Georgia');
+    textAlign(LEFT, TOP);
+    const tx = x + w + 60, tw = width - tx - 30;
+    fill(232, 196, 110);
+    textSize(18);
+    text("Ce que l'entraînement a donné", tx, y - 20, tw);
+    fill(225);
+    textSize(14);
+    const lines = [PRETRAINED_BOSS.generations + " générations pour le Gardien, examen sur des combats jamais vus."];
+    for (const c of PRETRAINED_BOSS.comparison || []) lines.push(c.name + " : " + Math.round(c.winRate * 100) + " % de victoires contre le joueur robot.");
+    lines.push("Meute des Creux : " + Math.round(PRETRAINED_PACK.exam.learned.winRate * 100) + " % de victoires (meute écrite à la main : " +
+        Math.round(PRETRAINED_PACK.exam.hand.winRate * 100) + " %).");
+    lines.push("Chevalier encerclé " + (PRETRAINED_PACK.exam.learned.surrounded * 100).toFixed(1) + " % du temps (à la main : " +
+        (PRETRAINED_PACK.exam.hand.surrounded * 100).toFixed(1) + " %).");
+    lines.forEach((l, i) => text("• " + l, tx, y + 20 + i * 48, tw));
+    pop();
+}
+
+function drawPresentation() {
+    const P = game.presentation;
+    if (!P) {
+        push();
+        background(7, 8, 12);
+        fill(200);
+        textAlign(CENTER, CENTER);
+        textSize(16);
+        text("Cliquez sur « Lancer la présentation » ou « Enregistrer en vidéo » dans le menu.", width / 2, height / 2);
+        pop();
+        return;
+    }
+    const scene = P.run.scene;
+    if (!scene) return;
+    const bandH = Math.max(96, Math.min(130, height * 0.16));
+    background(7, 8, 12);
+    if (scene.kind === 'card') drawCard(scene, P.run.sceneTime, bandH);
+    else if (scene.kind === 'chart') drawEvolution(bandH);
+    else {
+        const show = scene.show || [];
+        const net = show.includes('network') || show.includes('packNetwork');
+        const worldW = net ? width * 0.56 : width;
+        drawSceneWorld(P.fight, show, 0, 0, worldW, height - bandH, scene.zoom || 1);
+        if (net) drawSceneNetwork(P.fight, show, worldW + 8, 12, width - worldW - 20, height - bandH - 24);
+    }
+    drawCaption(P, bandH);
+}
+
+/** Schéma du réseau de la scène : le Gardien, ou le réseau partagé vu par le Creux visé (sans recalcul). */
+function drawSceneNetwork(fight, show, x, y, w, h) {
+    if (show.includes('network') && fight.boss && fight.bossController.brain) {
+        const ctrl = fight.bossController;
+        if (!ctrl.lastOutputs) return;
+        NetworkView.draw({ nn: ctrl.brain, activations: ctrl.brain.activations, inputLabels: BossBrain.INPUT_LABELS, outputLabels: BossBrain.OUTPUT_LABELS,
+            thresholds: [0.5, BossBrain.THRESHOLD, BossBrain.THRESHOLD, BossBrain.THRESHOLD, BossBrain.THRESHOLD, 0.5],
+            title: "Cerveau du Gardien · 16 entrées → 16 neurones → 6 sorties", reading: NetworkView.bossReading(ctrl.lastOutputs) }, x, y, w, h);
+    } else if (show.includes('packNetwork') && fight.packController && fight.packController.memory) {
+        const m = fight.focus ? fight.packController.memory.get(fight.focus) : null;
+        if (!m) return;
+        NetworkView.draw({ nn: fight.packController.brain, activations: m.layers, inputLabels: PackBrain.INPUT_LABELS, outputLabels: PackBrain.OUTPUT_LABELS,
+            thresholds: [undefined, undefined, undefined, undefined, PackBrain.THRESHOLD],
+            title: "Réseau partagé, vu par le Creux le plus proche · 12 → 12 → 5", reading: NetworkView.packReading(m.outputs) }, x, y, w, h);
+    }
+}
+
 // --- Démonstration ---
 
 /** Un côté de la démonstration, d'après la valeur choisie dans la liste. */
@@ -1416,7 +1752,7 @@ function draw() {
     pollPad();
     updateMusic(dt);
     // Cinzel (capitales) pour le jeu ; Georgia, plus étroite, pour les tableaux et courbes du laboratoire
-    textFont(game.mode === 'title' || game.mode === 'combat' ? 'Cinzel' : 'Georgia');
+    textFont(game.mode === 'title' || game.mode === 'combat' || game.mode === 'presentation' ? 'Cinzel' : 'Georgia');
 
     if (game.mode === 'title') {
         updateTitleFight(dt);
@@ -1439,6 +1775,9 @@ function draw() {
         updatePack(dt);
         drawWorld(game.packView, false, game.effects);
         drawPackOverlay();
+    } else if (game.mode === 'presentation') {
+        updatePresentation(dt);
+        drawPresentation();
     } else {
         updateComparison();
         drawWorld(game.fight, false, game.effects, true);
@@ -1470,11 +1809,13 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     translate(s.x, s.y);
     game.camera.apply(width, height);
     // Le sol (derrière le canvas) suit exactement la même caméra
-    const c = game.camera, cv = game.floorEl;
-    const canvasEl = drawingContext.canvas;
-    cv.style.transform = 'translate(' + (canvasEl.offsetLeft + width / 2 - c.cx * c.scale + s.x) + 'px,' +
-        (canvasEl.offsetTop + height / 2 - c.cy * c.scale + s.y) + 'px) scale(' + c.scale + ')';
-    drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null, true);
+    if (game.floorInDom) {
+        const c = game.camera, cv = game.floorEl;
+        const canvasEl = drawingContext.canvas;
+        cv.style.transform = 'translate(' + (canvasEl.offsetLeft + width / 2 - c.cx * c.scale + s.x) + 'px,' +
+            (canvasEl.offsetTop + height / 2 - c.cy * c.scale + s.y) + 'px) scale(' + c.scale + ')';
+    }
+    drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null, game.floorInDom);
     if (locked && foe && foe.alive) Hud.lockMark(foe, game.time);
     pop();
     if (dimmed) {
@@ -1770,7 +2111,8 @@ function toggleMute() {
 
 /** Musique de la scène, et fondu (appelé à chaque image). */
 function updateMusic(dt) {
-    const kind = game.fight && game.fight.boss ? 'boss' : 'pack';
+    let kind = game.fight && game.fight.boss ? 'boss' : 'pack';
+    if (game.mode === 'presentation') kind = game.presentation && game.presentation.run.scene ? game.presentation.kind : null;
     game.audio.setTrack(SoundBank.musicFor(game.mode, kind, game.state));
     game.audio.update(dt);
 }
@@ -1863,6 +2205,10 @@ function keyPressed() {
     if (k === 'm') {
         toggleMute();
         return false;
+    }
+    if (game.mode === 'presentation' && game.presentation) {
+        if (k === 'arrowright') { if (game.presentation.run.next()) mountScene(); else stopPresentation(); return false; }
+        if (k === 'escape') { stopPresentation(); return false; }
     }
     if (k === 'g') {
         game.debug = !game.debug;

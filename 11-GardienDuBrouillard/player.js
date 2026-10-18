@@ -41,6 +41,7 @@ class Player extends Vehicle {
         this.drink = null;    // gorgée en cours : { t, healed }
         this.inMist = false;  // dans une nappe de brume (réglé par le combat à chaque pas)
         this.zones = null;    // nappes de brume du combat (pour l'évitement)
+        this.forces = [];     // forces du dernier pas : { name, force, target } (affichage, voir steer)
         this.pillars = null;  // piliers du combat (évitement, abri)
         this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0, parries: 0, criticals: 0 };
     }
@@ -110,10 +111,17 @@ class Player extends Vehicle {
         return dir;
     }
 
+    /** Applique une force (applyForce, hérité) et la note avec son nom et sa cible (affichage, sans recalcul). */
+    steer(name, force, target = null) {
+        this.forces.push({ name: name, force: force.copy(), target: target ? { x: target.x, y: target.y } : null });
+        this.applyForce(force);
+    }
+
     /** Intention → forces de pilotage et début des actions. */
     control(intent, boss, arena) {
+        this.forces = [];
         if (!this.alive) {
-            this.applyForce(this.arrive(this.pos));
+            this.steer('arrive', this.arrive(this.pos), this.pos);
             return;
         }
         this.locked = !!intent.lock && boss && boss.alive;
@@ -125,28 +133,28 @@ class Player extends Vehicle {
 
         if (this.roll) {
             // Roulade : `evade` loin du boss, avec les limites de vitesse de la roulade
-            this.applyForce(this.evade(boss));
+            this.steer('evade', this.evade(boss), Steering.predict(boss, 0.25));
         } else if (this.action) {
             // On est planté pendant une attaque : `arrive` sur place freine
-            this.applyForce(this.arrive(this.pos));
+            this.steer('arrive', this.arrive(this.pos), this.pos);
         } else if (intent.target) {
             // Point précis à rejoindre (le joueur robot va s'abriter derrière un pilier) : `arrive`
             const t = arena.clampPoint(intent.target, this.r + 4);
-            this.applyForce(this.arrive(createVector(t.x, t.y)));
-            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
+            this.steer('arrive', this.arrive(createVector(t.x, t.y)), t);
+            if (intent.avoid) this.steer('avoid', this.avoidObstacles().mult(1.5));
         } else {
             const dir = this.moveDirection(intent.move || { x: 0, y: 0 }, boss);
             if (dir.mag() < 0.05) {
-                this.applyForce(this.arrive(this.pos));
+                this.steer('arrive', this.arrive(this.pos), this.pos);
             } else {
                 const target = createVector(this.pos.x + dir.x * Player.LOOK_AHEAD, this.pos.y + dir.y * Player.LOOK_AHEAD);
                 const safe = arena.clampPoint(target, this.r + 4);
                 // Près d'un bord, le point visé est ramené contre le mur : `arrive` ralentit jusqu'à l'arrêt
-                if (safe.clamped) this.applyForce(this.arrive(createVector(safe.x, safe.y)));
-                else this.applyForce(this.seek(target));
+                if (safe.clamped) this.steer('arrive', this.arrive(createVector(safe.x, safe.y)), safe);
+                else this.steer('seek', this.seek(target), target);
             }
             // Évitement des nappes de brume et des piliers (joueur robot)
-            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
+            if (intent.avoid) this.steer('avoid', this.avoidObstacles().mult(1.5));
         }
 
         // Orientation : vers le boss si verrouillé, sinon dans le sens de la marche
