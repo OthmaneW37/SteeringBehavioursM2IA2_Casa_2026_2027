@@ -40,6 +40,7 @@ on peut le revoir depuis les Options, où se trouve aussi la **fenêtre d'aide**
 | E | boire une fiole d'Estus (soin de 25 PV, 1 s presque immobile) |
 | L ou Tab | verrouiller la caméra sur le boss (lock-on) |
 | G | mode debug (aussi par la case des Options) |
+| M | couper ou remettre le son |
 | Échap | menu de pause : reprendre, recommencer, choisir l'adversaire, Options, retour au titre |
 | R / P | recommencer le combat / pause rapide |
 
@@ -342,6 +343,28 @@ par la carte graphique et n'est pas comptée ici :
 | Duel (deux arènes) | 3,5 ms | 4,2 ms | 5,1 ms |
 | Écran titre | 1,3 ms | 1,5 ms | 2,1 ms |
 
+## Le son
+
+Effets et musiques **CC0** (Kenney, qubodup d'après yd, MintoDog : voir [`CREDITS.md`](CREDITS.md)), dans
+`libraries/audio`. Le module `audio.js` ne fait que **lire** le combat, sans jamais le modifier : un test joue un
+combat avec le son et vérifie qu'il est identique au même combat joué en silence.
+
+- **Effets** : épée qui siffle au début d'un coup, chair touchée (plus lourde pour un coup lourd), armure qui
+  sonne quand le chevalier est touché, clang de la parade, cloche de la riposte critique, roulade, gorgée, pas,
+  pilier qui pare ou qui s'écroule, morsure et chute d'un Creux, grincement quand le boss lance une technique,
+  cloche grave de la mort, pages du menu. Chaque son a plusieurs variantes et un délai minimal entre deux
+  répétitions (pas de cacophonie).
+- **Musique** : *Dark Shrine Loop* sur l'écran titre, au feu de camp et contre la meute ; *Heavy Boss Battle 2*
+  contre le Gardien ; silence à la mort et après la victoire. Changement par **fondu** de 1,2 s.
+- **Options** : volume général, musique, effets (curseurs), « Couper le son » ou touche **M**. Gardés dans le
+  navigateur.
+- Le navigateur n'autorise le son qu'après un geste du joueur (touche, clic) : la musique démarre à ce moment-là.
+  Les boutons d'une manette ne comptent pas comme un geste pour Chrome : appuyer une fois sur une touche ou
+  cliquer suffit.
+
+Je n'ai pas pu écouter les fichiers : les sons ont été choisis d'après leurs noms dans les packs. Changer un son,
+c'est changer un nom de fichier dans `SoundBank.SFX`.
+
 ## Les outils
 
 | Outil | Ce qu'on voit |
@@ -538,12 +561,13 @@ Un scénario ne liste que ce qui change. Modifier un curseur à la main fait pas
 | `packFight.js`, `packFitness.js`, `packSettings.js`, `packTraining.js`, `packComparison.js` | Niveau 1 : combat et encerclement, note collective, réglages, neuroévolution, comparaison. |
 | `pretrainedPack.js` | Données : la meute fournie (`node tools/pretrain-pack.mjs 60 7`). |
 | `campaign.js` | Campagne : étapes (données), report de la vie et des fioles, feu de camp, point de reprise. |
+| `audio.js`, `libraries/audio/` | Son : volumes (PARAMETERS), sons par événement, musique par scène, mélangeur (variantes, délais, fondu), moteur Web Audio injecté ; fichiers CC0. |
 | `gamepad.js` | Manette : zone morte du stick, fronts des boutons, gâchettes, disposition Souls, choix clavier ou manette. |
 | `sketch.js` | Câblage p5 : aucune règle de comportement. |
 | `tools/pretrain.mjs`, `tools/pretrain-pantheon.mjs` | Pré-entraînement sous Node : le Gardien, puis un boss par autre recette, avec le tournoi affiché à la fin. |
 | `tools/pretrain-pack.mjs` | Pré-entraînement de la meute, puis examen contre la meute écrite à la main (`--dry` : sans rien écrire). |
 
-Les scripts de `index.html` portent un numéro de version (`?v=21`) : après une mise à jour, le navigateur
+Les scripts de `index.html` portent un numéro de version (`?v=22`) : après une mise à jour, le navigateur
 recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl + F5**.
 
 ## Tests
@@ -552,7 +576,7 @@ recharge les nouveaux fichiers. Si un comportement semble ancien, faites **Ctrl 
 node --test tests/*.test.mjs
 ```
 
-Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 135 tests :
+Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 143 tests :
 
 | Fichier | Ce qui est vérifié |
 |---|---|
@@ -568,6 +592,7 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 135 tes
 | `campaign.test.mjs` | Étapes vérifiées ; report de la vie et des fioles ; feu de camp (gorgée exacte, plafond, sans fiole, seulement au feu, repos réglable) ; mort et point de reprise ; niveau 2 ajouté par des données ; vie de départ des combats bornée ; campagne simulée avec le joueur robot. |
 | `parry.test.mjs` | Parade (attaque parable, fenêtre active, arc du bouclier et son bord, ruée non parable) ; boss et Creux déséquilibrés exactement le temps prévu ; parade ratée et vulnérabilité ; riposte critique × 3 une seule fois ; endurance ; touches U et Maj ; la parade n'est pas un coup pour le boss ; retours visuels. |
 | `gamepad.test.mjs` | Stick (zone morte radiale continue), fronts des boutons, seuil des gâchettes, croix, stick pour les menus, manette débranchée ; disposition Souls (chaque bouton → la bonne action) ; le clavier garde la priorité ; choix « clavier seulement » respecté et gardé. |
+| `audio.test.mjs` | Fichiers présents et crédités ; réglages du son (plages, mémorisation) ; sons de chaque événement et musique de chaque scène ; volumes, coupure, délais, variantes ; un son par coup, roulade ou technique, pas réguliers ; fondu exact de la musique ; moteur Web Audio (chargement unique, déblocage, volume borné) ; **le son ne modifie pas le combat**. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un

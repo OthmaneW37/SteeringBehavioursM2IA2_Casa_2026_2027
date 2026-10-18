@@ -114,7 +114,8 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   niveau 2 s'ajoute sans code.
 - Jouable à la **manette** (disposition des Souls : RB / RT attaques, LT parade, B roulade, X fiole, R3
   verrouillage), au choix du joueur dans les Options.
-- 135 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- **Son** : effets et musiques CC0 (épée, parade, cloche de la riposte, musique de boss), volumes dans les Options.
+- 143 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

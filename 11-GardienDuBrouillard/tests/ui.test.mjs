@@ -4,10 +4,10 @@ import { load, read, plain, lcg, FILES } from './helpers.mjs';
 
 const { get } = load(5);
 const html = read('index.html');
-const Settings = get('Settings'), Scenarios = get('Scenarios'), PackSettings = get('PackSettings');
-// Tous les curseurs de la page : réglages du jeu (Options) et de la meute (onglet Meute)
-const ALL = Object.assign({}, Settings.PARAMETERS, PackSettings.PARAMETERS);
-const formatOf = id => (id in Settings.PARAMETERS ? Settings : PackSettings).format(id, ALL[id].initial);
+const Settings = get('Settings'), Scenarios = get('Scenarios'), PackSettings = get('PackSettings'), AudioSettings = get('AudioSettings');
+// Tous les curseurs de la page : réglages du jeu (Options), de la meute (onglet Meute) et du son (Options)
+const ALL = Object.assign({}, Settings.PARAMETERS, PackSettings.PARAMETERS, AudioSettings.PARAMETERS);
+const formatOf = id => (id in Settings.PARAMETERS ? Settings : id in PackSettings.PARAMETERS ? PackSettings : AudioSettings).format(id, ALL[id].initial);
 const close = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
 test('chaque identifiant utilisé par sketch.js existe dans index.html', () => {

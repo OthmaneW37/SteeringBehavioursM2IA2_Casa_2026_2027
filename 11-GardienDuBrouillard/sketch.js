@@ -25,6 +25,9 @@ const game = {
     controls: 'auto',        // 'auto' (clavier et manette) ou 'clavier' (choix du joueur, Options)
     inputDevice: 'clavier',  // dernier appareil utilisé : les aides affichent ses boutons
     padNotice: -Infinity,    // instant où une manette a été détectée (message pendant quelques secondes)
+    audio: null,             // sons et musique (AudioMixer, rendu seulement)
+    audioBackend: null,
+    audioSettings: null,
     settings: null,
     arena: null,
     campfire: null,
@@ -113,6 +116,14 @@ function setup() {
     game.storage = safeStorage();
     game.quality = Quality.load(game.storage);
     game.controls = Controls.load(game.storage);
+    // Son : moteur Web Audio (effets) et <audio> (musique), débloqués au premier geste du joueur
+    game.audioSettings = AudioSettings.load(game.storage);
+    game.audioBackend = new WebAudioBackend({ AudioContext: window.AudioContext || window.webkitAudioContext, Audio: window.Audio, fetch: window.fetch.bind(window) });
+    const files = [];
+    for (const name in SoundBank.SFX) for (const f of SoundBank.SFX[name].files) files.push(SoundBank.sfxPath(f));
+    game.audioBackend.preload(files);
+    game.audio = new AudioMixer(game.audioBackend, game.audioSettings);
+    for (const ev of ['keydown', 'pointerdown', 'touchstart']) document.addEventListener(ev, () => game.audioBackend.unlock());
     const q = Quality.get(game.quality);
     game.effects = new Effects(q.particles);
     game.demoEffects = [new Effects(q.particles), new Effects(q.particles)];
@@ -281,6 +292,17 @@ function initControls() {
         byId('controlsSelect').appendChild(o);
     }
     byId('controlsSelect').value = game.controls;
+    // Son : volumes (curseurs) et coupure
+    for (const name in AudioSettings.PARAMETERS) {
+        byId(name).value = String(game.audioSettings[name]);
+        byId(name + 'Val').textContent = AudioSettings.format(name, game.audioSettings[name]);
+        byId(name).addEventListener('input', () => {
+            byId(name + 'Val').textContent = AudioSettings.format(name, Number(byId(name).value));
+            audioSettingsChanged();
+        });
+    }
+    byId('muteCheckbox').checked = game.audioSettings.muted;
+    byId('muteCheckbox').addEventListener('change', audioSettingsChanged);
     byId('controlsSelect').addEventListener('change', () => {
         game.controls = byId('controlsSelect').value;
         Controls.save(game.storage, game.controls);
@@ -556,6 +578,7 @@ function refreshTitleMenu() {
 
 function activateMenu(id) {
     if (!game.screens.interactive || !game.titleMenu.select(id)) return;
+    game.audio.play('menuOk', game.time);
     if (id === 'new') {
         startCampaign();
     } else if (id === 'continue') {
@@ -720,6 +743,7 @@ function launchFight(kind, carry = null, options = {}) {
     game.accumulator = 0;
     game.trail = { player: game.fight.player.hp, boss: foeHp(game.fight) };
     if (game.feel) game.feel.reset();
+    if (game.audio) game.audio.resetCues(game.fight);
     const entry = pantheonEntry(kind);
     byId('bossInfo').textContent = game.campaign ? "Campagne · " + game.campaign.progress() + " · " + game.campaign.step.label + "."
         : kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
@@ -762,6 +786,7 @@ function syncRestKnight() {
 function restDrink() {
     if (game.campaign.drink()) {
         syncRestKnight();
+        game.audio.play('heal', game.time);
         game.effects.particles.emit('ember', game.fight.player.pos.x, game.fight.player.pos.y, 14);
     }
 }
@@ -814,11 +839,14 @@ function updateCombat(dt) {
         advance(f, dt * game.feel.timeScale(), events => {
             events.forEach(e => game.effects.add(e, game.time));
             game.feel.onEvents(events);
+            game.audio.onEvents(events, game.time);
         });
+        game.audio.cues(f, game.time, dt);
         if (!f.player.alive) {
             game.state = 'dead';
             game.stateTime = 0;
             game.deaths++;
+            game.audio.play('death', game.time);
             // Campagne : on recommencera l'étape avec la vie et les fioles qu'on avait en y entrant
             if (game.campaign) game.campaign.die();
             // Tache de sang là où le chevalier est tombé, gardée d'une session à l'autre
@@ -827,6 +855,7 @@ function updateCombat(dt) {
         } else if (f.boss ? !f.boss.alive : f.over) {
             game.state = 'victory';
             game.feel.onBossDeath();
+            game.audio.play('victory', game.time);
             if (f.boss) game.effects.particles.emit('curse', f.boss.pos.x, f.boss.pos.y, 40);
             game.victoryCause = f.boss && f.boss.stats.camped ? 'camping' : null;
             game.stateTime = 0;
@@ -1385,6 +1414,7 @@ function draw() {
     const change = game.screens.update(dt);
     if (change) applyScreen(change.to);
     pollPad();
+    updateMusic(dt);
     // Cinzel (capitales) pour le jeu ; Georgia, plus étroite, pour les tableaux et courbes du laboratoire
     textFont(game.mode === 'title' || game.mode === 'combat' ? 'Cinzel' : 'Georgia');
 
@@ -1719,6 +1749,32 @@ function drawComparisonOverlay() {
     pop();
 }
 
+// --- Son ---
+
+function audioSettingsChanged() {
+    const s = { muted: byId('muteCheckbox').checked };
+    for (const name in AudioSettings.PARAMETERS) s[name] = Number(byId(name).value);
+    try {
+        game.audioSettings = AudioSettings.validate(s);
+    } catch (e) {
+        return setStatus(e.message, true);
+    }
+    game.audio.setSettings(game.audioSettings);
+    AudioSettings.save(game.storage, game.audioSettings);
+}
+
+function toggleMute() {
+    byId('muteCheckbox').checked = !byId('muteCheckbox').checked;
+    audioSettingsChanged();
+}
+
+/** Musique de la scène, et fondu (appelé à chaque image). */
+function updateMusic(dt) {
+    const kind = game.fight && game.fight.boss ? 'boss' : 'pack';
+    game.audio.setTrack(SoundBank.musicFor(game.mode, kind, game.state));
+    game.audio.update(dt);
+}
+
 // --- Manette ---
 
 /** Lit la manette (si le joueur l'autorise), puis traduit ses boutons comme les touches du clavier. */
@@ -1756,8 +1812,8 @@ function padButton(b) {
     }
     if (game.mode === 'title') {
         if (!game.screens.interactive) return;
-        if (up) { game.titleMenu.move(-1); refreshTitleMenu(); }
-        else if (down) { game.titleMenu.move(1); refreshTitleMenu(); }
+        if (up) { game.titleMenu.move(-1); refreshTitleMenu(); game.audio.play('menuMove', game.time); }
+        else if (down) { game.titleMenu.move(1); refreshTitleMenu(); game.audio.play('menuMove', game.time); }
         else if (b === 'a' || b === 'start') activateMenu(game.titleMenu.current().id);
         return;
     }
@@ -1804,6 +1860,10 @@ function keyPressed() {
         if (k === 'escape') { closeOptions(); return false; }
         return true;
     }
+    if (k === 'm') {
+        toggleMute();
+        return false;
+    }
     if (k === 'g') {
         game.debug = !game.debug;
         byId('debugCheckbox').checked = game.debug;
@@ -1811,8 +1871,8 @@ function keyPressed() {
     }
     if (game.mode === 'title') {
         if (!game.screens.interactive) return false;
-        if (k === 'arrowup' || k === 'z' || k === 'w') { game.titleMenu.move(-1); refreshTitleMenu(); return false; }
-        if (k === 'arrowdown' || k === 's') { game.titleMenu.move(1); refreshTitleMenu(); return false; }
+        if (k === 'arrowup' || k === 'z' || k === 'w') { game.titleMenu.move(-1); refreshTitleMenu(); game.audio.play('menuMove', game.time); return false; }
+        if (k === 'arrowdown' || k === 's') { game.titleMenu.move(1); refreshTitleMenu(); game.audio.play('menuMove', game.time); return false; }
         if (k === 'enter' || k === ' ') { activateMenu(game.titleMenu.current().id); return false; }
         return true;
     }
