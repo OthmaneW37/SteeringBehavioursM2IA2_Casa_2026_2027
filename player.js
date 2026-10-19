@@ -7,7 +7,8 @@
 //     (`avoidZones`, seulement si l'intention le demande : le joueur robot l'utilise, pas l'humain) ;
 //   - locomotion : applyForce puis update(), hérités de Vehicle.
 //
-// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, avoid, target? }.
+// Intention : { move: {x, y} dans [−1, 1], lock, light, heavy, roll, drink, parry, avoid, target? }.
+// Parade ('parry') : bouclier levé vers le boss (verrouillé) ou dans le sens de la marche (voir combat.js).
 // `target` (point du monde, facultatif) : le joueur va à ce point avec `arrive` au lieu de suivre `move`.
 // Verrouillé sur le boss, move.y = −1 avance vers lui, +1 recule, move.x tourne autour de lui.
 //
@@ -40,8 +41,9 @@ class Player extends Vehicle {
         this.drink = null;    // gorgée en cours : { t, healed }
         this.inMist = false;  // dans une nappe de brume (réglé par le combat à chaque pas)
         this.zones = null;    // nappes de brume du combat (pour l'évitement)
+        this.forces = [];     // forces du dernier pas : { name, force, target } (affichage, voir steer)
         this.pillars = null;  // piliers du combat (évitement, abri)
-        this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0 };
+        this.stats = { attacks: 0, hits: 0, damageDealt: 0, rolls: 0, drinks: 0, drinksInterrupted: 0, parries: 0, criticals: 0 };
     }
 
     // Fuite et évitement de Reynolds (steering.js) à la place des versions de vehicle.js
@@ -62,8 +64,9 @@ class Player extends Vehicle {
         return this.roll !== null && this.roll.t < Combat.PLAYER.roll.iframes;
     }
 
+    /** Un coup en préparation ou en frappe (une parade n'est pas un coup : le boss ne l'esquive pas). */
     isAttacking() {
-        if (!this.action) return false;
+        if (!this.action || this.action.kind === 'parry') return false;
         const ph = Combat.phase(this.action.spec, this.action.t);
         return ph === 'windup' || ph === 'active';
     }
@@ -108,10 +111,17 @@ class Player extends Vehicle {
         return dir;
     }
 
+    /** Applique une force (applyForce, hérité) et la note avec son nom et sa cible (affichage, sans recalcul). */
+    steer(name, force, target = null) {
+        this.forces.push({ name: name, force: force.copy(), target: target ? { x: target.x, y: target.y } : null });
+        this.applyForce(force);
+    }
+
     /** Intention → forces de pilotage et début des actions. */
     control(intent, boss, arena) {
+        this.forces = [];
         if (!this.alive) {
-            this.applyForce(this.arrive(this.pos));
+            this.steer('arrive', this.arrive(this.pos), this.pos);
             return;
         }
         this.locked = !!intent.lock && boss && boss.alive;
@@ -123,28 +133,28 @@ class Player extends Vehicle {
 
         if (this.roll) {
             // Roulade : `evade` loin du boss, avec les limites de vitesse de la roulade
-            this.applyForce(this.evade(boss));
+            this.steer('evade', this.evade(boss), Steering.predict(boss, 0.25));
         } else if (this.action) {
             // On est planté pendant une attaque : `arrive` sur place freine
-            this.applyForce(this.arrive(this.pos));
+            this.steer('arrive', this.arrive(this.pos), this.pos);
         } else if (intent.target) {
             // Point précis à rejoindre (le joueur robot va s'abriter derrière un pilier) : `arrive`
             const t = arena.clampPoint(intent.target, this.r + 4);
-            this.applyForce(this.arrive(createVector(t.x, t.y)));
-            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
+            this.steer('arrive', this.arrive(createVector(t.x, t.y)), t);
+            if (intent.avoid) this.steer('avoid', this.avoidObstacles().mult(1.5));
         } else {
             const dir = this.moveDirection(intent.move || { x: 0, y: 0 }, boss);
             if (dir.mag() < 0.05) {
-                this.applyForce(this.arrive(this.pos));
+                this.steer('arrive', this.arrive(this.pos), this.pos);
             } else {
                 const target = createVector(this.pos.x + dir.x * Player.LOOK_AHEAD, this.pos.y + dir.y * Player.LOOK_AHEAD);
                 const safe = arena.clampPoint(target, this.r + 4);
                 // Près d'un bord, le point visé est ramené contre le mur : `arrive` ralentit jusqu'à l'arrêt
-                if (safe.clamped) this.applyForce(this.arrive(createVector(safe.x, safe.y)));
-                else this.applyForce(this.seek(target));
+                if (safe.clamped) this.steer('arrive', this.arrive(createVector(safe.x, safe.y)), safe);
+                else this.steer('seek', this.seek(target), target);
             }
             // Évitement des nappes de brume et des piliers (joueur robot)
-            if (intent.avoid) this.applyForce(this.avoidObstacles().mult(1.5));
+            if (intent.avoid) this.steer('avoid', this.avoidObstacles().mult(1.5));
         }
 
         // Orientation : vers le boss si verrouillé, sinon dans le sens de la marche
@@ -157,6 +167,8 @@ class Player extends Vehicle {
             this.maxSpeed = Combat.PLAYER.roll.maxSpeed;
             this.maxForce = Combat.PLAYER.roll.maxForce;
             this.stats.rolls++;
+        } else if (intent.parry && this.spend(Combat.ATTACKS.parry.stamina)) {
+            this.startAttack('parry', boss);
         } else if (intent.drink && this.estus > 0) {
             this.estus--;
             this.drink = { t: 0, healed: false };
@@ -292,13 +304,27 @@ class Player extends Vehicle {
         noStroke();
         fill(255, 255, 255, 50);
         arc(0, 0, this.r * 1.6, this.r * 1.6, -2.4, -0.9);
-        // Bouclier (bras gauche)
+        // Bouclier (bras gauche) ; levé devant lui pendant la parade, lumineux dans la fenêtre active
         stroke(16);
         strokeWeight(1.5);
-        fill(96, 60, 34);
-        ellipse(3, -this.r - 1, 15, 10);
-        fill(190, 150, 70);
-        circle(3, -this.r - 1, 4);
+        const parry = this.action && this.action.kind === 'parry' ? Combat.phase(this.action.spec, this.action.t) : null;
+        if (parry === 'windup' || parry === 'active') {
+            if (parry === 'active') {
+                noStroke();
+                fill(255, 225, 140, 90);
+                ellipse(this.r + 6, 0, 18, 34);
+                stroke(16);
+            }
+            fill(110, 70, 40);
+            ellipse(this.r + 3, 0, 11, 26);
+            fill(parry === 'active' ? color(255, 220, 120) : color(190, 150, 70));
+            circle(this.r + 3, 0, 5);
+        } else {
+            fill(96, 60, 34);
+            ellipse(3, -this.r - 1, 15, 10);
+            fill(190, 150, 70);
+            circle(3, -this.r - 1, 4);
+        }
         // Heaume, visière lumineuse
         fill(108, 113, 128);
         circle(2, 0, this.r * 1.15);

@@ -2,7 +2,8 @@
 
 ## Avant de commencer
 
-1. Lancer le serveur dans ce dossier : `python -m http.server`, puis ouvrir `http://localhost:8000`.
+1. Ouvrir le jeu en ligne (https://othmanew37.github.io/SteeringBehavioursM2IA2_Casa_2026_2027/), ou lancer
+   le serveur dans ce dossier : `python -m http.server`, puis ouvrir `http://localhost:8000`.
 2. Faire **Ctrl + F5** une fois, pour être sûr d'avoir la dernière version des fichiers.
 3. Garder la fenêtre d'aide (Options → « Comment ça marche ? ») pour la fin ou pour les questions.
 4. Le jeu s'ouvre sur l'écran titre. Les outils (Duels, Entraîner, Comparer, Panthéon) sont dans le
@@ -31,7 +32,9 @@ l'adversaire « Champion de votre entraînement » dans le menu de pause.
   - le **souffle** : une nappe de brume verte qui brûle et ralentit ;
   - une **fiole d'Estus** (E) : elle soigne, mais pendant 1 s on est une cible facile ;
   - les **piliers** : ils parent les coups, et une ruée qui en percute un étourdit le boss 1,6 s ;
-  - la **tache de sang** laissée à l'endroit d'une mort, avec sa cause.
+  - la **tache de sang** laissée à l'endroit d'une mort, avec sa cause ;
+  - la **parade** (U ou Maj) au moment où la hallebarde frappe : le boss est déséquilibré, et le coup suivant
+    est une riposte critique (× 3).
 - Appuyer sur **G** : on voit le « cerveau » en direct. Les barres d'entrées et de sorties bougent, et le
   trait blanc marque le seuil de 0,6 au-delà duquel le boss attaque ou esquive. On voit aussi le cercle de
   détection (rouge quand on est dedans), les rayons vers les murs et les piliers, et la ligne de vue.
@@ -107,10 +110,18 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
   gagne 93 % de ses combats contre le joueur robot (meute écrite à la main : 28 %) et l'encercle 7,2 % du
   temps (0,2 %). Leçon : un champion qui gagnait 100 % de ses 20 combats de test n'en gagnait que 40 % sur des
   combats neufs.
-- Campagne : la meute, un feu de camp, le Gardien. La vie et les fioles passent d'une étape à l'autre ; une
-  mort fait recommencer l'étape avec les valeurs qu'on avait en y entrant. Les étapes sont des données : un
-  niveau 2 s'ajoute sans code.
-- 122 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- Campagne : la meute, un feu de camp, le Veilleur des cendres (feux follets qui poursuivent : `pursue`), un feu
+  de camp, le Gardien renforcé (coups retardés contre les parades). La vie passe d'une étape à l'autre ; une
+  mort fait recommencer l'étape avec les valeurs qu'on avait en y entrant. Les étapes sont des données :
+  réordonner la campagne ou ajouter une meute plus grande se fait sans code.
+- Jouable à la **manette** (disposition des Souls : RB / RT attaques, LT parade, B roulade, X fiole, R3
+  verrouillage), au choix du joueur dans les Options.
+- **Son** : effets et musiques CC0 (épée, parade, cloche de la riposte, musique de boss), volumes dans les Options.
+- **Vidéo de démonstration** : Laboratoire → Présentation (une partie complète jouée par un joueur automatique,
+  puis 3 min d'explications : réseau en direct, chaque comportement dessiné),
+  ou [la vidéo déjà enregistrée](https://github.com/OthmaneW37/SteeringBehavioursM2IA2_Casa_2026_2027/releases/download/gardien-video-v1/gardien-du-brouillard-presentation.webm)
+  (5 min 31).
+- 160 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables

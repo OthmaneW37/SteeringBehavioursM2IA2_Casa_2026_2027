@@ -50,7 +50,8 @@ class Boss extends Vehicle {
         this.pendingZone = null;  // nappe de brume à créer (lue et vidée par le combat)
         this.action = null;       // attaque en cours
         this.dodge = null;        // esquive en cours : { t, hit }
-        this.stun = null;         // étourdi après une ruée contre un pilier : { t }
+        this.forces = [];         // forces du dernier pas : { name, force, target } (affichage, voir steer)
+        this.stun = null;         // étourdi : { t, duration, riposte } (ruée contre un pilier, ou hallebarde parée)
         this.prowlSide = 1;       // sens dans lequel il rôde (+1 ou −1)
         this.pillars = null;      // piliers du combat (évitement, rayons du réseau)
         this.riposteTime = -1;    // instant de la dernière riposte (effet visuel, riposte qui touche)
@@ -61,7 +62,7 @@ class Boss extends Vehicle {
         this.rageTime = -1;       // instant (s) du passage en phase enragée, pour l'effet visuel
         this.time = 0;
         // idleTime : secondes passées immobile alors qu'il décide (joueur dans son rayon) et qu'il est libre
-        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0, ripostes: 0, riposteHits: 0, charges: 0, breaths: 0, crashes: 0, idleTime: 0, camped: false };
+        this.stats = { attacks: 0, hits: 0, whiffs: 0, damageDealt: 0, dodges: 0, ripostes: 0, riposteHits: 0, charges: 0, breaths: 0, crashes: 0, idleTime: 0, camped: false, parried: 0 };
     }
 
     flee(target) {
@@ -142,22 +143,45 @@ class Boss extends Vehicle {
     /** Ruée écrasée contre un pilier : la charge s'arrête net, le boss est étourdi. */
     crash() {
         this.action = null;
-        this.stun = { t: 0 };
+        this.stun = { t: 0, duration: Combat.BOSS.stun, riposte: false };
         this.vel.set(0, 0);
         this.maxSpeed = this.baseSpeed;
         this.maxForce = this.baseForce;
         this.stats.crashes++;
     }
 
+    /**
+     * Hallebarde parée : le coup s'arrête, le boss est déséquilibré Combat.BOSS.parry.stagger s et ouvert à une
+     * riposte critique (le premier coup qui le touche fait × Combat.CRITICAL).
+     */
+    parried() {
+        this.action = null;
+        this.dodge = null;
+        this.stun = { t: 0, duration: Combat.BOSS.parry.stagger, riposte: true };
+        this.maxSpeed = this.baseSpeed;
+        this.maxForce = this.baseForce;
+        this.stats.parried++;
+    }
+
+    /**
+     * Applique une force de pilotage (applyForce, hérité de Vehicle) et la note dans this.forces avec le nom du
+     * comportement et sa cible : la présentation et le debug la dessinent sans rien recalculer.
+     */
+    steer(name, force, target = null) {
+        this.forces.push({ name: name, force: force.copy(), target: target ? { x: target.x, y: target.y } : null });
+        this.applyForce(force);
+    }
+
     /** Applique une décision du contrôleur (sélection de l'action → steering). */
     control(decision, player, arena, dt) {
         const B = Combat.BOSS;
+        this.forces = [];
         const toPlayer = Math.atan2(player.pos.y - this.pos.y, player.pos.x - this.pos.x);
         const dist = p5.Vector.dist(this.pos, player.pos);
         this.wandering = false;
 
         if (!this.alive || this.stun) {
-            this.applyForce(this.arrive(this.pos));
+            this.steer('arrive', this.arrive(this.pos), this.pos);
             return;
         }
 
@@ -166,7 +190,7 @@ class Boss extends Vehicle {
 
         let avoid = true;
         if (this.dodge) {
-            this.applyForce(this.evade(player));
+            this.steer('evade', this.evade(player), Steering.predict(player, 0.25));
         } else if (this.action) {
             avoid = !(this.action.kind === 'charge' && Combat.phase(this.action.spec, this.action.t) === 'active');
             this.performAction(player, arena, dt, toPlayer);
@@ -174,7 +198,8 @@ class Boss extends Vehicle {
             // Joueur hors de portée : errance, sans décision
             this.wandering = true;
             this.maxSpeed = this.baseSpeed * 0.6;
-            this.applyForce(this.wander());
+            const target = Steering.wanderPoint(this);   // point visé par wander() à ce pas (avant son tirage)
+            this.steer('wander', this.wander(), target);
         } else {
             // Latéral : ordre du contrôleur, sinon il rôde (sens qui change toutes les prowlSwitch s)
             const strafe = decision.strafe || 0;
@@ -191,19 +216,21 @@ class Boss extends Vehicle {
             this.maxForce = this.baseForce * this.speedMultiplier();
             if (decision.mode === 'approach') {
                 // `arrive` vers un point en avance sur le cercle de garde : approche en spirale, puis il tourne
-                this.applyForce(this.arrive(Steering.orbitPoint(this, player.pos, B.keepDistance, side, lateral * B.orbitLead)));
+                const point = Steering.orbitPoint(this, player.pos, B.keepDistance, side, lateral * B.orbitLead);
+                this.steer('arrive', this.arrive(point), point);
             } else {
-                if (decision.mode === 'retreat') this.applyForce(this.flee(player.pos));
+                if (decision.mode === 'retreat') this.steer('flee', this.flee(player.pos), player.pos);
                 // `seek` vers un point en avance sur le cercle où il se trouve : il tourne autour du joueur
                 const radius = Math.max(dist, 1);
-                this.applyForce(this.seek(Steering.orbitPoint(this, player.pos, radius, side, B.orbitLead)).mult(lateral));
+                const point = Steering.orbitPoint(this, player.pos, radius, side, B.orbitLead);
+                this.steer('seek', this.seek(point).mult(lateral), point);
             }
         }
 
         // Évitement des piliers (sauf en pleine ruée : il fonce droit, quitte à s'écraser)
-        if (avoid && this.pillars) this.applyForce(Steering.avoidZones(this, this.pillars.filter(p => p.alive), 80, 10).mult(1.5));
+        if (avoid && this.pillars) this.steer('avoid', Steering.avoidZones(this, this.pillars.filter(p => p.alive), 80, 10).mult(1.5));
         // Confinement : priorité forte près des murs
-        this.applyForce(Steering.stayInside(this, arena, 70).mult(1.5));
+        this.steer('stayInside', Steering.stayInside(this, arena, 70).mult(1.5));
 
         // Mesure : immobile alors qu'il décide (joueur dans son rayon) et qu'il est libre
         if (!this.wandering && !this.action && !this.dodge && player.alive && this.vel.mag() < Boss.IDLE_SPEED) this.stats.idleTime += dt;
@@ -224,6 +251,11 @@ class Boss extends Vehicle {
         const B = Combat.BOSS;
         if (kind === 'attack') {
             this.action = Combat.newAttack('boss', this.facing);
+            // Une hallebarde sur B.delay.every est retardée : même coup (kind 'boss'), préparation plus longue
+            if ((this.stats.attacks + 1) % B.delay.every === 0) {
+                this.action.spec = Combat.ATTACKS.bossDelayed;
+                this.action.delayed = true;
+            }
             // Coup levé juste après une riposte : s'il touche, c'est une riposte qui touche
             this.action.riposte = this.riposteTime >= 0 && this.time - this.riposteTime <= B.dodge.riposteWindow;
             this.cooldown = this.attackCooldown();
@@ -268,15 +300,15 @@ class Boss extends Vehicle {
             if (ph === 'windup') {
                 // Il ajuste sa visée jusqu'à `lockBefore` s de la fin de la préparation, puis la fige
                 if (a.t < a.spec.windup - B.charge.lockBefore) a.target = this.aimCharge(player, arena);
-                this.applyForce(this.arrive(this.pos));
+                this.steer('arrive', this.arrive(this.pos), this.pos);
             } else if (ph === 'active') {
                 this.maxSpeed = B.charge.maxSpeed * this.speedMultiplier();
                 this.maxForce = B.charge.maxForce;
-                this.applyForce(this.seek(a.target));
+                this.steer('seek', this.seek(a.target), a.target);
             } else {
                 this.maxSpeed = this.baseSpeed;
                 this.maxForce = this.baseForce;
-                this.applyForce(this.arrive(this.pos));
+                this.steer('arrive', this.arrive(this.pos), this.pos);
             }
             if (ph !== 'recovery') {
                 a.facing = Math.atan2(a.target.y - this.pos.y, a.target.x - this.pos.x);
@@ -285,7 +317,7 @@ class Boss extends Vehicle {
             return;
         }
         if (a.kind === 'breath') {
-            this.applyForce(this.arrive(this.pos));
+            this.steer('arrive', this.arrive(this.pos), this.pos);
             if (ph === 'windup') {
                 a.target = this.aimBreath(player, arena);
                 this.facing = Combat.turnToward(this.facing, Math.atan2(a.target.y - this.pos.y, a.target.x - this.pos.x), B.turnRate * dt);
@@ -296,7 +328,7 @@ class Boss extends Vehicle {
             return;
         }
         // Hallebarde : planté ; il suit encore un peu le joueur pendant la préparation
-        this.applyForce(this.arrive(this.pos));
+        this.steer('arrive', this.arrive(this.pos), this.pos);
         if (ph === 'windup') {
             a.facing = Combat.turnToward(a.facing, toPlayer, B.windupTurnRate * dt);
             this.facing = a.facing;
@@ -348,7 +380,7 @@ class Boss extends Vehicle {
         }
         if (this.stun) {
             this.stun.t += dt;
-            if (this.stun.t >= Combat.BOSS.stun) this.stun = null;
+            if (this.stun.t >= this.stun.duration - 1e-9) this.stun = null;   // tolérance : somme de pas de 1/60 s
         }
     }
 

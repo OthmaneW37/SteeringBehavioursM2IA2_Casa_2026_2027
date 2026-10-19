@@ -89,7 +89,8 @@ class NeuralPackController {
     decide(creux, player, arena) {
         this.lastInputs = PackBrain.inputs(creux, player, arena);
         this.lastOutputs = this.brain.predict(this.lastInputs);
-        this.memory.set(creux, { inputs: this.lastInputs, outputs: this.lastOutputs });
+        // Copie des activations de chaque couche : le schéma du réseau montre CE Creux (le réseau est partagé)
+        this.memory.set(creux, { inputs: this.lastInputs, outputs: this.lastOutputs, layers: this.brain.activations.map(x => Float32Array.from(x)) });
         return PackBrain.decide(this.lastOutputs);
     }
 }

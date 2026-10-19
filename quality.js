@@ -3,18 +3,20 @@
 //   particles  : plafond de particules (au-delà, les plus anciennes sont recyclées) ;
 //   fogEvery   : le brouillard est recalculé une image sur `fogEvery` ;
 //   fogCells   : largeur de la grille du brouillard, en cellules ;
-//   glow       : lueurs colorées additives autour des sources de lumière.
+//   glow       : lueurs colorées additives autour des sources de lumière ;
+//   renderScale: densité de pixels du canvas principal (1 = un pixel par pixel CSS, même sur un écran réglé à
+//                125 % ou 150 % ; 0,75 = image calculée plus petite puis agrandie par le navigateur).
 // Le choix est gardé dans le navigateur (stockage injecté, accès protégés).
 const Quality = {
     KEY: 'gardienDuBrouillard.quality.v1',
     DEFAULT: 'moyen',
     LEVELS: {
-        bas: { label: "Bas", lightScale: 0.25, particles: 120, fogEvery: 4, fogCells: 56, glow: false },
-        moyen: { label: "Moyen", lightScale: 0.5, particles: 320, fogEvery: 3, fogCells: 84, glow: true },
-        haut: { label: "Haut", lightScale: 0.6, particles: 600, fogEvery: 2, fogCells: 120, glow: true }
+        bas: { label: "Bas", lightScale: 0.25, particles: 120, fogEvery: 4, fogCells: 56, glow: false, renderScale: 0.75 },
+        moyen: { label: "Moyen", lightScale: 0.5, particles: 320, fogEvery: 3, fogCells: 84, glow: true, renderScale: 1 },
+        haut: { label: "Haut", lightScale: 0.6, particles: 600, fogEvery: 2, fogCells: 120, glow: true, renderScale: 1 }
     },
     // Bornes de chaque réglage (vérifiées par un test)
-    RANGES: { lightScale: [0.1, 1], particles: [0, 1000], fogEvery: [1, 10], fogCells: [16, 200] },
+    RANGES: { lightScale: [0.1, 1], particles: [0, 1000], fogEvery: [1, 10], fogCells: [16, 200], renderScale: [0.5, 1] },
 
     get(id) {
         const q = Quality.LEVELS[id];

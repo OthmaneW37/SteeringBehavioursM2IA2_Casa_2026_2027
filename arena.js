@@ -16,6 +16,7 @@ class Arena {
             { x: width * 0.26, y: height * 0.43 }, { x: width * 0.76, y: height * 0.74 },
             { x: width * 0.78, y: height * 0.26 }, { x: width * 0.30, y: height * 0.80 }
         ];
+        this.floorChecks = 0;
         // Dalles : décor tiré une seule fois avec un aléatoire fixe (le brouillard animé est dans fog.js)
         this.decor = Arena.makeDecor(width, height, wall, 7);
     }
@@ -99,14 +100,49 @@ class Arena {
         return { slabs: slabs };
     }
 
-    /** Sol et murs : décor fixe, dessiné une fois dans un calque puis recopié (moins coûteux). */
-    showFloor() {
+    /** Calque du sol, dessiné une seule fois (null sans createGraphics). */
+    floorLayer() {
         if (!this.floorCache && typeof createGraphics === 'function') {
             this.floorCache = createGraphics(this.width, this.height);
             this.floorCache.pixelDensity(1);
             this.drawFloor(this.floorCache);
+            // Le navigateur peut PERDRE le contenu d'un canvas (mémoire de la carte graphique saturée, par exemple
+            // pendant un long enregistrement vidéo) : il le rend ensuite VIDE. Le sol, dessiné une seule fois,
+            // disparaissait alors (fond noir, puis brouillard gris sur du vide). On le redessine à la restauration.
+            const elt = this.floorCache.elt;
+            if (elt && typeof elt.addEventListener === 'function') {
+                elt.addEventListener('contextlost', () => { this.floorLost = true; });
+                elt.addEventListener('contextrestored', () => this.repaintFloor());
+            }
+        } else if (this.floorCache && this.floorLost) {
+            // Filet de sécurité (appelé à chaque image) : contexte revenu sans événement → on redessine
+            const ctx = this.floorCache.drawingContext;
+            if (!(ctx && typeof ctx.isContextLost === 'function' && ctx.isContextLost())) this.repaintFloor();
+        } else if (this.floorCache && ++this.floorChecks % Arena.FLOOR_CHECK === 0) {
+            // Pixel témoin : le sol est entièrement opaque ; un pixel transparent veut dire que le navigateur l'a vidé
+            // sans prévenir. (Lire un pixel de temps en temps incite aussi Chrome à garder ce canvas fixe en mémoire
+            // normale, hors de la carte graphique.)
+            const ctx = this.floorCache.drawingContext;
+            if (ctx && typeof ctx.getImageData === 'function' && ctx.getImageData(this.wall + 4, this.wall + 4, 1, 1).data[3] === 0) this.repaintFloor();
         }
-        if (this.floorCache) image(this.floorCache, 0, 0, this.width, this.height);
+        return this.floorCache || null;
+    }
+
+    /** Redessine le sol dans son calque (après une perte de contexte). */
+    repaintFloor() {
+        this.floorLost = false;
+        this.floorRepaints = (this.floorRepaints || 0) + 1;
+        if (typeof this.floorCache.clear === 'function') this.floorCache.clear();
+        this.drawFloor(this.floorCache);
+    }
+
+    /**
+     * Sol et murs dans le canvas (duels côte à côte). La vue principale ne l'appelle pas : le même calque y est
+     * affiché derrière le canvas et placé par une transformation CSS (voir sketch.js), ce qui ne coûte presque rien.
+     */
+    showFloor() {
+        const g = this.floorLayer();
+        if (g) image(g, 0, 0, this.width, this.height);
         else this.drawFloor(window);
     }
 
@@ -166,3 +202,5 @@ class Arena {
         pop();
     }
 }
+
+Arena.FLOOR_CHECK = 120;   // le pixel témoin du sol est vérifié toutes les 120 images (2 s)

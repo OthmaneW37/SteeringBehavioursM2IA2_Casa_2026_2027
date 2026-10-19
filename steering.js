@@ -102,6 +102,18 @@ const Steering = (() => {
     return createVector(center.x + Math.cos(angle) * radius, center.y + Math.sin(angle) * radius);
   }
 
+  /**
+   * Point visé par le `wander` de vehicle.js à ce pas (mêmes formules : centre du cercle à `distanceCercle` devant
+   * l'agent, point à l'angle wanderTheta + cap). Géométrie pure, pour l'afficher ; null à l'arrêt.
+   */
+  function wanderPoint(agent) {
+    if (agent.vel.mag() === 0) return null;
+    const heading = Math.atan2(agent.vel.y, agent.vel.x);
+    const cx = agent.pos.x + Math.cos(heading) * agent.distanceCercle, cy = agent.pos.y + Math.sin(heading) * agent.distanceCercle;
+    const theta = agent.wanderTheta + heading;
+    return { x: cx + agent.wanderRadius * Math.cos(theta), y: cy + agent.wanderRadius * Math.sin(theta) };
+  }
+
   /** Distance du point p au segment [a, b] (ligne de charge du boss). */
   function distanceToSegment(p, a, b) {
     const abx = b.x - a.x, aby = b.y - a.y;
@@ -110,5 +122,5 @@ const Steering = (() => {
     return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
   }
 
-  return { flee, predict, pursue, evade, stayInside, keepDistancePoint, avoidZones, orbitPoint, distanceToSegment };
+  return { flee, predict, pursue, evade, wanderPoint, stayInside, keepDistancePoint, avoidZones, orbitPoint, distanceToSegment };
 })();

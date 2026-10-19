@@ -23,6 +23,11 @@ const Lighting = {
         for (const c of fight.creux || []) {
             if (c.alive) out.push({ x: c.pos.x, y: c.pos.y, r: 60, power: 0.35, color: [180, 200, 255] });
         }
+        // Niveau 2 : la braise du Veilleur et chaque feu follet éclairent l'arène
+        if (fight.veilleur && fight.veilleur.alive) out.push({ x: fight.veilleur.pos.x, y: fight.veilleur.pos.y, r: 95, power: 0.45, color: [255, 130, 50] });
+        for (const w of fight.wisps || []) {
+            if (w.alive) out.push({ x: w.pos.x, y: w.pos.y, r: 70, power: 0.6, color: [255, 150, 60] });
+        }
         if (boss && boss.alive) {
             const rage = boss.enraged;
             out.push({ x: boss.pos.x, y: boss.pos.y, r: rage ? 150 : 110, power: rage ? 0.75 : 0.55, color: rage ? [255, 70, 40] : [110, 200, 255] });
@@ -50,8 +55,12 @@ class LightLayer {
         this.g.pixelDensity(1);
     }
 
-    /** Dessine l'obscurité percée par les sources, puis la pose sur la scène (repère de l'arène). */
-    draw(sources, quality, darkness = Lighting.DARKNESS) {
+    /**
+     * Dessine l'obscurité percée par les sources, puis la pose sur la scène (repère de l'arène).
+     * `fog` (facultatif) : calque du brouillard (FogLayer.update), composé DERRIÈRE l'obscurité dans ce même petit
+     * calque (comme s'il était dessiné avant elle) : un seul grand dessin sur l'écran au lieu de deux.
+     */
+    draw(sources, quality, darkness = Lighting.DARKNESS, fog = null) {
         this.ensure(quality.lightScale);
         const g = this.g, k = this.scale, ctx = g.drawingContext;
         g.clear();
@@ -69,6 +78,10 @@ class LightLayer {
             ctx.beginPath();
             ctx.arc(s.x * k, s.y * k, r, 0, Math.PI * 2);
             ctx.fill();
+        }
+        if (fog) {
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.drawImage(fog.elt || fog.canvas || fog, 0, 0, g.width, g.height);
         }
         ctx.globalCompositeOperation = 'source-over';
         image(g, 0, 0, this.arena.width, this.arena.height);

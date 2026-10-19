@@ -1,6 +1,8 @@
 // Brouillard animé (rendu seulement) : un bruit lisse (bruit de valeur, interpolé, deux octaves) qui dérive
-// lentement, calculé sur une grille grossière (Quality.fogCells) une image sur `fogEvery`, puis étiré sur
-// l'arène. Les fonctions de bruit sont pures et reproductibles (testées) ; elles ne dépendent pas de p5.
+// lentement, calculé sur une grille grossière (Quality.fogCells) une image sur `fogEvery`. La grille est
+// ensuite composée dans le calque de lumière (LightLayer, petit) au lieu d'être étirée sur tout l'écran :
+// c'est un grand dessin de moins par image. Les fonctions de bruit sont pures et reproductibles (testées) ;
+// elles ne dépendent pas de p5.
 const Fog = {
     SCALE: 0.0045,         // fréquence du bruit (par pixel d'arène)
     DRIFT: [9, 3],         // dérive (px/s) de la grande couche
@@ -52,8 +54,8 @@ class FogLayer {
         return true;
     }
 
-    /** Recalcule la grille si c'est son tour, puis la pose sur l'arène (repère de l'arène). */
-    draw(time, quality) {
+    /** Recalcule la grille si c'est son tour. Retourne le calque (petit) à composer dans la lumière. */
+    update(time, quality) {
         const fresh = this.ensure(quality.fogCells);
         if (fresh || this.frame % quality.fogEvery === 0) {
             const g = this.g, A = this.arena;
@@ -71,6 +73,11 @@ class FogLayer {
             g.updatePixels();
         }
         this.frame++;
-        image(this.g, 0, 0, this.arena.width, this.arena.height);
+        return this.g;
+    }
+
+    /** Recalcule la grille, puis l'étire sur l'arène (repère de l'arène) : usage seul, sans calque de lumière. */
+    draw(time, quality) {
+        image(this.update(time, quality), 0, 0, this.arena.width, this.arena.height);
     }
 }

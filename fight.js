@@ -23,7 +23,8 @@ class Fight {
     /**
      * options : { arena, playerController, bossController, maxTime (s), seed, estus (fioles du joueur),
      *             pillars (nombre de piliers, 0 par défaut), antiCamping (true par défaut),
-     *             playerHp (vie de départ du chevalier, reportée par la campagne) }
+     *             playerHp (vie de départ du chevalier, reportée par la campagne),
+     *             bossHp (vie maximale du boss : la campagne lui en donne plus ; ses entrées sont en proportion) }
      * seed fixe l'aléatoire de p5 (wander) pour un combat reproductible, quand randomSeed existe.
      */
     constructor(options) {
@@ -35,6 +36,10 @@ class Fight {
         this.player = new Player(this.arena.playerStart.x, this.arena.playerStart.y);
         this.boss = new Boss(this.arena.bossStart.x, this.arena.bossStart.y);
         if (options.detectRadius) this.boss.detectRadius = options.detectRadius;
+        if (options.bossHp) {
+            this.boss.maxHp = options.bossHp;
+            this.boss.hp = options.bossHp;
+        }
         if (options.estus !== undefined) this.player.estus = options.estus;
         if (options.playerHp !== undefined) this.player.hp = Math.max(1, Math.min(this.player.maxHp, options.playerHp));
         this.zones = [];                 // nappes de brume en jeu
@@ -163,21 +168,35 @@ class Fight {
             this.events.push({ type: 'blocked', who: who, x: wall.pos.x, y: wall.pos.y });
             return;
         }
-        if (!target.receiveHit(a.spec.damage)) {
+        // Parade : le coup s'arrête sur le bouclier, l'attaquant est déséquilibré
+        if (Combat.parries(target, attacker, a)) {
+            a.blocked = true;
+            attacker.parried();
+            target.stats.parries++;
+            this.events.push({ type: 'parry', who: who, x: (attacker.pos.x + target.pos.x) / 2, y: (attacker.pos.y + target.pos.y) / 2 });
+            return;
+        }
+        const critical = !!(target.stun && target.stun.riposte);
+        const damage = Combat.damageAgainst(a.spec, target);
+        if (!target.receiveHit(damage)) {
             this.events.push({ type: 'dodged', who: who, x: target.pos.x, y: target.pos.y });
             return;
         }
         a.hasHit = true;
         attacker.stats.hits++;
-        attacker.stats.damageDealt += a.spec.damage;
+        attacker.stats.damageDealt += damage;
         if (a.riposte) attacker.stats.riposteHits++;
+        if (critical) {
+            target.stun.riposte = false;   // une seule riposte critique par parade
+            attacker.stats.criticals = (attacker.stats.criticals || 0) + 1;
+        }
         if (who === 'boss') {
-            this.damageToPlayer += a.spec.damage;
+            this.damageToPlayer += damage;
             this.lastCause = a.kind === 'charge' ? 'ruée' : 'hallebarde';
         } else {
-            this.damageToBoss += a.spec.damage;
+            this.damageToBoss += damage;
         }
-        this.events.push({ type: 'hit', who: who, kind: a.kind, damage: a.spec.damage, x: target.pos.x, y: target.pos.y });
+        this.events.push({ type: 'hit', who: who, kind: a.kind, damage: damage, critical: critical, x: target.pos.x, y: target.pos.y });
     }
 
     /** Deux corps ne se traversent pas : on les écarte chacun de la moitié du chevauchement. */

@@ -18,6 +18,18 @@ const game = {
     quality: 'moyen',
     light: null,             // calque d'éclairage (rendu)
     fogLayer: null,          // calque de brouillard (rendu)
+    floorEl: null,           // sol de l'arène affiché derrière le canvas (élément DOM placé par la caméra)
+    floorInDom: false,       // la vue principale utilise ce sol (sinon il est dessiné dans le canvas)
+    interp: new WeakMap(),   // interpolation du rendu : combat → positions avant le dernier pas
+    pad: null,               // manette (GamepadInput)
+    controls: 'auto',        // 'auto' (clavier et manette) ou 'clavier' (choix du joueur, Options)
+    inputDevice: 'clavier',  // dernier appareil utilisé : les aides affichent ses boutons
+    padNotice: -Infinity,    // instant où une manette a été détectée (message pendant quelques secondes)
+    presentation: null,      // présentation en cours : { run, fight, kind, overTime, recorder, seed, saved }
+    autoSeed: null,          // partie complète de la présentation : graine des combats et du joueur automatique (sinon : le clavier)
+    audio: null,             // sons et musique (AudioMixer, rendu seulement)
+    audioBackend: null,
+    audioSettings: null,
     settings: null,
     arena: null,
     campfire: null,
@@ -95,13 +107,25 @@ function setup() {
     const size = viewSize();
     createCanvas(size.w, size.h).parent('canvasHolder');
     textFont('Cinzel');
+    // Un pixel du canvas par pixel CSS (ou moins en qualité Basse), même sur un écran réglé à 125 % ou 150 %
+    pixelDensity(Quality.get(Quality.load(safeStorage())).renderScale);
 
     game.arena = new Arena();
     game.campfire = new Campfire(game.arena.campfirePos.x, game.arena.campfirePos.y);
     game.camera = new Camera();
     game.human = new HumanController();
+    game.pad = new GamepadInput();
     game.storage = safeStorage();
     game.quality = Quality.load(game.storage);
+    game.controls = Controls.load(game.storage);
+    // Son : moteur Web Audio (effets) et <audio> (musique), débloqués au premier geste du joueur
+    game.audioSettings = AudioSettings.load(game.storage);
+    game.audioBackend = new WebAudioBackend({ AudioContext: window.AudioContext || window.webkitAudioContext, Audio: window.Audio, fetch: window.fetch.bind(window) });
+    const files = [];
+    for (const name in SoundBank.SFX) for (const f of SoundBank.SFX[name].files) files.push(SoundBank.sfxPath(f));
+    game.audioBackend.preload(files);
+    game.audio = new AudioMixer(game.audioBackend, game.audioSettings);
+    for (const ev of ['keydown', 'pointerdown', 'touchstart']) document.addEventListener(ev, () => game.audioBackend.unlock());
     const q = Quality.get(game.quality);
     game.effects = new Effects(q.particles);
     game.demoEffects = [new Effects(q.particles), new Effects(q.particles)];
@@ -109,6 +133,14 @@ function setup() {
     game.feel = new GameFeel();
     game.light = new LightLayer(game.arena);
     game.fogLayer = new FogLayer(game.arena);
+    // Sol : le calque mis en cache par l'arène est affiché derrière le canvas, placé par une transformation CSS
+    const floor = game.arena.floorLayer();
+    game.floorEl = floor.elt;
+    game.floorEl.className = 'floor-layer';
+    game.floorEl.style.display = 'block';
+    game.floorEl.style.width = game.arena.width + 'px';
+    game.floorEl.style.height = game.arena.height + 'px';
+    byId('canvasHolder').prepend(game.floorEl);
     game.screens = new ScreenFlow('title');
     game.titleMenu = new TitleMenu();
     game.pretrained = loadPretrained();
@@ -227,6 +259,8 @@ function initControls() {
         input.value = '';
     });
     byId('compareBtn').addEventListener('click', startComparison);
+    byId('presentationBtn').addEventListener('click', () => startPresentation(false));
+    byId('recordBtn').addEventListener('click', () => startPresentation(true));
     // Onglet Meute
     for (const name in PackSettings.PARAMETERS) {
         byId(name).addEventListener('input', () => {
@@ -255,11 +289,38 @@ function initControls() {
         byId('qualitySelect').appendChild(o);
     }
     byId('qualitySelect').value = game.quality;
+    for (const id in Controls.MODES) {
+        const o = document.createElement('option');
+        o.value = id;
+        o.textContent = Controls.MODES[id];
+        byId('controlsSelect').appendChild(o);
+    }
+    byId('controlsSelect').value = game.controls;
+    // Son : volumes (curseurs) et coupure
+    for (const name in AudioSettings.PARAMETERS) {
+        byId(name).value = String(game.audioSettings[name]);
+        byId(name + 'Val').textContent = AudioSettings.format(name, game.audioSettings[name]);
+        byId(name).addEventListener('input', () => {
+            byId(name + 'Val').textContent = AudioSettings.format(name, Number(byId(name).value));
+            audioSettingsChanged();
+        });
+    }
+    byId('muteCheckbox').checked = game.audioSettings.muted;
+    byId('muteCheckbox').addEventListener('change', audioSettingsChanged);
+    byId('controlsSelect').addEventListener('change', () => {
+        game.controls = byId('controlsSelect').value;
+        Controls.save(game.storage, game.controls);
+        if (game.controls === 'clavier') {
+            game.human.setPadMove(null);
+            game.inputDevice = 'clavier';
+        }
+    });
     byId('qualitySelect').addEventListener('change', () => {
         game.quality = byId('qualitySelect').value;
         Quality.save(game.storage, game.quality);
-        const cap = Quality.get(game.quality).particles;
-        for (const e of [game.effects, game.titleEffects].concat(game.demoEffects)) e.particles.setCap(cap);
+        const q = Quality.get(game.quality);
+        for (const e of [game.effects, game.titleEffects].concat(game.demoEffects)) e.particles.setCap(q.particles);
+        pixelDensity(q.renderScale);
     });
     byId('menuToggle').addEventListener('click', () => {
         MenuToggle.toggle(document, byId('menuToggle'));
@@ -383,7 +444,7 @@ function fillBossSelect(select, fixed) {
 function refreshPantheon() {
     const champion = ['champion', "Champion de votre entraînement"], hand = ['hand', "Boss écrit à la main (machine à états)"];
     fillBossSelect(byId('opponentSelect'), [champion, hand, ['pack', "Niveau 1 : la meute des Creux (apprise)"],
-        ['packHand', "Niveau 1 : la meute écrite à la main"]]);
+        ['packHand', "Niveau 1 : la meute écrite à la main"], ['veilleur', "Niveau 2 : le Veilleur des cendres"]]);
     fillBossSelect(byId('demoLeftSelect'), [['random', "Avant entraînement (réseau au hasard)"], hand, champion]);
     fillBossSelect(byId('demoRightSelect'), [champion, hand]);
     const list = byId('pantheonList');
@@ -468,6 +529,8 @@ function showMode() {
         setStatus(game.trainingRunning ? "Entraînement en cours." : "Choisissez une recette, puis cliquez sur « Lancer l'entraînement ».");
     } else if (game.mode === 'pantheon') {
         setStatus("Cliquez sur « Lancer le tournoi » : chaque boss affronte 4 joueurs robots différents.");
+    } else if (game.mode === 'presentation') {
+        setStatus("Lancez la présentation, ou enregistrez-la en vidéo (.webm).");
     } else if (game.mode === 'pack') {
         game.packView = null;
         setStatus("Le joueur robot contre la meute. « Comparer » mesure la meute apprise et la meute écrite à la main sur les mêmes combats.");
@@ -483,7 +546,7 @@ function togglePause() {
 
 // --- Écrans (titre, combat, laboratoire) et fenêtres (pause, Options, tutoriel) ---
 
-const LAB_TOOLS = ['demo', 'training', 'comparison', 'pantheon', 'pack'];
+const LAB_TOOLS = ['demo', 'training', 'comparison', 'pantheon', 'pack', 'presentation'];
 
 function goScreen(name) {
     game.screens.go(name);
@@ -501,7 +564,7 @@ function applyScreen(name) {
         game.mode = 'combat';
         game.paused = false;
         game.accumulator = 0;
-        game.camera.snap(Camera.target(game.arena, width, height, game.fight.player.locked, game.fight.player, foeOf(game.fight)));
+        game.camera.snap(cameraTarget(game.fight, game.fight.player.locked));
         if (Tutorial.shouldShow(game.storage)) openTutorial();
     } else {
         game.mode = game.labMode;
@@ -521,6 +584,7 @@ function refreshTitleMenu() {
 
 function activateMenu(id) {
     if (!game.screens.interactive || !game.titleMenu.select(id)) return;
+    game.audio.play('menuOk', game.time);
     if (id === 'new') {
         startCampaign();
     } else if (id === 'continue') {
@@ -583,7 +647,7 @@ function showTutorialCard() {
     if (!card) return closeTutorial();
     byId('tutorialStep').textContent = game.tutorialRun.progress();
     byId('tutorialTitle').textContent = card.title;
-    byId('tutorialText').textContent = card.text;
+    byId('tutorialText').textContent = game.inputDevice === 'manette' && card.pad ? card.pad : card.text;
     byId('tutorialNextBtn').textContent = game.tutorialRun.index === game.tutorialRun.cards.length - 1 ? "Combattre (Entrée)" : "Suivant (Entrée)";
 }
 
@@ -629,6 +693,7 @@ function updateTitleFight(dt) {
     }
     game.titleAccumulator = Math.min(game.titleAccumulator + dt, Combat.DT * 4);
     while (game.titleAccumulator >= Combat.DT && !f.over) {
+        game.interp.set(f, { prev: Interpolation.snapshot(Interpolation.entitiesOf(f)), acc: () => game.titleAccumulator });
         headless(() => f.step());
         game.titleAccumulator -= Combat.DT;
         f.events.forEach(e => game.titleEffects.add(e, game.time));
@@ -670,22 +735,33 @@ function launchFight(kind, carry = null, options = {}) {
     const opt = { arena: game.arena, playerController: game.human, maxTime: Infinity, estus: carry ? carry.estus : game.settings.estusCharges,
         pillars: game.settings.pillarCount };
     if (carry) opt.playerHp = carry.hp;
-    if (kind === 'pack' || kind === 'packHand') {
+    // Partie complète de la présentation : un joueur automatique neuf par combat, graines fixées par l'étape
+    // (la partie est reproductible : c'est celle que Presentation.showcaseCampaign simule)
+    if (game.autoSeed !== null && game.campaign) {
+        const i = game.campaign.index;
+        opt.seed = Presentation.fightSeed(game.autoSeed, i);
+        opt.playerController = new ShowcasePlayerController(seededRandom(Presentation.playerSeed(game.autoSeed, i)));
+    }
+    if (kind === 'veilleur') {
+        game.fight = new VeilleurFight(Object.assign(opt, { controller: new VeilleurController() }));
+    } else if (kind === 'pack' || kind === 'packHand') {
         game.fight = new PackFight(Object.assign(opt, {
             packController: kind === 'pack' ? new NeuralPackController(packBrain()) : new HandPackController(),
             size: options.size || game.packSettings.packSize,
             perception: options.perception || game.packSettings.packPerception
         }));
     } else {
-        game.fight = new Fight(Object.assign(opt, { bossController: bossController(kind), detectRadius: game.settings.detectRadius }));
+        game.fight = new Fight(Object.assign(opt, { bossController: bossController(kind), detectRadius: game.settings.detectRadius, bossHp: options.bossHp }));
     }
     game.state = 'fight';
     game.stateTime = 0;
     game.accumulator = 0;
     game.trail = { player: game.fight.player.hp, boss: foeHp(game.fight) };
     if (game.feel) game.feel.reset();
+    if (game.audio) game.audio.resetCues(game.fight);
     const entry = pantheonEntry(kind);
     byId('bossInfo').textContent = game.campaign ? "Campagne · " + game.campaign.progress() + " · " + game.campaign.step.label + "."
+        : kind === 'veilleur' ? "Niveau 2 : le Veilleur des cendres garde ses distances et lance des feux follets qui vous poursuivent (pursue)."
         : kind === 'hand' ? "Machine à états écrite à la main : attente, attaque, recul."
         : kind === 'pack' ? "Niveau 1 : " + game.fight.creux.length + " Creux qui partagent un réseau appris. " + packLabel()
         : kind === 'packHand' ? "Niveau 1 : " + game.fight.creux.length + " Creux menés par des règles écrites à la main (poursuite, recul, morsure)."
@@ -713,7 +789,7 @@ function startCampaignStep() {
         game.stateTime = 0;
         return;
     }
-    launchFight(step.kind === 'pack' ? 'pack' : 'champion', c.carry, step.options || {});
+    launchFight(step.kind === 'pack' ? 'pack' : step.kind === 'veilleur' ? 'veilleur' : 'champion', c.carry, step.options || {});
 }
 
 /** Au feu de camp, le chevalier affiché a la vie et les fioles de la campagne (affichage seulement). */
@@ -726,6 +802,7 @@ function syncRestKnight() {
 function restDrink() {
     if (game.campaign.drink()) {
         syncRestKnight();
+        game.audio.play('heal', game.time);
         game.effects.particles.emit('ember', game.fight.player.pos.x, game.fight.player.pos.y, 14);
     }
 }
@@ -746,20 +823,24 @@ function playLevel(kind) {
 
 /** L'adversaire d'un combat : le boss, ou le Creux visé par le chevalier (le plus proche). */
 function foeOf(fight) {
-    return fight.boss || fight.focus || null;
+    return fight.boss || fight.veilleur || fight.focus || null;
 }
 
 /** Vie de l'adversaire : celle du boss, ou la somme des vies de la meute. */
 function foeHp(fight) {
-    return fight.boss ? fight.boss.hp : fight.creux.reduce((sum, c) => sum + c.hp, 0);
+    if (fight.boss) return fight.boss.hp;
+    if (fight.veilleur) return fight.veilleur.hp;
+    return fight.creux.reduce((sum, c) => sum + c.hp, 0);
 }
 
 /** Fait avancer un combat à pas fixes selon le temps réel écoulé (au plus 4 pas par image). */
 function advance(fight, dt, onEvents) {
     game.accumulator = Math.min(game.accumulator + dt, Combat.DT * 4);
     while (game.accumulator >= Combat.DT && !fight.over) {
+        const prev = Interpolation.snapshot(Interpolation.entitiesOf(fight));
         headless(() => fight.step());
         game.accumulator -= Combat.DT;
+        game.interp.set(fight, { prev: prev, acc: () => game.accumulator });
         if (onEvents) onEvents(fight.events);
     }
 }
@@ -776,11 +857,14 @@ function updateCombat(dt) {
         advance(f, dt * game.feel.timeScale(), events => {
             events.forEach(e => game.effects.add(e, game.time));
             game.feel.onEvents(events);
+            game.audio.onEvents(events, game.time);
         });
+        game.audio.cues(f, game.time, dt);
         if (!f.player.alive) {
             game.state = 'dead';
             game.stateTime = 0;
             game.deaths++;
+            game.audio.play('death', game.time);
             // Campagne : on recommencera l'étape avec la vie et les fioles qu'on avait en y entrant
             if (game.campaign) game.campaign.die();
             // Tache de sang là où le chevalier est tombé, gardée d'une session à l'autre
@@ -789,6 +873,7 @@ function updateCombat(dt) {
         } else if (f.boss ? !f.boss.alive : f.over) {
             game.state = 'victory';
             game.feel.onBossDeath();
+            game.audio.play('victory', game.time);
             if (f.boss) game.effects.particles.emit('curse', f.boss.pos.x, f.boss.pos.y, 40);
             game.victoryCause = f.boss && f.boss.stats.camped ? 'camping' : null;
             game.stateTime = 0;
@@ -943,6 +1028,409 @@ function drawPackOverlay() {
         FitnessChart.draw(t.history, wide ? width - w - 24 : px + 12, wide ? 44 : py + ph + 44, w, 220, "des meutes");
     }
     if (game.debug) DebugPanel.drawPack(f.packController, f, 14, py + ph + 12);
+}
+
+// --- Présentation (vidéo de démonstration) ---
+
+/** Lance la présentation ; `record` : l'enregistre en vidéo (.webm téléchargé à la fin). */
+function startPresentation(record) {
+    if (game.presentation) return;
+    if (!document.body.classList.contains('menu-hidden')) MenuToggle.toggle(document, byId('menuToggle'));
+    windowResized();
+    // La partie complète utilise le vrai combat : on met de côté la partie du joueur, rendue à la fin
+    game.presentation = { run: new PresentationRun(), fight: null, kind: null, overTime: 0, recorder: null, seed: 1 + Math.floor(Math.random() * 1e6),
+        saved: { fight: game.fight, campaign: game.campaign, state: game.state, stateTime: game.stateTime, trail: game.trail, deaths: game.deaths } };
+    mountScene();
+    game.audioBackend.unlock();
+    if (record) {
+        const canvas = drawingContext.canvas;
+        if (!VideoRecorder.available(window.MediaRecorder, canvas)) {
+            setStatus("L'enregistrement vidéo n'est pas disponible dans ce navigateur (essayez Chrome, Edge ou Firefox).", true);
+        } else {
+            const r = new VideoRecorder({ MediaRecorder: window.MediaRecorder, MediaStream: window.MediaStream,
+                videoStream: canvas.captureStream(60), audioStream: game.audioBackend.captureStream() });
+            r.start();
+            game.presentation.recorder = r;
+        }
+    }
+}
+
+/** Monte le combat de la scène en cours (nouvelle graine à chaque fois). */
+function mountScene() {
+    const P = game.presentation, scene = P.run.scene;
+    P.seed++;
+    game.autoSeed = null;
+    if (scene.kind === 'campaign') {
+        // Partie complète : la vraie campagne, jouée par le joueur automatique « vitrine »
+        game.autoSeed = Presentation.CAMPAIGN_SEED;
+        game.deaths = 0;
+        game.effects = new Effects(Quality.get(game.quality).particles);
+        game.campaign = new CampaignRun();
+        startCampaignStep();
+        game.camera.snap(cameraTarget(game.fight, true));
+        P.fight = null;
+        P.kind = 'campaign';
+        return;
+    }
+    const built = Presentation.build(scene, { arena: game.arena, bossBrain: game.pretrained, packBrain: game.packPretrained, seed: P.seed });
+    P.fight = built.fight;
+    P.kind = built.kind;
+    P.overTime = 0;
+    game.accumulator = 0;
+    if (P.fight) game.audio.resetCues(P.fight);
+}
+
+function updatePresentation(dt) {
+    const P = game.presentation;
+    if (!P) return;
+    if (P.kind === 'campaign') {
+        updateShowcase(dt);
+        // Fin de la campagne : on laisse le bandeau final 5 s, puis les explications
+        if (game.state === 'complete' && game.stateTime > 5) {
+            if (P.run.next()) mountScene();
+            else return stopPresentation();
+        }
+    }
+    if (P.run.update(dt)) mountScene();
+    if (P.run.done) return stopPresentation();
+    if (P.kind === 'campaign') return;
+    const f = P.fight;
+    if (!f) return;
+    if (f.over) {
+        // Combat fini avant la fin de la scène : on le rejoue au bout de 2 s (la vidéo ne reste pas figée)
+        P.overTime += dt;
+        if (P.overTime > 2 && P.run.scene.duration - P.run.sceneTime > 3) mountScene();
+        return;
+    }
+    advance(f, dt, events => {
+        events.forEach(e => game.effects.add(e, game.time));
+        game.audio.onEvents(events, game.time);
+    });
+    game.audio.cues(f, game.time, dt);
+}
+
+/**
+ * Partie complète : le vrai combat (updateCombat : pas fixes, gel d'impact, sons, victoire, campagne) avec le
+ * joueur automatique ; au feu de camp, il boit s'il en a besoin puis repart.
+ */
+function updateShowcase(dt) {
+    if (game.state === 'rest') {
+        game.stateTime += dt;
+        if (game.stateTime > 1.5 && game.campaign.carry.hp <= 75 && game.campaign.carry.estus > 0 && game.stateTime % 1 < dt) restDrink();
+        if (game.stateTime > 4) leaveRest();
+        return;
+    }
+    updateCombat(dt);
+}
+
+/** Fin (ou arrêt) : la vidéo enregistrée est téléchargée, la partie du joueur est rendue. */
+function stopPresentation() {
+    const P = game.presentation;
+    if (!P) return;
+    game.presentation = null;
+    game.autoSeed = null;
+    Object.assign(game, { fight: P.saved.fight, campaign: P.saved.campaign, state: P.saved.state, stateTime: P.saved.stateTime,
+        trail: P.saved.trail, deaths: P.saved.deaths });
+    if (document.body.classList.contains('menu-hidden')) MenuToggle.toggle(document, byId('menuToggle'));
+    windowResized();
+    if (P.recorder) {
+        P.recorder.stop().then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = VideoRecorder.FILENAME;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 10000);
+            setStatus("Vidéo enregistrée : " + VideoRecorder.FILENAME + " (" + (blob.size / 1e6).toFixed(1) + " Mo).");
+        });
+    }
+}
+
+const FORCE_COLORS = { seek: [255, 140, 60], arrive: [255, 205, 80], flee: [200, 130, 255], evade: [255, 255, 255], wander: [90, 230, 120],
+    avoid: [255, 90, 90], stayInside: [120, 170, 255], pursue: [255, 90, 80], flank: [90, 200, 255], flock: [120, 255, 120], separation: [255, 200, 60] };
+
+/** Flèche de (x, y) vers (x + dx, y + dy), avec une étiquette au bout. */
+function arrow(x, y, dx, dy, c, label, dashed = false, labelDy = 0) {
+    const len = Math.hypot(dx, dy);
+    if (len < 2) return;
+    push();
+    stroke(c[0], c[1], c[2], 230);
+    strokeWeight(2.5);
+    if (dashed) drawingContext.setLineDash([6, 5]);
+    line(x, y, x + dx, y + dy);
+    drawingContext.setLineDash([]);
+    const a = Math.atan2(dy, dx);
+    fill(c[0], c[1], c[2], 230);
+    noStroke();
+    triangle(x + dx, y + dy, x + dx - 9 * Math.cos(a - 0.4), y + dy - 9 * Math.sin(a - 0.4), x + dx - 9 * Math.cos(a + 0.4), y + dy - 9 * Math.sin(a + 0.4));
+    if (label) {
+        textSize(12);
+        textAlign(LEFT, CENTER);
+        fill(0, 0, 0, 170);
+        text(label, x + dx + 6, y + dy + 1 + labelDy);
+        fill(c[0], c[1], c[2]);
+        text(label, x + dx + 5, y + dy + labelDy);
+    }
+    pop();
+}
+
+/** Forces de pilotage d'une entité (lues dans .forces, sans recalcul), sa vitesse, et les cibles visées. */
+function drawForces(e) {
+    if (!e || !e.forces || !e.alive) return;
+    const K = 260, MAX = 130;
+    for (const f of e.forces) {
+        const m = f.force.mag();
+        if (m < 1e-4) continue;
+        const c = FORCE_COLORS[f.name] || [220, 220, 220];
+        const len = Math.min(MAX, m * K);
+        arrow(e.pos.x, e.pos.y, f.force.x / m * len, f.force.y / m * len, c, f.name);
+        if (f.target && Math.hypot(f.target.x - e.pos.x, f.target.y - e.pos.y) > 6) {
+            push();
+            stroke(c[0], c[1], c[2], 120);
+            strokeWeight(1);
+            drawingContext.setLineDash([3, 5]);
+            line(e.pos.x, e.pos.y, f.target.x, f.target.y);
+            drawingContext.setLineDash([]);
+            noFill();
+            stroke(c[0], c[1], c[2], 220);
+            circle(f.target.x, f.target.y, 10);
+            pop();
+        }
+    }
+    arrow(e.pos.x, e.pos.y, e.vel.x * 18, e.vel.y * 18, [0, 230, 255], "vitesse");
+}
+
+/** Force principale d'une entité qui vise une vraie cible (à plus de 20 px), ou null. */
+function mainForce(e) {
+    if (!e || !e.forces || !e.alive) return null;
+    return e.forces.filter(f => f.target && ['seek', 'arrive', 'flee', 'evade', 'wander'].includes(f.name) &&
+        Math.hypot(f.target.x - e.pos.x, f.target.y - e.pos.y) > 20).sort((a, b) => b.force.mag() - a.force.mag())[0] || null;
+}
+
+/**
+ * Triangle de Reynolds pour la force principale du boss (ou du chevalier quand le boss frappe sur place) :
+ * vitesse actuelle (cyan), vitesse désirée vers la cible à vitesse maximale (or, pointillés), et la force de
+ * pilotage qui va de l'une à l'autre (rouge).
+ */
+function drawFormula(boss, player) {
+    let e = boss, main = mainForce(boss);
+    if (!main) { e = player; main = mainForce(player); }
+    if (!main) return;
+    const away = main.name === 'flee' || main.name === 'evade';
+    let dx = main.target.x - e.pos.x, dy = main.target.y - e.pos.y;
+    if (away) { dx = -dx; dy = -dy; }
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-6) return;
+    const K = 60;
+    const desired = { x: dx / d * e.maxSpeed * K, y: dy / d * e.maxSpeed * K };
+    const vel = { x: e.vel.x * K, y: e.vel.y * K };
+    arrow(e.pos.x, e.pos.y, vel.x, vel.y, [0, 230, 255], "vitesse actuelle", false, 12);
+    arrow(e.pos.x, e.pos.y, desired.x, desired.y, [255, 215, 90], "vitesse désirée (" + main.name + ")", true, -12);
+    arrow(e.pos.x + vel.x, e.pos.y + vel.y, desired.x - vel.x, desired.y - vel.y, [255, 80, 70], null);
+    // Étiquette de la force au milieu de sa flèche, décalée sur le côté (lisible)
+    push();
+    const mx = e.pos.x + (vel.x + desired.x) / 2, my = e.pos.y + (vel.y + desired.y) / 2;
+    textSize(11);
+    textAlign(CENTER, CENTER);
+    fill(0, 0, 0, 180);
+    text("force = désirée − actuelle", mx + 1, my + 25);
+    fill(255, 110, 100);
+    text("force = désirée − actuelle", mx, my + 24);
+    pop();
+}
+
+/**
+ * Le combat d'une scène dans un rectangle de l'écran, avec les couches demandées. `zoom` > 1 : vue grossie,
+ * centrée entre le chevalier et son adversaire (sans sortir de l'arène).
+ */
+function drawSceneWorld(fight, show, x, y, w, h, zoom = 1) {
+    const A = game.arena;
+    const s = Math.min(w / A.width, h / A.height) * zoom;
+    const foe = foeOf(fight);
+    let cx = A.width / 2, cy = A.height / 2;
+    if (zoom > 1 && foe) {
+        const hw = w / s / 2, hh = h / s / 2;
+        cx = Math.min(A.width - hw, Math.max(hw, (fight.player.pos.x + foe.pos.x) / 2));
+        cy = Math.min(A.height - hh, Math.max(hh, (fight.player.pos.y + foe.pos.y) / 2));
+    }
+    push();
+    drawingContext.save();
+    drawingContext.beginPath();
+    drawingContext.rect(x, y, w, h);
+    drawingContext.clip();
+    translate(x + w / 2, y + h / 2);
+    scale(s);
+    translate(-cx, -cy);
+    drawEntities(fight, game.effects, null, false);
+    if (show.includes('debug') && fight.boss) DebugPanel.drawWorld(fight.boss, fight.player, A);
+    if (show.includes('pack')) DebugPanel.drawPackWorld(fight);
+    if (show.includes('forces')) {
+        drawForces(fight.boss);
+        drawForces(fight.player);
+    }
+    if (show.includes('formula')) drawFormula(fight.boss, fight.player);
+    drawingContext.restore();
+    pop();
+}
+
+/** Bandeau de légende : titre de la scène, phrase en cours (en fondu), avancement, enregistrement. */
+function drawCaption(P, bandH) {
+    const run = P.run, scene = run.scene;
+    const y = height - bandH;
+    push();
+    noStroke();
+    fill(6, 7, 11, 235);
+    rect(0, y, width, bandH);
+    fill(232, 196, 110);
+    textFont('Cinzel');
+    textAlign(LEFT, TOP);
+    textSize(Math.min(22, width / 45));
+    text(scene.title, 24, y + 12);
+    const per = scene.duration / scene.lines.length;
+    const k = run.lineIndex();
+    const tIn = run.sceneTime - k * per;
+    fill(240, 236, 225, 255 * Math.min(1, tIn / 0.4));
+    textFont('Georgia');
+    textSize(Math.min(17, width / 60));
+    text(scene.lines[k], 24, y + 46, width - 48);
+    fill(40);
+    rect(0, height - 4, width, 4);
+    fill(232, 190, 90);
+    rect(0, height - 4, width * run.progress(), 4);
+    fill(150);
+    textSize(11);
+    textAlign(RIGHT, TOP);
+    text("scène " + (run.index + 1) + " / " + run.scenes.length + " · → suivante · Échap arrêter", width - 20, y + 14);
+    if (P.recorder) {
+        fill(255, 60, 50);
+        circle(width - 24, 24, 14);
+        fill(255);
+        textAlign(RIGHT, CENTER);
+        textSize(13);
+        text("REC", width - 36, 24);
+    }
+    pop();
+}
+
+/** Légende de la partie complète : une ligne discrète sous l'étiquette d'étape, et l'avancement en bas. */
+function drawCampaignCaption(P) {
+    push();
+    const text0 = P.run.scene.lines[0];
+    textFont('Georgia');
+    textSize(Math.min(15, width / 70));
+    const w = Math.min(width - 40, textWidth(text0) + 30);
+    const L = HudLayout.compute(width, height);
+    const y = L.flasks.y + L.flasks.size + 12;   // sous les fioles : ne cache aucune barre
+    noStroke();
+    fill(6, 7, 11, 190);
+    rect((width - w) / 2, y, w, 26, 6);
+    fill(235, 228, 210);
+    textAlign(CENTER, CENTER);
+    text(text0, width / 2, y + 13);
+    fill(232, 190, 90);
+    rect(0, height - 3, width * P.run.progress(), 3);
+    if (P.recorder) {
+        fill(255, 60, 50);
+        circle(width - 24, height - 24, 12);
+    }
+    pop();
+}
+
+/** Carte de titre (début et fin). */
+function drawCard(scene, t, bandH) {
+    push();
+    background(7, 8, 12);
+    const ctx = drawingContext;
+    const g = ctx.createRadialGradient(width / 2, height * 0.42, 10, width / 2, height * 0.42, Math.max(width, height) * 0.6);
+    g.addColorStop(0, 'rgba(60,50,40,0.55)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, width, height);
+    const a = Math.min(1, t / 1.2);
+    textAlign(CENTER, CENTER);
+    textFont('UnifrakturMaguntia');
+    fill(232, 196, 110, 255 * a);
+    textSize(Math.min(72, width / 12));
+    text(scene.title, width / 2, (height - bandH) * 0.42);
+    pop();
+}
+
+/** Courbes de l'entraînement du Gardien fourni et résultats chiffrés. */
+function drawEvolution(bandH) {
+    background(7, 8, 12);
+    const w = Math.min(560, width * 0.5), x = width * 0.08, y = 70;
+    FitnessChart.draw(PRETRAINED_BOSS.history, x, y, w, Math.min(300, height - bandH - 150), "des boss");
+    push();
+    textFont('Georgia');
+    textAlign(LEFT, TOP);
+    const tx = x + w + 60, tw = width - tx - 30;
+    fill(232, 196, 110);
+    textSize(18);
+    text("Ce que l'entraînement a donné", tx, y - 20, tw);
+    fill(225);
+    textSize(14);
+    const lines = [PRETRAINED_BOSS.generations + " générations pour le Gardien, examen sur des combats jamais vus."];
+    for (const c of PRETRAINED_BOSS.comparison || []) lines.push(c.name + " : " + Math.round(c.winRate * 100) + " % de victoires contre le joueur robot.");
+    lines.push("Meute des Creux : " + Math.round(PRETRAINED_PACK.exam.learned.winRate * 100) + " % de victoires (meute écrite à la main : " +
+        Math.round(PRETRAINED_PACK.exam.hand.winRate * 100) + " %).");
+    lines.push("Chevalier encerclé " + (PRETRAINED_PACK.exam.learned.surrounded * 100).toFixed(1) + " % du temps (à la main : " +
+        (PRETRAINED_PACK.exam.hand.surrounded * 100).toFixed(1) + " %).");
+    lines.forEach((l, i) => text("• " + l, tx, y + 20 + i * 48, tw));
+    pop();
+}
+
+function drawPresentation() {
+    const P = game.presentation;
+    if (!P) {
+        push();
+        background(7, 8, 12);
+        fill(200);
+        textAlign(CENTER, CENTER);
+        textSize(16);
+        text("Cliquez sur « Lancer la présentation » ou « Enregistrer en vidéo » dans le menu.", width / 2, height / 2);
+        pop();
+        return;
+    }
+    const scene = P.run.scene;
+    if (!scene) return;
+    const bandH = Math.max(96, Math.min(130, height * 0.16));
+    background(7, 8, 12);
+    if (scene.kind === 'campaign') {
+        // Le jeu tel qu'on le joue : caméra, HUD, bandeaux ; légende discrète en haut
+        drawWorld(game.fight, game.fight.player.locked, game.effects);
+        drawCombatHud(Math.min(deltaTime / 1000, 0.1));
+        drawCampaignCaption(P);
+        return;
+    }
+    if (scene.kind === 'card') drawCard(scene, P.run.sceneTime, bandH);
+    else if (scene.kind === 'chart') drawEvolution(bandH);
+    else {
+        const show = scene.show || [];
+        const net = show.includes('network') || show.includes('packNetwork');
+        const worldW = net ? width * 0.56 : width;
+        drawSceneWorld(P.fight, show, 0, 0, worldW, height - bandH, scene.zoom || 1);
+        if (net) drawSceneNetwork(P.fight, show, worldW + 8, 12, width - worldW - 20, height - bandH - 24);
+    }
+    drawCaption(P, bandH);
+}
+
+/** Schéma du réseau de la scène : le Gardien, ou le réseau partagé vu par le Creux visé (sans recalcul). */
+function drawSceneNetwork(fight, show, x, y, w, h) {
+    if (show.includes('network') && fight.boss && fight.bossController.brain) {
+        const ctrl = fight.bossController;
+        if (!ctrl.lastOutputs) return;
+        NetworkView.draw({ nn: ctrl.brain, activations: ctrl.brain.activations, inputLabels: BossBrain.INPUT_LABELS, outputLabels: BossBrain.OUTPUT_LABELS,
+            thresholds: [0.5, BossBrain.THRESHOLD, BossBrain.THRESHOLD, BossBrain.THRESHOLD, BossBrain.THRESHOLD, 0.5],
+            title: "Cerveau du Gardien · 16 entrées → 16 neurones → 6 sorties", reading: NetworkView.bossReading(ctrl.lastOutputs) }, x, y, w, h);
+    } else if (show.includes('packNetwork') && fight.packController && fight.packController.memory) {
+        const m = fight.focus ? fight.packController.memory.get(fight.focus) : null;
+        if (!m) return;
+        NetworkView.draw({ nn: fight.packController.brain, activations: m.layers, inputLabels: PackBrain.INPUT_LABELS, outputLabels: PackBrain.OUTPUT_LABELS,
+            thresholds: [undefined, undefined, undefined, undefined, PackBrain.THRESHOLD],
+            title: "Réseau partagé, vu par le Creux le plus proche · 12 → 12 → 5", reading: NetworkView.packReading(m.outputs) }, x, y, w, h);
+    }
 }
 
 // --- Démonstration ---
@@ -1339,12 +1827,18 @@ function drawPantheonOverlay() {
 function draw() {
     const dt = Math.min(deltaTime / 1000, 0.1);
     game.time += dt;
-    background(7, 8, 12);
+    // Vue principale : canvas transparent au-dessus du sol (élément DOM) ; sinon fond plein
+    game.floorInDom = ['title', 'combat', 'training', 'pack', 'comparison'].includes(game.mode);
+    if (game.floorInDom) clear();
+    else background(7, 8, 12);
     Vehicle.debug = game.debug;
     const change = game.screens.update(dt);
     if (change) applyScreen(change.to);
+    pollPad();
+    updateMusic(dt);
+    game.arena.floorLayer();   // redessine le sol si le navigateur en a perdu le contenu
     // Cinzel (capitales) pour le jeu ; Georgia, plus étroite, pour les tableaux et courbes du laboratoire
-    textFont(game.mode === 'title' || game.mode === 'combat' ? 'Cinzel' : 'Georgia');
+    textFont(game.mode === 'title' || game.mode === 'combat' || game.mode === 'presentation' ? 'Cinzel' : 'Georgia');
 
     if (game.mode === 'title') {
         updateTitleFight(dt);
@@ -1367,6 +1861,9 @@ function draw() {
         updatePack(dt);
         drawWorld(game.packView, false, game.effects);
         drawPackOverlay();
+    } else if (game.mode === 'presentation') {
+        updatePresentation(dt);
+        drawPresentation();
     } else {
         updateComparison();
         drawWorld(game.fight, false, game.effects, true);
@@ -1377,6 +1874,9 @@ function draw() {
     game.effects.update(game.mode === 'combat' && !game.paused ? dt * game.feel.visualScale() : (game.mode === 'combat' ? 0 : dt), fire);
     game.demoEffects.forEach(e => e.update(dt, fire));
     game.titleEffects.update(dt, fire);
+    game.floorEl.style.visibility = game.floorInDom ? 'visible' : 'hidden';
+    // Manette tout juste branchée : un message pendant quelques secondes
+    if (game.time - game.padNotice < 3 && game.pad.id) Hud.pauseLabel("Manette détectée · " + game.pad.id.split('(')[0].trim().slice(0, 40));
     // Fondu au noir entre deux écrans
     const a = game.screens.alpha();
     if (a > 0) {
@@ -1386,17 +1886,29 @@ function draw() {
     }
 }
 
+/** Cadrage visé : la meute (zoom constant sur le groupe), sinon le verrouillage sur l'adversaire. */
+function cameraTarget(fight, locked) {
+    if (fight.creux) return Camera.groupTarget(game.arena, width, height, fight.player, fight.creux);
+    return Camera.target(game.arena, width, height, locked, fight.player, foeOf(fight));
+}
+
 /** Dessine l'arène et ses entités dans le repère de la caméra principale. */
 function drawWorld(fight, locked, effects, dimmed = false) {
     const player = fight.player, foe = foeOf(fight);
-    game.camera.follow(Camera.target(game.arena, width, height, locked, player, foe), Math.min(deltaTime / 1000, 0.1));
+    game.camera.follow(cameraTarget(fight, locked), Math.min(deltaTime / 1000, 0.1));
     push();
-    if (game.mode === 'combat') {
-        const s = game.feel.shake(game.time);
-        translate(s.x, s.y);
-    }
+    const s = game.mode === 'combat' ? game.feel.shake(game.time) : { x: 0, y: 0 };
+    translate(s.x, s.y);
     game.camera.apply(width, height);
-    drawEntities(fight, effects, fight === game.fight ? game.bloodstains : null);
+    // Le sol (derrière le canvas) suit exactement la même caméra
+    if (game.floorInDom) {
+        const c = game.camera, cv = game.floorEl;
+        const canvasEl = drawingContext.canvas;
+        cv.style.transform = 'translate(' + (canvasEl.offsetLeft + width / 2 - c.cx * c.scale + s.x) + 'px,' +
+            (canvasEl.offsetTop + height / 2 - c.cy * c.scale + s.y) + 'px) scale(' + c.scale + ')';
+    }
+    // Taches de sang du joueur : pas pendant la présentation (elles viennent de ses propres parties)
+    drawEntities(fight, effects, fight === game.fight && !game.presentation ? game.bloodstains : null, game.floorInDom);
     if (locked && foe && foe.alive) Hud.lockMark(foe, game.time);
     pop();
     if (dimmed) {
@@ -1406,29 +1918,48 @@ function drawWorld(fight, locked, effects, dimmed = false) {
     }
 }
 
-function drawEntities(fight, effects, stains = null) {
+/**
+ * Entités d'un combat. `floorInDom` : le sol est déjà affiché derrière le canvas. Chevalier, boss et Creux sont
+ * dessinés à leur position interpolée (décalage autour de leur dessin, l'état n'est pas modifié).
+ */
+function drawEntities(fight, effects, stains = null, floorInDom = false) {
     const { player, boss } = fight;
     const q = Quality.get(game.quality);
-    game.arena.showFloor();
+    if (!floorInDom) game.arena.showFloor();
+    const it = game.interp.get(fight);
+    const alpha = it ? Interpolation.alpha(it.acc(), Combat.DT) : 1;
+    const at = (e, drawIt) => {
+        const o = Interpolation.offset(e, it && it.prev, alpha);
+        push();
+        translate(o.x, o.y);
+        drawIt();
+        pop();
+    };
     if (stains) for (const b of stains) b.show(game.time, Math.hypot(player.pos.x - b.pos.x, player.pos.y - b.pos.y) < 45);
     game.campfire.show(game.time);
     for (const z of fight.zones || []) z.show(game.time);
     for (const p of fight.pillars) p.show(game.arena.campfirePos);
-    player.show();
-    if (boss) boss.show();
-    for (const c of fight.creux || []) c.show();
+    at(player, () => player.show());
+    if (boss) at(boss, () => boss.show());
+    for (const c of fight.creux || []) at(c, () => c.show());
+    if (fight.veilleur) at(fight.veilleur, () => fight.veilleur.show());
+    for (const w of fight.wisps || []) at(w, () => w.show());
     effects.showParticles(q.glow);
-    game.fogLayer.draw(game.time, q);
-    game.light.draw(Lighting.sources(fight, game.arena.campfirePos, game.time), q);
+    game.light.draw(Lighting.sources(fight, game.arena.campfirePos, game.time), q, Lighting.DARKNESS, game.fogLayer.update(game.time, q));
     // Au-dessus de l'obscurité : ce qui doit toujours rester lisible
     if (boss) {
         game.arena.showCorners(boss.r, Combat.BOSS.camping.margin, boss.campTime / Combat.BOSS.camping.limit, game.time);
-        boss.showTelegraph();
+        at(boss, () => boss.showTelegraph());
     }
-    for (const c of fight.creux || []) c.showTelegraph();
+    for (const c of fight.creux || []) at(c, () => c.showTelegraph());
+    if (fight.veilleur) at(fight.veilleur, () => fight.veilleur.showTelegraph());
     if (game.debug) {
         if (boss) DebugPanel.drawWorld(boss, player, game.arena);
-        else DebugPanel.drawPackWorld(fight);
+        else if (fight.creux) DebugPanel.drawPackWorld(fight);
+        else if (fight.veilleur) {
+            drawForces(fight.veilleur);
+            for (const w of fight.wisps) drawForces(w);
+        }
     }
     effects.show();
     if (boss) Hud.techniqueLabel(boss);
@@ -1517,6 +2048,7 @@ function drawCombatHud(dt) {
     // Au feu de camp, aucun ennemi : pas de barre d'adversaire
     if (game.state !== 'rest') {
         if (f.boss) Hud.drawBoss(f.boss, game.trail.boss, layout);
+        else if (f.veilleur) Hud.drawFoe(Hud.VEILLEUR_NAME, f.veilleur.hp, f.veilleur.maxHp, game.trail.boss, layout);
         else Hud.drawPack(f.creux, game.trail.boss, layout);
     }
     if (game.feel.flash > 0) {
@@ -1529,7 +2061,7 @@ function drawCombatHud(dt) {
     }
     if (game.debug) {
         if (f.boss) DebugPanel.draw(f.bossController, f.boss, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
-        else DebugPanel.drawPack(f.packController, f, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
+        else if (f.creux) DebugPanel.drawPack(f.packController, f, width - DebugPanel.WIDTH - 12, layout.margin + 26, frameRate());
     }
     const c = game.campaign;
     if (c && !c.done) {
@@ -1544,7 +2076,7 @@ function drawCombatHud(dt) {
         Hud.banner('death', "VOUS ÊTES MORT", Bloodstain.labelFor(f.lastCause).replace("Ici, vaincu", "Vaincu") + " · retour au feu de camp…",
             game.stateTime);
     } else if (game.state === 'victory') {
-        Hud.banner('victory', f.boss ? "ENNEMI VAINCU" : "MEUTE ANÉANTIE", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
+        Hud.banner('victory', f.creux ? "MEUTE ANÉANTIE" : "ENNEMI VAINCU", (game.victoryCause === 'camping' ? "Il s'est terré dans un coin : le brouillard l'a dévoré · " : "") +
             "Temps " + f.time.toFixed(1) + " s · " + (c ? "vie " + Math.ceil(f.player.hp) + " et " + f.player.estus + " fiole(s) gardées pour la suite…" :
                 "morts " + game.deaths + " · R pour recommencer"), game.stateTime);
     } else if (game.paused && byId('pauseMenu').hidden && byId('tutorial').hidden && byId('optionsScreen').hidden) {
@@ -1659,6 +2191,101 @@ function drawComparisonOverlay() {
     pop();
 }
 
+// --- Son ---
+
+function audioSettingsChanged() {
+    const s = { muted: byId('muteCheckbox').checked };
+    for (const name in AudioSettings.PARAMETERS) s[name] = Number(byId(name).value);
+    try {
+        game.audioSettings = AudioSettings.validate(s);
+    } catch (e) {
+        return setStatus(e.message, true);
+    }
+    game.audio.setSettings(game.audioSettings);
+    AudioSettings.save(game.storage, game.audioSettings);
+}
+
+function toggleMute() {
+    byId('muteCheckbox').checked = !byId('muteCheckbox').checked;
+    audioSettingsChanged();
+}
+
+/** Musique de la scène, et fondu (appelé à chaque image). */
+function updateMusic(dt) {
+    let kind = game.fight && game.fight.boss ? 'boss' : 'pack';
+    if (game.mode === 'presentation') kind = game.presentation && game.presentation.run.scene ? game.presentation.kind : null;
+    if (kind === 'campaign') {
+        game.audio.setTrack(SoundBank.musicFor('combat', game.fight && game.fight.boss ? 'boss' : 'pack', game.state));
+        game.audio.update(dt);
+        return;
+    }
+    game.audio.setTrack(SoundBank.musicFor(game.mode, kind, game.state));
+    game.audio.update(dt);
+}
+
+// --- Manette ---
+
+/** Lit la manette (si le joueur l'autorise), puis traduit ses boutons comme les touches du clavier. */
+function pollPad() {
+    if (game.controls === 'clavier' || !navigator.getGamepads) return;
+    const wasConnected = game.pad.id !== null;
+    const r = game.pad.update(GamepadInput.first(navigator.getGamepads()));
+    if (!r.connected) {
+        game.human.setPadMove(null);
+        return;
+    }
+    if (!wasConnected) game.padNotice = game.time;
+    if (r.move || r.pressed.length) {
+        if (game.inputDevice !== 'manette' && !byId('tutorial').hidden) {
+            game.inputDevice = 'manette';
+            showTutorialCard();
+        }
+        game.inputDevice = 'manette';
+    }
+    game.human.setPadMove(game.mode === 'combat' && !game.paused ? r.move : null);
+    for (const b of r.pressed) padButton(b);
+}
+
+/** Un bouton de manette vient d'être enfoncé : même effet que la touche correspondante. */
+function padButton(b) {
+    const up = b === 'up' || b === 'stickUp', down = b === 'down' || b === 'stickDown';
+    if (!byId('tutorial').hidden) {
+        if (b === 'a' || b === 'start') tutorialNext();
+        else if (b === 'b') tutorialSkip();
+        return;
+    }
+    if (!byId('optionsScreen').hidden) {
+        if (b === 'b') closeOptions();
+        return;
+    }
+    if (game.mode === 'title') {
+        if (!game.screens.interactive) return;
+        if (up) { game.titleMenu.move(-1); refreshTitleMenu(); game.audio.play('menuMove', game.time); }
+        else if (down) { game.titleMenu.move(1); refreshTitleMenu(); game.audio.play('menuMove', game.time); }
+        else if (b === 'a' || b === 'start') activateMenu(game.titleMenu.current().id);
+        return;
+    }
+    if (game.mode !== 'combat') {
+        if (b === 'b') goScreen('title');
+        return;
+    }
+    // Combat : Start ouvre ou ferme la pause ; dans la pause, A reprend, B aussi
+    if (!byId('pauseMenu').hidden) {
+        if (b === 'start' || b === 'a' || b === 'b') closePause();
+        return;
+    }
+    if (b === 'start') { openPause(); return; }
+    if (b === 'select') { startFight(); return; }
+    if (game.state === 'rest') {
+        if (b === 'x') restDrink();
+        else if (b === 'a') leaveRest();
+        return;
+    }
+    if (game.state === 'complete' && b === 'a') { startFight(); return; }
+    const action = Pad.ACTIONS[b];
+    if (action) game.human.trigger(action);
+}
+
 // --- Clavier ---
 
 function typingInMenu() {
@@ -1670,6 +2297,7 @@ function typingInMenu() {
 function keyPressed() {
     if (typingInMenu()) return true;
     const k = String(key).toLowerCase();
+    game.inputDevice = 'clavier';
     // Fenêtres ouvertes d'abord : tutoriel, Options, pause
     if (!byId('tutorial').hidden) {
         if (k === 'enter' || k === ' ') tutorialNext();
@@ -1680,6 +2308,14 @@ function keyPressed() {
         if (k === 'escape') { closeOptions(); return false; }
         return true;
     }
+    if (k === 'm') {
+        toggleMute();
+        return false;
+    }
+    if (game.mode === 'presentation' && game.presentation) {
+        if (k === 'arrowright') { if (game.presentation.run.next()) mountScene(); else stopPresentation(); return false; }
+        if (k === 'escape') { stopPresentation(); return false; }
+    }
     if (k === 'g') {
         game.debug = !game.debug;
         byId('debugCheckbox').checked = game.debug;
@@ -1687,8 +2323,8 @@ function keyPressed() {
     }
     if (game.mode === 'title') {
         if (!game.screens.interactive) return false;
-        if (k === 'arrowup' || k === 'z' || k === 'w') { game.titleMenu.move(-1); refreshTitleMenu(); return false; }
-        if (k === 'arrowdown' || k === 's') { game.titleMenu.move(1); refreshTitleMenu(); return false; }
+        if (k === 'arrowup' || k === 'z' || k === 'w') { game.titleMenu.move(-1); refreshTitleMenu(); game.audio.play('menuMove', game.time); return false; }
+        if (k === 'arrowdown' || k === 's') { game.titleMenu.move(1); refreshTitleMenu(); game.audio.play('menuMove', game.time); return false; }
         if (k === 'enter' || k === ' ') { activateMenu(game.titleMenu.current().id); return false; }
         return true;
     }

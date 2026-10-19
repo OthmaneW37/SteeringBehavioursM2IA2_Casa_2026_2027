@@ -22,7 +22,7 @@ const DebugPanel = {
     state(boss, controller) {
         let s = boss.wandering ? "errance (wander)" : "décision du contrôleur";
         if (boss.dodge) s = "esquive (evade)";
-        if (boss.stun) s = "étourdi (ruée contre un pilier)";
+        if (boss.stun) s = boss.stun.riposte ? "déséquilibré (paré) : riposte critique possible" : "étourdi (ruée contre un pilier)";
         if (boss.campTime > 0) s += " · coin " + boss.campTime.toFixed(1) + " / " + Combat.BOSS.camping.limit + " s";
         if (boss.action) {
             const what = { boss: "hallebarde", charge: "ruée", breath: "souffle" }[boss.action.kind] || boss.action.kind;

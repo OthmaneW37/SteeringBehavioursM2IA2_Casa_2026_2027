@@ -35,6 +35,24 @@ body.menu-hidden #menu {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
+    overflow: hidden;
+    background: rgb(7, 8, 12);
+}
+
+/* Sol de l'arène : calque fixe derrière le canvas, placé par la caméra (transformation CSS) */
+#canvasHolder .floor-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    pointer-events: none;
+    z-index: 0;
+}
+
+#canvasHolder canvas.p5Canvas {
+    position: relative;
+    z-index: 1;
 }
 
 #menuToggle {

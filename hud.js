@@ -74,10 +74,10 @@ const Hud = {
         pop();
     },
 
-    /** Nom de la technique que prépare le boss, au-dessus de lui (aide à lire le combat). */
-    /** Texte au-dessus du boss : technique en préparation, étourdi, ou riposte. */
+    /** Texte au-dessus du boss : technique en préparation, déséquilibré (parade), étourdi, ou riposte. */
     bossLabel(boss) {
         const a = boss.action;
+        if (boss.stun && boss.stun.riposte) return { text: "Déséquilibré : RIPOSTE !", c: [255, 215, 90] };
         if (boss.stun) return { text: "Étourdi !", c: [255, 230, 120] };
         // Anti-camping : avertissement dès 1 s passée dans un coin, avec le temps restant
         if (boss.campTime >= Hud.CAMP_WARNING && boss.alive) {
@@ -120,6 +120,20 @@ const Hud = {
             text("enragé", L.boss.x + L.boss.w, L.bossName.y);
         }
         Hud.bar(L.boss.x, L.boss.y, L.boss.w, L.boss.h, boss.hp, boss.maxHp, boss.enraged ? color(215, 70, 30) : color(150, 22, 18), trailHp);
+        pop();
+    },
+
+    /** Barre de vie d'un adversaire nommé (le Veilleur), en bas au centre, comme celle du boss. */
+    drawFoe(name, hp, maxHp, trailHp, L = HudLayout.compute(width, height)) {
+        push();
+        textFont('Cinzel');
+        textSize(L.fontSize);
+        textAlign(LEFT, BOTTOM);
+        fill(0, 0, 0, 170);
+        text(name, L.bossName.x + 1, L.bossName.y + 1);
+        fill(235, 225, 200);
+        text(name, L.bossName.x, L.bossName.y);
+        Hud.bar(L.boss.x, L.boss.y, L.boss.w, L.boss.h, hp, maxHp, color(170, 80, 30), trailHp);
         pop();
     },
 
@@ -303,6 +317,7 @@ const Hud = {
 Hud.RIPOSTE_LABEL = 0.8;   // secondes d'affichage de « Riposte ! »
 Hud.BOSS_NAME = "Gardien du Brouillard";
 Hud.PACK_NAME = "La meute des Creux";
+Hud.VEILLEUR_NAME = "Le Veilleur des cendres";
 Hud.CARD = 2.5;            // secondes de la carte de début d'étape
 Hud.CAMP_WARNING = 1;      // secondes dans un coin avant l'avertissement
 
@@ -311,6 +326,7 @@ Hud.CONTROLS = [
     ["J  /  K", "attaque légère / lourde"],
     ["E", "boire une fiole d'Estus (soin, 1 s planté)"],
     ["Espace", "roulade : esquive le coup du boss"],
+    ["U / Maj", "parade au moment de la frappe, puis riposte (× 3)"],
     ["L / Tab", "verrouiller la caméra sur le boss"],
     ["Astuce", "roulez quand le cône ou la ligne rouge se remplit"],
     ["Piliers", "ils bloquent les coups ; attirez la ruée dedans"]
@@ -330,8 +346,11 @@ class Effects {
     add(event, timeSeconds) {
         this.particles.fromEvent(event);
         if (event.type === 'hit') {
-            const c = event.who === 'boss' ? [255, 80, 60] : [255, 230, 150];
-            this.items.push({ kind: 'text', x: event.x, y: event.y - 20, text: "-" + event.damage, life: 0.8, age: 0, c: c });
+            const c = event.who === 'boss' ? [255, 80, 60] : event.critical ? [255, 210, 70] : [255, 230, 150];
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 20, text: "-" + event.damage + (event.critical ? " CRITIQUE" : ""),
+                life: event.critical ? 1.3 : 0.8, age: 0, c: c });
+        } else if (event.type === 'parry') {
+            this.items.push({ kind: 'text', x: event.x, y: event.y - 30, text: "PARADE !", life: 1, age: 0, c: [255, 225, 120] });
         } else if (event.type === 'dodged' && timeSeconds - this.lastDodge > 0.5) {
             this.lastDodge = timeSeconds;
             this.items.push({ kind: 'text', x: event.x, y: event.y - 24, text: "esquivé !", life: 0.8, age: 0, c: [170, 200, 255] });
