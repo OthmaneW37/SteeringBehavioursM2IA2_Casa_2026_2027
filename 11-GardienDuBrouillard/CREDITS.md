@@ -30,5 +30,5 @@ copiés depuis les packs ; les noms de fichiers d'origine sont conservés.
 |---|---|---|---|
 | Impact Sounds (1.0), Kenney | `libraries/audio/sfx/impact*.ogg`, `footstep_concrete_*.ogg` ; licence `libraries/audio/LICENSE-kenney-impact.txt` | https://kenney.nl/assets/impact-sounds | CC0 1.0 |
 | RPG Audio, Kenney | `libraries/audio/sfx/knifeSlice*.ogg`, `chop.ogg`, `cloth*.ogg`, `handleSmallLeather.ogg`, `metalLatch.ogg`, `bookFlip1.ogg`, `bookPlace1.ogg`, `creak1.ogg` ; licence `libraries/audio/LICENSE-kenney-rpg.txt` | https://kenney.nl/assets/rpg-audio | CC0 1.0 |
-| Dark Shrine Loop, qubodup (remix de « Shrine » de yd) — écran titre, feu de camp, meute | `libraries/audio/music/qubodup-yd-DarkShrineLoop.ogg` (d'origine `qubodup-yd-DarkShrineLoop-OpenGameArt.ogg`) | https://opengameart.org/content/dark-shrine-loop | CC0 |
+| Dark Shrine Loop, qubodup (remix de « Shrine » de yd) — écran titre, feu de camp, meute, Veilleur | `libraries/audio/music/qubodup-yd-DarkShrineLoop.ogg` (d'origine `qubodup-yd-DarkShrineLoop-OpenGameArt.ogg`) | https://opengameart.org/content/dark-shrine-loop | CC0 |
 | Heavy Boss Battle 2, MintoDog — combat contre le Gardien | `libraries/audio/music/MintoDog-heavy_boss_battle_2_bpm110.ogg` (d'origine `heavy_boss_battle_2_bpm110_0.ogg`) | https://opengameart.org/content/heavy-boss-battle-2 | CC0 |

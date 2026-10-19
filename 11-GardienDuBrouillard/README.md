@@ -15,17 +15,23 @@ les steering behaviors de Reynolds exécutent ces choix :
 Avant le Gardien, une **campagne** fait affronter **la meute des Creux** (niveau 1) : cinq morts-vivants qui
 partagent **un seul réseau de neurones**. Chacun l'interroge avec ce qu'il perçoit et dose ses comportements :
 `pursue`, flanc (`seek` d'un point sur un cercle autour du chevalier), `evade`, et les trois règles des boids
-(séparation, alignement, cohésion). La meute, notée collectivement, a appris à encercler le chevalier. Un feu
-de camp sépare les deux combats ; la vie et les fioles passent d'une étape à l'autre.
+(séparation, alignement, cohésion). La meute, notée collectivement, a appris à encercler le chevalier. Vient
+ensuite **le Veilleur des cendres** (niveau 2), un sorcier qui garde ses distances et lance des feux follets
+qui poursuivent le chevalier (`pursue`). Un feu de camp sépare chaque combat ; la vie et les fioles passent
+d'une étape à l'autre.
 
 ## Lancer
 
-Ouvrir `index.html` via un serveur local, par exemple `python -m http.server` dans ce dossier, puis aller sur
+- **Jouer en ligne** : https://othmanew37.github.io/SteeringBehavioursM2IA2_Casa_2026_2027/
+- **Vidéo de démonstration** (5 min 31, WebM, 113 Mo) :
+  https://github.com/OthmaneW37/SteeringBehavioursM2IA2_Casa_2026_2027/releases/download/gardien-video-v1/gardien-du-brouillard-presentation.webm
+
+En local : ouvrir `index.html` via un serveur local, par exemple `python -m http.server` dans ce dossier, puis aller sur
 `http://localhost:8000`. p5.js et les polices sont chargés en local depuis `libraries/` : aucune ressource
 externe (voir [`CREDITS.md`](CREDITS.md)).
 
 Le jeu s'ouvre sur l'**écran titre** : le Gardien combat le joueur robot en fond, dans le brouillard, et un
-menu sur parchemin propose **Nouvelle partie** (la campagne : la meute, un feu de camp, le Gardien),
+menu sur parchemin propose **Nouvelle partie** (la campagne : la meute, le Veilleur des cendres, le Gardien),
 **Continuer** (si un combat est en cours), **La meute des Creux** (le niveau 1 seul), **Entraîner**,
 **Panthéon**, **Laboratoire** et **Options**. Navigation à la souris ou au clavier (↑ ↓ et Entrée), avec
 des fondus au noir entre les écrans. Au premier combat, un **tutoriel** de 6 cartes présente les commandes ;
@@ -311,7 +317,7 @@ que le verrouillage changeait, d'où des zooms saccadés.
 | **Titre** | Menu principal sur parchemin, combat de fond assombri. |
 | **Combat** | Plein écran, HUD façon Souls : vie (avec la traînée « fantôme ») et endurance en haut à gauche, fioles d'Estus dessous, morts en haut à droite, barre et nom du boss en bas. Bandeaux animés « VOUS ÊTES MORT » et « ENNEMI VAINCU ». **Échap** : menu de pause. |
 | **Laboratoire** | Les outils de recherche, en onglets : Duels, Entraîner, Comparer, Panthéon (détaillés ci-dessous). |
-| **Options** (fenêtre) | Aide, tutoriel, mode debug, les 9 scénarios et les 11 réglages avancés. |
+| **Options** (fenêtre) | Aide, tutoriel, mode debug, qualité graphique, son (3 volumes, coupure), clavier ou manette, les 9 scénarios et les 11 réglages avancés. |
 
 La logique de l'interface est dans des modules purs et testés : `screens.js` (écrans et fondus),
 `titleMenu.js` (menu), `tutorial.js` (cartes et mémorisation), `hudLayout.js` (disposition du HUD à toutes
@@ -353,7 +359,8 @@ images par seconde, pour vérifier le jeu sur sa machine.
 - **sol robuste** : le navigateur peut perdre le contenu d'un canvas quand la mémoire de la carte graphique sature
   (par exemple pendant un long enregistrement vidéo) et le rendre vide. Le sol, dessiné une seule fois,
   disparaissait alors (fond noir, puis brouillard gris sur du vide). L'arène écoute `contextlost` et
-  `contextrestored`, et vérifie `isContextLost()` à chaque image : le sol est redessiné dès que possible ;
+  `contextrestored` pour redessiner le sol dès que le canvas est rendu ; par sécurité, elle regarde aussi un
+  pixel du sol toutes les 120 images (2 s) et le redessine s'il est devenu transparent ;
 - **interpolation** (`interpolation.js`) : la simulation reste à pas fixe de 1/60 s, mais chaque entité est
   dessinée entre sa position précédente et l'actuelle, au prorata du temps écoulé. Plus d'à-coups sur un écran
   à 75, 120 ou 144 Hz. Rien n'est modifié dans l'état du jeu (un test le vérifie).
@@ -383,7 +390,7 @@ combat avec le son et vérifie qu'il est identique au même combat joué en sile
   pilier qui pare ou qui s'écroule, morsure et chute d'un Creux, grincement quand le boss lance une technique,
   cloche grave de la mort, pages du menu. Chaque son a plusieurs variantes et un délai minimal entre deux
   répétitions (pas de cacophonie).
-- **Musique** : *Dark Shrine Loop* sur l'écran titre, au feu de camp et contre la meute ; *Heavy Boss Battle 2*
+- **Musique** : *Dark Shrine Loop* sur l'écran titre, au feu de camp, contre la meute et contre le Veilleur ; *Heavy Boss Battle 2*
   contre le Gardien ; silence à la mort et après la victoire. Changement par **fondu** de 1,2 s.
 - **Options** : volume général, musique, effets (curseurs), « Couper le son » ou touche **M**. Gardés dans le
   navigateur.
@@ -438,14 +445,16 @@ recalculer**, et un test vérifie que leur somme est exactement la force appliqu
 du canvas et son du jeu, `recorder.js`, environ 30 Mo par minute). Le format WebM se lit dans Chrome, Edge,
 Firefox et VLC ; pour un MP4, il faut le convertir. Il n'y a pas de voix off : les explications sont les légendes.
 MediaRecorder écrit la vidéo sans sa durée : `WebmDuration` l'inscrit dans l'en-tête à la fin, pour que la barre de
-progression et la recherche fonctionnent. Une vidéo déjà enregistrée (environ 5 min 30, 1280 × 720) est dans
-`video/gardien-du-brouillard-presentation.webm`, gardée hors du dépôt Git (`video/.gitignore`).
+progression et la recherche fonctionnent. Une vidéo déjà enregistrée (5 min 31, 1280 × 720) est
+[téléchargeable sur GitHub](https://github.com/OthmaneW37/SteeringBehavioursM2IA2_Casa_2026_2027/releases/download/gardien-video-v1/gardien-du-brouillard-presentation.webm)
+(fichier joint à la release `gardien-video-v1`) ; en local, elle est dans `video/`, gardée hors du dépôt Git
+(`video/.gitignore`).
 
 ## Les outils
 
 | Outil | Ce qu'on voit |
 |---|---|
-| ⚔️ **Combat** | Vous affrontez le champion de votre entraînement, le boss écrit à la main, un boss du Panthéon, ou la meute des Creux (adversaire choisi dans le menu de pause). |
+| ⚔️ **Combat** | Vous affrontez le champion de votre entraînement, le boss écrit à la main, un boss du Panthéon, la meute des Creux ou le Veilleur des cendres (adversaire choisi dans le menu de pause). |
 | 🐺 **Meute** | Le niveau 1 : la meute observée contre le joueur robot, la comparaison meute apprise / meute à la main, l'entraînement de la meute. |
 | 🎬 **Démonstration et duels** | Deux combats côte à côte contre le même joueur robot, avec la même graine. Par défaut : un boss qui n'a rien appris contre le champion. Avec deux boss du Panthéon, c'est un **duel** (voir plus bas). On choisit aussi le joueur robot affronté. |
 | 🧬 **Entraîner** | On choisit une **recette d'entraînement**, puis on suit l'évolution génération par génération. Deux courbes : les victoires du champion à son examen, et la note des boss, lissée. En direct, le champion affronte le joueur robot. Le bouton « Ajouter le champion au Panthéon » le garde. |
@@ -675,6 +684,20 @@ Aucune dépendance (Node 18 ou plus récent), aléatoire à graine fixe. 160 tes
 | `veilleur.test.mjs` | Feu follet (pursue de la position future, séparation, durée de vie) ; Veilleur (distance de garde, fuite, saut de cendres et vitesse restaurée, incantation en secondes) ; ses décisions ; combat du niveau 2 (épée, explosion, roulade, plafond, fin) ; simulation courte reproductible ; coups retardés (un sur trois, parade au rythme habituel trop tôt) ; vie du boss de campagne. |
 | `ui.test.mjs` | Identifiants HTML, plages des curseurs, ordre et version des scripts, scénarios, clavier, caméra, courbes, debug, menu, équilibre du boss fourni (sur les 50 combats du mode Comparer). |
 
+### Vérifié dans le navigateur (Chrome, vrai p5.js 1.7.0)
+
+- Écran titre, puis « Nouvelle partie » au clavier ; tutoriel ; déplacement, attaques, parade et roulade.
+- Campagne entière sans erreur dans la console : meute → feu de camp (+1 fiole) → Veilleur (feux follets) →
+  mort volontaire et reprise avec la vie et les fioles du point de reprise → second feu (+1 fiole) → Gardien à
+  500 PV → « Sanctuaire libéré ». Pour aller vite, les ennemis ont été mis à 0 PV depuis la console ; les vrais
+  combats de chaque étape sont joués par le joueur automatique de la présentation, lancée par son bouton.
+- Sol toujours affiché, 60 images par seconde dans un onglet visible.
+
+**Non vérifié, à faire à la main** : une **vraie manette** (seules des manettes simulées ont été testées, la
+disposition suit le standard de l'API Gamepad), **Firefox** et **Safari** (son, enregistrement vidéo).
+
 Chaque règle importante a été cassée volontairement, sur une copie du dossier, pour vérifier qu'au moins un
-test échoue (28 sabotages pour les piliers, l'esquive, la riposte qui touche, le déplacement latéral,
-l'anti-camping, les nouvelles entrées et la conversion des sauvegardes).
+test échoue : piliers, esquive, riposte qui touche, déplacement latéral, anti-camping, conversion des
+sauvegardes, meute, campagne, parade, manette, son, présentation, niveau 2 et sol robuste. Tous les sabotages
+ont été détectés, sauf un cas équivalent documenté plus haut (« encerclé » avec deux Creux, déjà impliqué par
+la règle des 180°).
