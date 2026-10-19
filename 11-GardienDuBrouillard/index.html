@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Le Gardien du Brouillard</title>
+    <link rel="stylesheet" type="text/css" href="style.css?v=36">
+
+    <!-- p5.js en local (comme les autres exemples) -->
+    <script src="libraries/p5.min.js"></script>
+
+    <!-- Une dépendance avant ce qui l'utilise ; sketch.js en dernier -->
+    <script src="vehicle.js?v=36"></script>
+    <script src="steering.js?v=36"></script>
+    <script src="combat.js?v=36"></script>
+    <script src="arena.js?v=36"></script>
+    <script src="NeuralNetwork.js?v=36"></script>
+    <script src="campfire.js?v=36"></script>
+    <script src="mistPatch.js?v=36"></script>
+    <script src="pillar.js?v=36"></script>
+    <script src="bloodstain.js?v=36"></script>
+    <script src="player.js?v=36"></script>
+    <script src="boss.js?v=36"></script>
+    <script src="bossBrain.js?v=36"></script>
+    <script src="handBoss.js?v=36"></script>
+    <script src="scriptedPlayer.js?v=36"></script>
+    <script src="humanController.js?v=36"></script>
+    <script src="fight.js?v=36"></script>
+    <script src="fitness.js?v=36"></script>
+    <script src="genetic.js?v=36"></script>
+    <script src="training.js?v=36"></script>
+    <script src="trainingStore.js?v=36"></script>
+    <script src="comparison.js?v=36"></script>
+    <script src="demo.js?v=36"></script>
+    <script src="settings.js?v=36"></script>
+    <script src="scenarios.js?v=36"></script>
+    <script src="trials.js?v=36"></script>
+    <script src="doctrines.js?v=36"></script>
+    <script src="pretrainedBoss.js?v=36"></script>
+    <script src="pretrainedPantheon.js?v=36"></script>
+    <script src="pantheon.js?v=36"></script>
+    <script src="tournament.js?v=36"></script>
+    <script src="fitnessChart.js?v=36"></script>
+    <script src="debugPanel.js?v=36"></script>
+    <script src="hud.js?v=36"></script>
+    <script src="camera.js?v=36"></script>
+    <script src="menuToggle.js?v=36"></script>
+    <script src="screens.js?v=36"></script>
+    <script src="titleMenu.js?v=36"></script>
+    <script src="tutorial.js?v=36"></script>
+    <script src="hudLayout.js?v=36"></script>
+    <script src="banners.js?v=36"></script>
+    <script src="quality.js?v=36"></script>
+    <script src="gameFeel.js?v=36"></script>
+    <script src="particles.js?v=36"></script>
+    <script src="lighting.js?v=36"></script>
+    <script src="fog.js?v=36"></script>
+    <script src="flocking.js?v=36"></script>
+    <script src="creux.js?v=36"></script>
+    <script src="packBrain.js?v=36"></script>
+    <script src="handPack.js?v=36"></script>
+    <script src="packPlayer.js?v=36"></script>
+    <script src="packFight.js?v=36"></script>
+    <script src="packFitness.js?v=36"></script>
+    <script src="packSettings.js?v=36"></script>
+    <script src="packTraining.js?v=36"></script>
+    <script src="packComparison.js?v=36"></script>
+    <script src="pretrainedPack.js?v=36"></script>
+    <script src="campaign.js?v=36"></script>
+    <script src="interpolation.js?v=36"></script>
+    <script src="gamepad.js?v=36"></script>
+    <script src="audio.js?v=36"></script>
+    <script src="networkView.js?v=36"></script>
+    <script src="presentation.js?v=36"></script>
+    <script src="recorder.js?v=36"></script>
+    <script src="wisp.js?v=36"></script>
+    <script src="veilleur.js?v=36"></script>
+    <script src="veilleurController.js?v=36"></script>
+    <script src="veilleurFight.js?v=36"></script>
+    <script src="showcasePlayer.js?v=36"></script>
+    <script src="sketch.js?v=36"></script>
+</head>
+
+<body class="screen-title">
+    <!-- Écran titre : logo et menu sur parchemin (le brouillard et le combat de fond sont dessinés dans le canvas) -->
+    <div id="titleScreen" class="screen-panel">
+        <h1 class="logo">Le Gardien du Brouillard</h1>
+        <p class="tagline">Un boss qui a appris à se battre tout seul</p>
+        <nav id="titleMenu" class="parchment title-menu" aria-label="Menu principal">
+            <button id="menuNew" type="button" data-item="new">Nouvelle partie</button>
+            <button id="menuContinue" type="button" data-item="continue">Continuer</button>
+            <button id="menuPack" type="button" data-item="pack">La meute des Creux</button>
+            <button id="menuTrain" type="button" data-item="train">Entraîner</button>
+            <button id="menuPantheon" type="button" data-item="pantheon">Panthéon</button>
+            <button id="menuLab" type="button" data-item="lab">Laboratoire</button>
+            <button id="menuOptions" type="button" data-item="options">Options</button>
+        </nav>
+        <p class="title-hint">↑ ↓ pour choisir · Entrée pour valider</p>
+    </div>
+
+    <!-- Laboratoire : les outils de recherche (démonstration et duels, entraînement, comparaison, Panthéon) -->
+    <aside id="menu" class="lab">
+        <div class="lab-head">
+            <h1>Laboratoire</h1>
+            <button id="labBackBtn" type="button">← Titre</button>
+        </div>
+        <nav id="labTabs" class="tabs" aria-label="Outils du laboratoire">
+            <button id="tabDemo" type="button" data-mode="demo">Duels</button>
+            <button id="tabTraining" type="button" data-mode="training">Entraîner</button>
+            <button id="tabComparison" type="button" data-mode="comparison">Comparer</button>
+            <button id="tabPantheon" type="button" data-mode="pantheon">Panthéon</button>
+            <button id="tabPack" type="button" data-mode="pack">Meute</button>
+            <button id="tabPresentation" type="button" data-mode="presentation">Présentation</button>
+        </nav>
+        <p id="statusMsg" class="status" role="status"></p>
+
+        <section id="demoSection">
+            <h2>Démonstration et duels</h2>
+            <p class="hint">Deux combats en même temps contre le <b>même joueur robot</b>. Seul le « cerveau » du boss
+                change. Choisissez deux boss du Panthéon pour un <b>duel</b> : à chaque manche, gagne le boss qui tue
+                le chevalier, ou le plus rapide si les deux le tuent.</p>
+            <label for="demoLeftSelect">Boss de gauche</label>
+            <select id="demoLeftSelect">
+                <option value="random" selected>Avant entraînement (réseau au hasard)</option>
+                <option value="hand">Boss écrit à la main</option>
+                <option value="champion">Champion de votre entraînement</option>
+            </select>
+            <label for="demoRightSelect">Boss de droite</label>
+            <select id="demoRightSelect">
+                <option value="champion" selected>Champion de votre entraînement</option>
+                <option value="hand">Boss écrit à la main</option>
+            </select>
+            <label for="demoTrialSelect">Joueur robot affronté</label>
+            <select id="demoTrialSelect">
+                <option value="settings" selected>Réglages avancés des Options</option>
+            </select>
+            <p id="demoInfo" class="hint"></p>
+        </section>
+
+        <section id="trainingSection">
+            <h2>Entraînement</h2>
+            <p class="hint">À chaque génération, 50 boss affrontent un joueur robot. Les meilleurs ont des « enfants »
+                (copies légèrement modifiées) ; les autres disparaissent. Les 2 meilleurs passent ensuite un examen
+                de 30 combats : s'ils gagnent plus souvent que le champion, ils le remplacent.</p>
+            <label for="doctrineSelect">Recette d'entraînement</label>
+            <select id="doctrineSelect"></select>
+            <p id="doctrineInfo" class="hint"></p>
+            <div class="buttons">
+                <button id="trainBtn" type="button" class="primary">▶ Lancer l'entraînement</button>
+                <button id="resetTrainingBtn" type="button">Tout recommencer</button>
+            </div>
+            <div class="buttons">
+                <button id="exportTrainingBtn" type="button">💾 Exporter (fichier)</button>
+                <label class="file-button">📂 Importer<input type="file" id="importTrainingInput" accept=".json,application/json"></label>
+            </div>
+            <button id="addToPantheonBtn" type="button" class="wide">🏛️ Ajouter le champion au Panthéon</button>
+            <p id="trainingInfo" class="hint"></p>
+            <p id="saveInfo" class="hint"></p>
+        </section>
+
+        <section id="comparisonSection">
+            <h2>Comparaison</h2>
+            <p class="hint">Le boss écrit à la main et le boss entraîné affrontent le même joueur robot sur les
+                mêmes 50 combats. C'est la mesure à retenir : elle ne dépend pas de la chance.</p>
+            <button id="compareBtn" type="button" class="primary">▶ Lancer 50 combats</button>
+            <div id="comparisonResults" class="results"></div>
+        </section>
+
+        <section id="pantheonSection">
+            <h2>Panthéon des boss</h2>
+            <p class="hint">Chaque boss du Panthéon a le même cerveau et le même algorithme génétique, mais une
+                <b>recette d'entraînement</b> différente : une autre note, ou un autre joueur robot en face. Le
+                <b>tournoi</b> fait affronter à chacun 4 joueurs robots différents, sur les mêmes combats.</p>
+            <div id="pantheonList" class="pantheon-list"></div>
+            <button id="tournamentBtn" type="button" class="primary">▶ Lancer le tournoi</button>
+            <div id="tournamentResults" class="results"></div>
+        </section>
+
+        <section id="presentationSection">
+            <h2>Présentation (vidéo de démonstration)</h2>
+            <p class="hint">Environ 3 minutes, en vrais combats : wander, le réseau de neurones en direct (les neurones
+                s'allument quand le chevalier avance), seek et arrive avec la formule de Reynolds, evade, la ruée
+                (pursue), l'évitement d'obstacles, la parade, la meute (boids et réseau partagé) et la neuroévolution.
+                <b>→</b> scène suivante · <b>Échap</b> arrêter.</p>
+            <div class="buttons">
+                <button id="presentationBtn" type="button" class="primary">▶ Lancer la présentation</button>
+                <button id="recordBtn" type="button">⏺ Enregistrer en vidéo</button>
+            </div>
+            <p id="presentationInfo" class="hint">« Enregistrer en vidéo » joue la présentation et télécharge un fichier
+                .webm (image et son) à la fin. Gardez l'onglet au premier plan pendant l'enregistrement.</p>
+        </section>
+
+        <section id="packSection">
+            <h2>Niveau 1 : la meute des Creux</h2>
+            <p class="hint">Cinq Creux partagent <b>un seul réseau de neurones</b>. Chaque Creux l'interroge avec ce
+                qu'il perçoit (le chevalier, ses voisins proches) et reçoit le dosage de ses comportements : poursuite,
+                flanc, fuite, flocking, morsure. Le réseau a été entraîné par neuroévolution avec une <b>note
+                collective</b> : la meute est notée ensemble.</p>
+            <label for="packViewSelect">Meute observée (contre le joueur robot)</label>
+            <select id="packViewSelect">
+                <option value="learned" selected>Meute apprise (pré-entraînée)</option>
+                <option value="champion">Champion de votre entraînement</option>
+                <option value="hand">Meute écrite à la main</option>
+            </select>
+            <div class="buttons">
+                <button id="packPlayBtn" type="button" class="primary">⚔ Jouer ce niveau</button>
+                <button id="packCompareBtn" type="button">▶ Comparer (40 combats)</button>
+            </div>
+            <div class="buttons">
+                <button id="packTrainBtn" type="button">▶ Entraîner la meute</button>
+                <button id="packResetBtn" type="button">Recommencer</button>
+            </div>
+            <p id="packInfo" class="hint"></p>
+            <details>
+                <summary>Réglages de la meute</summary>
+            <div class="control">
+                <label for="packSize">Taille de la meute : <span id="packSizeVal">5</span></label>
+                <input type="range" id="packSize" min="3" max="8" step="1" value="5">
+            </div>
+            <div class="control">
+                <label for="packPerception">Perception des Creux (px) : <span id="packPerceptionVal">160</span></label>
+                <input type="range" id="packPerception" min="60" max="300" step="10" value="160">
+            </div>
+            <div class="control">
+                <label for="packPopulation">Population de meutes : <span id="packPopulationVal">40</span></label>
+                <input type="range" id="packPopulation" min="10" max="100" step="10" value="40">
+            </div>
+            <div class="control">
+                <label for="packFights">Combats par meute : <span id="packFightsVal">2</span></label>
+                <input type="range" id="packFights" min="1" max="4" step="1" value="2">
+            </div>
+            <div class="control">
+                <label for="packMutation">Taux de mutation (meute) : <span id="packMutationVal">0.10</span></label>
+                <input type="range" id="packMutation" min="0" max="0.5" step="0.01" value="0.1">
+            </div>
+            </details>
+        </section>
+    </aside>
+    <button id="menuToggle" type="button" aria-expanded="true" title="Masquer / afficher le laboratoire">✕</button>
+    <main id="canvasHolder"></main>
+
+    <!-- Menu de pause (Échap pendant le combat) -->
+    <div id="pauseMenu" class="overlay" hidden>
+        <div class="parchment panel">
+            <h2>Pause</h2>
+            <button id="resumeBtn" type="button" class="wide primary">Reprendre</button>
+            <button id="restartFightBtn" type="button" class="wide">Recommencer le combat (R)</button>
+            <label for="opponentSelect">Adversaire</label>
+            <select id="opponentSelect">
+                <option value="champion" selected>Champion de votre entraînement</option>
+                <option value="hand">Boss écrit à la main (machine à états)</option>
+                <!-- puis les boss du Panthéon, ajoutés par sketch.js -->
+            </select>
+            <p id="bossInfo" class="hint"></p>
+            <button id="pauseOptionsBtn" type="button" class="wide">Options</button>
+            <button id="quitToTitleBtn" type="button" class="wide">Retour au titre</button>
+            <p class="hint keys">
+                <b>ZQSD / WASD / flèches</b> se déplacer · <b>J</b> attaque légère · <b>K</b> attaque lourde ·
+                <b>Espace</b> roulade · <b>U / Maj</b> parade · <b>E</b> fiole d'Estus · <b>L / Tab</b> verrouiller · <b>G</b> debug · <b>M</b> son ·
+                <b>Échap</b> pause<br>
+                Manette : <b>stick</b> se déplacer · <b>RB / RT</b> attaques · <b>LT</b> parade · <b>B</b> roulade ·
+                <b>X</b> fiole · <b>R3 / Y</b> verrouiller · <b>Start</b> pause
+            </p>
+        </div>
+    </div>
+
+    <!-- Options : aide, tutoriel, debug, scénarios et réglages avancés -->
+    <div id="optionsScreen" class="overlay" hidden>
+        <div class="parchment panel wide-panel">
+            <h2>Options</h2>
+            <div class="buttons">
+                <button id="helpBtn" type="button">❓ Comment ça marche ?</button>
+                <button id="showTutorialBtn" type="button">Revoir le tutoriel</button>
+            </div>
+            <label for="controlsSelect">Contrôles</label>
+            <select id="controlsSelect"></select>
+            <p class="hint">Manette : stick gauche se déplacer · RB / RT attaque légère / lourde · LT parade · B roulade ·
+                X fiole · R3 ou Y verrouiller · Start pause · A valider, B retour dans les menus.</p>
+            <label for="qualitySelect">Qualité graphique</label>
+            <select id="qualitySelect"></select>
+            <label class="check"><input type="checkbox" id="muteCheckbox"> Couper le son (touche M)</label>
+            <div class="control">
+                <label for="masterVolume">Volume général : <span id="masterVolumeVal">0.70</span></label>
+                <input type="range" id="masterVolume" min="0" max="1" step="0.05" value="0.7">
+            </div>
+            <div class="control">
+                <label for="musicVolume">Musique : <span id="musicVolumeVal">0.50</span></label>
+                <input type="range" id="musicVolume" min="0" max="1" step="0.05" value="0.5">
+            </div>
+            <div class="control">
+                <label for="sfxVolume">Effets sonores : <span id="sfxVolumeVal">0.80</span></label>
+                <input type="range" id="sfxVolume" min="0" max="1" step="0.05" value="0.8">
+            </div>
+            <label class="check"><input type="checkbox" id="debugCheckbox"> Mode debug : voir le « cerveau » du boss (touche G)</label>
+            <details open>
+                <summary>Réglages avancés</summary>
+                <label for="scenarioSelect">Scénario</label>
+                <select id="scenarioSelect"></select>
+                <p id="scenarioInfo" class="hint"></p>
+
+                <div class="control">
+                    <label for="populationSize">Population de boss : <span id="populationSizeVal">50</span></label>
+                    <input type="range" id="populationSize" min="10" max="200" step="10" value="50">
+                </div>
+                <div class="control">
+                    <label for="mutationRate">Taux de mutation : <span id="mutationRateVal">0.10</span></label>
+                    <input type="range" id="mutationRate" min="0" max="0.5" step="0.01" value="0.1">
+                </div>
+                <div class="control">
+                    <label for="fightsPerBoss">Combats par boss : <span id="fightsPerBossVal">2</span></label>
+                    <input type="range" id="fightsPerBoss" min="1" max="4" step="1" value="2">
+                </div>
+                <div class="control">
+                    <label for="elites">Élites conservées : <span id="elitesVal">1</span></label>
+                    <input type="range" id="elites" min="0" max="5" step="1" value="1">
+                </div>
+                <div class="control">
+                    <label for="dodgeProbability">Bonne réaction du joueur robot : <span id="dodgeProbabilityVal">0.40</span></label>
+                    <input type="range" id="dodgeProbability" min="0" max="1" step="0.05" value="0.4">
+                </div>
+                <div class="control">
+                    <label for="attackInterval">Intervalle d'attaque du joueur robot (s) : <span id="attackIntervalVal">0.9</span></label>
+                    <input type="range" id="attackInterval" min="0.4" max="2" step="0.1" value="0.9">
+                </div>
+                <div class="control">
+                    <label for="detectRadius">Rayon de détection du boss : <span id="detectRadiusVal">350</span></label>
+                    <input type="range" id="detectRadius" min="150" max="600" step="10" value="350">
+                </div>
+                <div class="control">
+                    <label for="estusCharges">Fioles d'Estus du chevalier : <span id="estusChargesVal">2</span></label>
+                    <input type="range" id="estusCharges" min="0" max="5" step="1" value="2">
+                </div>
+                <div class="control">
+                    <label for="pillarCount">Piliers dans l'arène : <span id="pillarCountVal">4</span></label>
+                    <input type="range" id="pillarCount" min="0" max="6" step="1" value="4">
+                </div>
+                <div class="control">
+                    <label for="maxFightTime">Durée max d'un combat (s) : <span id="maxFightTimeVal">90</span></label>
+                    <input type="range" id="maxFightTime" min="20" max="120" step="5" value="90">
+                </div>
+                <div class="control">
+                    <label for="trainingBudget">Vitesse de calcul (pas par image) : <span id="trainingBudgetVal">6000</span></label>
+                    <input type="range" id="trainingBudget" min="500" max="30000" step="500" value="6000">
+                </div>
+            </details>
+            <button id="optionsBackBtn" type="button" class="wide primary">Retour</button>
+        </div>
+    </div>
+
+    <!-- Tutoriel des commandes (premier combat, ou depuis les Options) -->
+    <div id="tutorial" class="overlay" hidden>
+        <div class="parchment panel">
+            <p id="tutorialStep" class="tutorial-step"></p>
+            <h2 id="tutorialTitle"></h2>
+            <p id="tutorialText"></p>
+            <div class="buttons">
+                <button id="tutorialNextBtn" type="button" class="primary">Suivant (Entrée)</button>
+                <button id="tutorialSkipBtn" type="button">Passer (Échap)</button>
+            </div>
+        </div>
+    </div>
+
+    <dialog id="helpDialog">
+        <h2>Comment ça marche ?</h2>
+        <h3>Le jeu</h3>
+        <p>Un combat de boss comme dans <i>Dark Souls</i>. Le boss prévient avant de frapper : un cône rouge se remplit
+            pendant 0,6 s. Si vous roulez à ce moment-là, vous êtes invulnérable 0,3 s et le coup passe à travers vous.
+            Après sa frappe, le boss reste vulnérable une seconde : c'est le moment d'attaquer. Attaquer et rouler
+            fatiguent (barre verte) ; sans endurance, on ne peut plus rien faire. À 30 % de vie, le boss s'enrage :
+            il devient plus rapide et attaque plus souvent. Si vous mourez, vous repartez du feu de camp, et une
+            <b>tache de sang</b> marque l'endroit et la cause de votre mort.</p>
+        <h3>Les techniques du boss</h3>
+        <ul>
+            <li><b>Hallebarde</b> : un cône rouge se remplit pendant 0,6 s, puis il frappe devant lui.</li>
+            <li><b>Ruée</b> : une ligne rouge montre où il va charger. Il vise l'endroit où vous <i>serez</i>
+                (il prédit votre mouvement), puis fige sa visée juste avant de foncer : changez de direction au dernier moment.</li>
+            <li><b>Souffle du brouillard</b> : un cercle vert se remplit là où vous allez passer ; une nappe de brume y
+                reste 6 s. Dedans, on brûle et on avance plus lentement.</li>
+        </ul>
+        <h3>Les fioles d'Estus (touche E)</h3>
+        <p>Chaque fiole rend 25 points de vie, mais boire prend une seconde pendant laquelle on avance à peine. Si le boss
+            vous touche avant que le soin n'agisse, la gorgée est perdue. Buvez loin de lui, ou pendant qu'il récupère.
+            Le joueur robot boit aussi : le boss peut donc <i>apprendre</i> à punir ce moment.</p>
+        <h3>Les piliers en ruine</h3>
+        <ul>
+            <li>On ne les traverse pas. Le boss et le joueur robot les contournent (<i>évitement d'obstacles</i>).</li>
+            <li>Un pilier entre le boss et vous <b>pare ses coups</b>, et les vôtres aussi.</li>
+            <li>Cachez-vous derrière pour <b>boire une fiole</b> : le joueur robot le fait, le boss doit venir le débusquer.</li>
+            <li>Attirez sa <b>ruée</b> contre un pilier : il s'écrase et reste <b>étourdi 1,6 s</b>. Au deuxième choc, le pilier s'effondre.</li>
+        </ul>
+        <h3>Pas de camping dans les coins</h3>
+        <p>Le Gardien est lié au centre de l'arène. S'il reste trop longtemps dans un coin (6 s), le brouillard
+            le <b>dévore</b> : le coin s'assombrit en violet, un compte à rebours s'affiche au-dessus de lui, puis il
+            meurt. Pendant l'entraînement, c'est une défaite complète : les boss apprennent à ne pas se terrer
+            dans les coins.</p>
+        <h3>L'esquive et la riposte du boss</h3>
+        <p>Quand vous attaquez, le boss peut esquiver. S'il esquive sans être touché, il <b>riposte</b> : sa hallebarde est
+            prête aussitôt. N'attaquez donc pas n'importe quand : frappez pendant sa récupération ou quand il est étourdi.</p>
+        <h3>Le « cerveau » du boss</h3>
+        <p>Le boss n'a pas de règles écrites à la main. Il a un petit <b>réseau de neurones</b> : 16 informations
+            entrent (distance au joueur, angle, vitesse, fatigue et vie du joueur, s'il est vulnérable, <b>s'il attaque</b>,
+            la vie du boss, le temps de recharge de chaque technique et de l'esquive, les obstacles à gauche et à droite,
+            <b>si un pilier vous cache</b>, <b>depuis combien de temps il est dans un coin</b>) et 6 décisions sortent : <b>avancer ou reculer</b>, <b>hallebarde</b>,
+            <b>esquiver</b>, <b>ruée</b>, <b>souffle</b>, <b>tourner autour de vous</b>. Ce sont les comportements de
+            Reynolds qui exécutent ces décisions : <i>arrive</i> pour s'approcher sans foncer (en spirale), <i>seek</i>
+            vers un point en avance sur le cercle pour tourner autour du joueur, <i>flee</i> pour reculer, <i>evade</i> pour esquiver, <i>seek</i> vers un
+            point prédit pour la ruée (comme <i>pursue</i>), <i>wander</i> pour errer quand le joueur est loin, et
+            l'<i>évitement d'obstacles</i> pour contourner les piliers. S'il ne reçoit aucun ordre latéral, il
+            <b>rôde</b> : il ne reste jamais planté à vous regarder.</p>
+        <h3>Comment il apprend : la sélection naturelle</h3>
+        <ol>
+            <li>On crée 50 boss avec des cerveaux au hasard : ils font n'importe quoi.</li>
+            <li>Chacun affronte 2 fois un <b>joueur robot</b> qui joue toujours de la même façon : il réagit bien à 40 % des
+                techniques du boss, punit le boss quand il récupère, se repose quand il est fatigué, contourne la brume et
+                boit ses 2 fioles quand il est à l'abri.</li>
+            <li>Chaque boss reçoit une <b>note</b> : dégâts infligés, moins dégâts reçus, plus un bonus s'il gagne,
+                moins une pénalité pour chaque coup dans le vide, plus un bonus pour chaque <b>riposte qui touche</b>
+                (une esquive réussie suivie d'un coup de hallebarde qui touche).</li>
+            <li>Les mieux notés ont des « enfants » : des copies avec de petites modifications au hasard
+                (<b>mutations</b>). C'est une nouvelle <b>génération</b>.</li>
+            <li>Les 2 meilleurs passent un examen de 30 combats toujours identiques. Le <b>champion</b> est celui
+                qui gagne le plus souvent à cet examen : c'est lui que vous affrontez.</li>
+            <li>Pour une mesure honnête, le mode <b>Comparer</b> le fait rejouer sur 50 combats qu'il n'a jamais vus.
+                Ce résultat est un peu plus bas que celui de l'examen : en gardant toujours le meilleur à l'examen,
+                on garde aussi un peu de chance.</li>
+        </ol>
+        <p>Personne n'explique au boss comment se battre : les comportements qui marchent survivent, les autres
+            disparaissent.</p>
+        <h3>Le Panthéon : des boss entraînés différemment</h3>
+        <p>Ce qu'un boss apprend dépend de sa <b>recette d'entraînement</b> : la note qu'on lui donne et le joueur robot
+            qu'il affronte. Tous les boss du Panthéon sont partis de la même population de départ, avec le même
+            nombre de générations ; seule la recette change.</p>
+        <ul>
+            <li><b>Le Gardien</b> : la recette de référence (avec un bonus à chaque riposte).</li>
+            <li><b>Le Bourreau</b> : sa note compte surtout les dégâts infligés ; les coups reçus comptent peu.</li>
+            <li><b>Le Spectre</b> : sa note punit surtout les coups reçus.</li>
+            <li><b>Le Chasseur</b> : entraîné contre un joueur robot expert.</li>
+            <li><b>L'Opportuniste</b> : entraîné contre un joueur robot débutant.</li>
+            <li><b>Le Geôlier</b> : entraîné contre un joueur robot qui a 3 fioles.</li>
+        </ul>
+        <p>Le <b>tournoi</b> oppose chaque boss à 4 joueurs robots (débutant, référence, expert, buveur), sur les mêmes
+            combats. La case encadrée est l'adversaire de son entraînement : on regarde si ce boss y fait mieux que
+            les autres. Les colonnes de <b>style</b> montrent comment il gagne : coups de hallebarde, ruées, souffles,
+            dégâts encaissés, fioles que le chevalier a pu boire. Les boss ne se battent pas entre eux : leur cerveau a appris à lire un chevalier.
+            Ils s'affrontent en <b>duel</b>, contre le même chevalier : le meilleur l'emporte. Vous pouvez aussi entraîner
+            votre propre boss avec la recette de votre choix, puis l'ajouter au Panthéon.</p>
+        <h3>Le menu</h3>
+        <ul>
+            <li><b>Nouvelle partie</b> : la campagne. La meute des Creux, un feu de camp, le Veilleur des cendres (un
+                sorcier dont les feux follets vous poursuivent : coupez-les ou roulez), un dernier feu de camp, puis le
+                Gardien, plus coriace, avec des coups retardés pour piéger les parades trop pressées. Votre vie
+                <b>passe d'une étape à l'autre</b> ; chaque feu de camp ravive une fiole, à boire sans risque
+                (<b>E</b>), puis on repart (<b>Entrée</b>). Si vous mourez, l'étape recommence avec la vie et les
+                fioles que vous aviez en y entrant. <b>Échap</b> ouvre la pause : recommencer l'étape, les Options, ou
+                choisir un autre adversaire pour un combat libre (votre champion, le boss écrit à la main, un boss du
+                Panthéon, la meute, le Veilleur).</li>
+            <li><b>Continuer</b> : reprendre le combat en cours.</li>
+            <li><b>La meute des Creux</b> (niveau 1) : cinq morts-vivants qui partagent un seul réseau de neurones. Chacun
+                choisit avec ce qu'il perçoit comment doser poursuite, flanc, fuite et flocking. Ils ont appris à vous
+                encercler : ne vous laissez pas entourer, reculez contre un pilier, profitez de leurs morsures ratées.
+                L'onglet <b>Meute</b> du laboratoire les compare à une meute écrite à la main.</li>
+            <li><b>Entraîner</b>, <b>Panthéon</b>, <b>Laboratoire</b> : les outils de recherche, en onglets. Duels
+                (avant / après l'entraînement, ou deux boss du Panthéon côte à côte), Entraîner (choisir une recette et
+                regarder l'évolution, tout est sauvegardé automatiquement), Comparer (50 combats identiques pour mesurer
+                qui est le meilleur boss), Panthéon (le tournoi de tous les boss contre 4 joueurs robots).</li>
+            <li><b>Laboratoire → Présentation</b> : une partie complète jouée par un joueur automatique, puis 3 minutes
+                d'explications avec le réseau de neurones en direct et chaque steering behavior dessiné ;
+                « Enregistrer en vidéo » en fait un fichier .webm.</li>
+            <li><b>Options</b> : cette aide, le tutoriel, la qualité graphique (Bas, Moyen, Haut), le mode debug (avec
+                les images par seconde), les scénarios et les réglages avancés.</li>
+        </ul>
+        <h3>Petit lexique</h3>
+        <dl>
+            <dt>Réseau de neurones</dt><dd>Une fonction avec beaucoup de réglages (les « poids ») qui transforme ce que voit le boss en décisions.</dd>
+            <dt>Génération</dt><dd>Un tour complet : tous les boss se battent, puis les meilleurs ont des enfants.</dd>
+            <dt>Fitness (note)</dt><dd>Le score d'un boss après ses combats.</dd>
+            <dt>Mutation</dt><dd>Une petite modification au hasard des poids d'un enfant.</dd>
+            <dt>Champion</dt><dd>Le boss qui a le mieux réussi l'examen de 30 combats.</dd>
+            <dt>Steering behaviors</dt><dd>Les règles de déplacement de Craig Reynolds (1999) : chercher, arriver, fuir, esquiver, errer, éviter les obstacles.</dd>
+            <dt>Prédiction</dt><dd>Viser l'endroit où sera la cible (position + vitesse × temps), comme le comportement <i>pursue</i>.</dd>
+        </dl>
+        <form method="dialog"><button id="helpClose" class="primary">Compris, on y va !</button></form>
+    </dialog>
+</body>
+
+</html>

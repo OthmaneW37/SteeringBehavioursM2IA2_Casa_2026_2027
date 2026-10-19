@@ -1,72 +1,54 @@
-function nextGeneration() {
-    // 1. D'abord on calcule les fitness
-    calculateFitness();
+/**
+ * Algorithme génétique : fitness, sélection par tournoi, nouvelle population.
+ * Aucune rétropropagation : seuls la sélection et la mutation font évoluer les cerveaux.
+ */
+const Genetic = {
+    TOURNAMENT_SIZE: 5,
 
-    // Critère d'arrêt : Est-ce qu'on a assez de vainqueurs ?
-    let finishedCount = savedCars.filter(c => c.finished).length;
-    let successRate = finishedCount / TOTAL_POP;
-    console.log(`Génération ${generation} terminée. Succès : ${finishedCount}/${TOTAL_POP} (${(successRate * 100).toFixed(1)}%)`);
+    calculateFitness(population, cps) {
+        for (let car of population) {
+            // Base : Score pur
+            car.fitness = car.score;
 
-    if (successRate >= 0.6) {
-        console.log("OBJECTIF ATTEINT ! 60% des voitures ont fini le circuit.");
-        trainingFinished = true;
-        // Petit message visuel
-        setTimeout(() => alert(`ENTRAÎNEMENT TERMINÉ !\nPlus de 60% de réussite à la Génération ${generation}`), 100);
-    }
+            // Gradient : Proximité du prochain checkpoint
+            // On donne un bonus qui augmente au fur et à mesure qu'on s'approche
+            let nextCP = cps[car.checkpointIndex];
+            if (nextCP) {
+                let cpCenter = p5.Vector.add(nextCP.a, nextCP.b).div(2);
+                let d = p5.Vector.dist(car.pos, cpCenter);
 
-    // 2. On crée la nouvelle population AVANT de détruire l'ancienne
-    cars = [];
-    for (let i = 0; i < TOTAL_POP; i++) {
-        // Sélection par tournoi (plus robuste que Roulette Wheel)
-        let parent = tournamentSelection(savedCars);
-
-        let child = new Car(parent.brain);
-        // On ne mute plus si l'entraînement est fini
-        if (!trainingFinished) {
-            child.mutate(MUTATION_RATE);
+                // On ajoute une valeur qui grimpe quand la distance baisse
+                // Max bonus de 50 (équivalent à un demi CP franchi)
+                let proximityBonus = map(d, 0, 400, 50, 0);
+                car.fitness += max(0, proximityBonus);
+            }
         }
-        cars[i] = child;
-    }
+    },
 
-    // 3. MAINTENANT on peut détruire les anciens cerveaux pour libérer la mémoire
-    for (let i = 0; i < TOTAL_POP; i++) {
-        savedCars[i].dispose();
-    }
-
-    savedCars = [];
-}
-
-function calculateFitness() {
-    for (let car of savedCars) {
-        // Base : Score pur
-        car.fitness = car.score;
-
-        // Gradient : Proximité du prochain checkpoint
-        // On donne un bonus qui augmente au fur et à mesure qu'on s'approche
-        let nextCP = checkpoints[car.checkpointIndex];
-        if (nextCP) {
-            let cpCenter = p5.Vector.add(nextCP.a, nextCP.b).div(2);
-            let d = p5.Vector.dist(car.pos, cpCenter);
-
-            // On ajoute une valeur qui grimpe quand la distance baisse
-            // Max bonus de 50 (équivalent à un demi CP franchi)
-            let proximityBonus = map(d, 0, 400, 50, 0);
-            car.fitness += max(0, proximityBonus);
+    // Sélection par tournoi (plus robuste que Roulette Wheel)
+    tournamentSelection(population, rng = Math.random) {
+        let best = null;
+        for (let i = 0; i < Genetic.TOURNAMENT_SIZE; i++) {
+            let candidate = population[Math.floor(rng() * population.length)];
+            if (best === null || candidate.fitness > best.fitness) {
+                best = candidate;
+            }
         }
-    }
-}
+        return best;
+    },
 
-function tournamentSelection(population) {
-    const TOURNAMENT_SIZE = 5;
-    let best = null;
-
-    for (let i = 0; i < TOURNAMENT_SIZE; i++) {
-        let ind = Math.floor(random(population.length));
-        let candidate = population[ind];
-
-        if (best === null || candidate.fitness > best.fitness) {
-            best = candidate;
+    /**
+     * Cerveaux de la génération suivante : `size` enfants, chacun copie d'un parent
+     * choisi par tournoi puis muté au taux `rate`. La population évaluée n'est pas modifiée.
+     */
+    nextBrains(population, size, rate, rng = Math.random) {
+        const brains = [];
+        for (let i = 0; i < size; i++) {
+            const parent = Genetic.tournamentSelection(population, rng);
+            const child = parent.brain.copy();
+            child.mutate(rate);
+            brains.push(child);
         }
+        return brains;
     }
-    return best;
-}
+};
