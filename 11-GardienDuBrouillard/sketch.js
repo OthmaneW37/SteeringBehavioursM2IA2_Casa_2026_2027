@@ -1836,6 +1836,7 @@ function draw() {
     if (change) applyScreen(change.to);
     pollPad();
     updateMusic(dt);
+    game.arena.floorLayer();   // redessine le sol si le navigateur en a perdu le contenu
     // Cinzel (capitales) pour le jeu ; Georgia, plus étroite, pour les tableaux et courbes du laboratoire
     textFont(game.mode === 'title' || game.mode === 'combat' || game.mode === 'presentation' ? 'Cinzel' : 'Georgia');
 

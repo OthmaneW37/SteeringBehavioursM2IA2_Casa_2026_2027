@@ -275,3 +275,50 @@ test('brouillard : calculé une image sur fogEvery, composé dans le calque de l
   assert.ok(!/game\.fogLayer\.draw\(/.test(src), "jamais étirée seule sur l'écran dans la vue principale");
   assert.ok(/pixelDensity\(Quality\.get\(/.test(src), 'densité de pixels réglée par la qualité');
 });
+
+test('sol : redessiné quand le navigateur perd puis rend le contenu de son canvas (fond noir, puis gris, avant)', () => {
+  const e = load(41);
+  const listeners = {};
+  let lost = false, alpha = 255;
+  const fake = {
+    elt: { addEventListener: (type, f) => { listeners[type] = f; } },
+    drawingContext: { isContextLost: () => lost, getImageData: () => ({ data: [0, 0, 0, alpha] }) },
+    pixelDensity() {}, clear() { fake.cleared++; }, cleared: 0,
+    push() {}, pop() {}, noStroke() {}, fill() {}, rect() {}, stroke() {}, strokeWeight() {}, line() {}, noFill() {}, circle() {}, ellipse() {}
+  };
+  e.context.createGraphics = () => fake;
+  const A = e.get('Arena');
+  const arena = new A();
+  let draws = 0;
+  const orig = arena.drawFloor.bind(arena);
+  arena.drawFloor = g => { draws++; return orig(g); };
+  assert.equal(arena.floorLayer(), fake);
+  assert.equal(draws, 1, 'dessiné une fois à la création');
+  arena.floorLayer();
+  assert.equal(draws, 1, 'pas redessiné à chaque image');
+  // Perte du contexte, puis restauration : redessiné
+  lost = true;
+  listeners.contextlost();
+  arena.floorLayer();
+  assert.equal(draws, 1, 'tant que le contexte est perdu, on attend');
+  lost = false;
+  listeners.contextrestored();
+  assert.equal(draws, 2, 'redessiné à la restauration');
+  assert.equal(fake.cleared, 1);
+  // Filet de sécurité : contexte revenu sans événement de restauration
+  listeners.contextlost();
+  arena.floorLayer();
+  assert.equal(draws, 3, 'redessiné à l\'image suivante');
+  assert.equal(arena.floorRepaints, 2);
+  // Pixel témoin : vidé sans aucun événement → redessiné au contrôle suivant (toutes les FLOOR_CHECK images)
+  alpha = 0;
+  for (let i = 0; i < A.FLOOR_CHECK - 1; i++) arena.floorLayer();
+  assert.ok(draws <= 4);
+  for (let i = 0; i < A.FLOOR_CHECK; i++) arena.floorLayer();
+  assert.ok(draws >= 4, 'vidé en silence : redessiné');
+  alpha = 255;
+  const d0 = draws;
+  for (let i = 0; i < 3 * A.FLOOR_CHECK; i++) arena.floorLayer();
+  assert.equal(draws, d0, 'sol intact : jamais redessiné');
+  assert.match(read('sketch.js'), /game\.arena\.floorLayer\(\);\s+\/\/ redessine le sol/);
+});

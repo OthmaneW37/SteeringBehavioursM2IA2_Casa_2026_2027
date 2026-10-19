@@ -119,7 +119,7 @@ montre les techniques choisies par chaque boss. Résultat de référence avec le
 - **Vidéo de démonstration** : Laboratoire → Présentation (une partie complète jouée par un joueur automatique,
   puis 3 min d'explications : réseau en direct, chaque comportement dessiné),
   ou le fichier `gardien-du-brouillard-presentation.webm`.
-- 159 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
+- 160 tests automatiques. Chaque règle importante a été cassée volontairement pour vérifier qu'un test
   échoue.
 
 ## Questions probables
